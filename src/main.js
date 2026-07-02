@@ -16,6 +16,7 @@ import { bestCharacterChainPatch, characterChainReport } from "./audio/character
 import { analyzePerformanceTrace, comparePerformanceTraces } from "./audio/performance-trace.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
 import { rankVoiceRoutes } from "./audio/route-planner.js";
+import { buildStudioPlan } from "./audio/studio-plan.js";
 import { TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
@@ -64,6 +65,7 @@ function init() {
   renderLineReadLibrary();
   renderCharacterChain();
   renderPerformanceTrace();
+  renderStudioPlan();
   renderVoiceMap();
   bindTabs();
   bindTransport();
@@ -512,38 +514,9 @@ function bindOffline() {
     }
   });
 
-  $("analyzeSource").addEventListener("click", () => {
-    try {
-      const profile = offline.analyze();
-      $("sourceStatus").textContent = `${offline.source.name} - ${profile.range} source`;
-      drawSourceWaveform();
-      drawAnalysisCards($("offlineAnalysis"), offline.source, offline.rendered);
-      updateSourceFit();
-      updateRoutePlanner();
-      renderCharacterChain();
-      renderPerformanceTrace();
-      toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
-    } catch (error) {
-      toast("Analysis needs a source", error.message || "Generate or upload audio first.");
-    }
-  });
+  $("analyzeSource").addEventListener("click", analyzeOfflineSource);
 
-  $("applyCalibration").addEventListener("click", () => {
-    try {
-      const before = { ...state.params };
-      state.params = offline.calibratedParams(state.params);
-      persist();
-      engine.setParams(state.params);
-      renderControls();
-      updateLineReadScore();
-      updateSourceFit();
-      updateRoutePlanner();
-      renderCharacterChain();
-      toast("Tuned to source", describeCalibrationDelta(before, state.params));
-    } catch (error) {
-      toast("Tuning needs a source", error.message || "Generate or upload audio first.");
-    }
-  });
+  $("applyCalibration").addEventListener("click", tuneCurrentSource);
 
   $("previewOffline").addEventListener("click", () => renderOfflineToPreview(true));
 
@@ -585,6 +558,41 @@ function bindOffline() {
   });
 
   $("applyChainFix").addEventListener("click", applyNextCharacterChainFix);
+  $("applyStudioPlanStep").addEventListener("click", applyStudioPlanStep);
+}
+
+function analyzeOfflineSource() {
+  try {
+    const profile = offline.analyze();
+    $("sourceStatus").textContent = `${offline.source.name} - ${profile.range} source`;
+    drawSourceWaveform();
+    drawAnalysisCards($("offlineAnalysis"), offline.source, offline.rendered);
+    updateSourceFit();
+    updateRoutePlanner();
+    renderCharacterChain();
+    renderPerformanceTrace();
+    toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
+  } catch (error) {
+    toast("Analysis needs a source", error.message || "Generate or upload audio first.");
+  }
+}
+
+function tuneCurrentSource() {
+  try {
+    const before = { ...state.params };
+    state.params = offline.calibratedParams(state.params);
+    persist();
+    engine.setParams(state.params);
+    renderControls();
+    updateLineReadScore();
+    updateSourceFit();
+    updateRoutePlanner();
+    renderCharacterChain();
+    renderStudioPlan();
+    toast("Tuned to source", describeCalibrationDelta(before, state.params));
+  } catch (error) {
+    toast("Tuning needs a source", error.message || "Generate or upload audio first.");
+  }
 }
 
 function useOfflineSource(source) {
@@ -707,6 +715,7 @@ function renderCharacterChain() {
   const hasPatch = Object.keys(report.nextPatch).some((key) => !key.startsWith("_"));
   $("applyChainFix").disabled = !hasPatch;
   $("applyChainFix").textContent = hasPatch && patchStage ? `Fix ${patchStage.label}` : "Chain Locked";
+  renderStudioPlan();
 }
 
 function applyNextCharacterChainFix() {
@@ -743,6 +752,7 @@ function renderPerformanceTrace() {
     $("performanceTraceStatus").textContent = "No source";
     $("performanceTraceMetrics").innerHTML = "";
     drawPerformanceTraceCanvas($("performanceTraceCanvas"), null, null);
+    renderStudioPlan();
     return;
   }
 
@@ -772,6 +782,7 @@ function renderPerformanceTrace() {
         <small>${escapeHtml(item.detail)}</small>
       </div>
     `).join("");
+  renderStudioPlan();
 }
 
 function sourceSamplesForPerformanceTrace() {
@@ -892,6 +903,108 @@ function formatTraceDb(value) {
 
 function formatTraceNumber(value, unit = "") {
   return Number.isFinite(value) ? `${value > 0 ? "+" : ""}${Math.round(value)}${unit}` : `0${unit}`;
+}
+
+function currentStudioPlan() {
+  const target = lineReadById(state.lineReadId);
+  const sourceFit = offline.source ? offline.sourceFitReport(state.params, target) : null;
+  const chainReport = currentCharacterChainReport();
+  const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
+  return buildStudioPlan({
+    hasSource: !!offline.source,
+    sourceFit,
+    routes: state.voiceRoutes,
+    activePresetId: state.presetId,
+    activeLineReadId: state.lineReadId,
+    chainReport,
+    renderReview: review,
+    performanceComparison: currentPerformanceComparison(),
+    renderDeckCount: state.renderDeck.length,
+    renderDeckSeconds: totalDeckSeconds(state.renderDeck)
+  });
+}
+
+function currentPerformanceComparison() {
+  if (!offline.source || !offline.rendered) return null;
+  const sourceTrace = analyzePerformanceTrace(sourceSamplesForPerformanceTrace(), offline.source.sampleRate);
+  const renderedTrace = analyzePerformanceTrace(offline.rendered.samples, offline.rendered.sampleRate);
+  return comparePerformanceTraces(sourceTrace, renderedTrace);
+}
+
+function renderStudioPlan() {
+  const panel = $("studioPlanPanel");
+  if (!panel) return;
+  const plan = currentStudioPlan();
+  const nextStep = plan.nextAction
+    ? plan.steps.find((step) => step.action === plan.nextAction)
+    : null;
+  panel.className = `studio-plan is-${plan.status}`;
+  $("studioPlanStatus").textContent = `${plan.score}% ${studioPlanStatusLabel(plan.status)}`;
+  $("studioPlanFlow").innerHTML = plan.steps.map((step) => `
+    <div class="studio-plan-step is-${step.status} ${step === nextStep ? "is-next" : ""}" data-studio-step="${step.id}">
+      <span>${escapeHtml(step.label)}</span>
+      <strong>${escapeHtml(step.summary)}</strong>
+      <small>${escapeHtml(step.detail)}</small>
+    </div>
+  `).join("");
+  const action = plan.nextAction;
+  $("applyStudioPlanStep").disabled = !action;
+  $("applyStudioPlanStep").textContent = action ? action.label : "Plan Ready";
+  $("studioPlanNext").textContent = action && nextStep
+    ? `${nextStep.label}: ${nextStep.detail}`
+    : "Plan ready. Choose a take from the render deck.";
+}
+
+function applyStudioPlanStep() {
+  const plan = currentStudioPlan();
+  const action = plan.nextAction;
+  if (!action) {
+    toast("Studio plan ready", "The current source, route, chain, and deck are ready for review.");
+    return;
+  }
+  if (action.id === "load-source") {
+    generateTargetSource();
+    return;
+  }
+  if (action.id === "analyze-source") {
+    analyzeOfflineSource();
+    return;
+  }
+  if (action.id === "tune-source") {
+    tuneCurrentSource();
+    return;
+  }
+  if (action.id === "apply-route") {
+    applyVoiceRoute(action.routeId);
+    return;
+  }
+  if (action.id === "chain-fix") {
+    applyNextCharacterChainFix();
+    return;
+  }
+  if (action.id === "preview-region") {
+    renderOfflineToPreview(true);
+    return;
+  }
+  if (action.id === "compare-deck") {
+    if (!$("playCompare").disabled) $("playCompare").click();
+    else toast("Comparison needs a render", "Preview a region before A/B playback.");
+  }
+}
+
+function generateTargetSource() {
+  const target = lineReadById(state.lineReadId);
+  const profileId = target.sourceProfileId || $("sampleProfile").value || "neutral_medium";
+  $("sampleProfile").value = profileId;
+  const source = offline.generateSample(48000, profileId);
+  useOfflineSource(source);
+  toast("Target source generated", `${source.name} for ${target.name}.`);
+}
+
+function studioPlanStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "check") return "Check";
+  return "Risk";
 }
 
 function renderRenderDeck() {

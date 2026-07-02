@@ -58,6 +58,8 @@ GitHub Pages.
   current source and apply preset, Line Read, and source tuning together.
 - Add Character Chain staging so Core, Tone, Texture, Performance, Dynamics,
   Space, and Guardrail layers expose their drift and one-step fixes.
+- Add Studio Plan orchestration so source, route, chain, preview, trace, and
+  deck decisions are connected by a single next-step production flow.
 - Add Performance Trace visualization so phrase lift, ending release, tail air,
   and delivery motion can be compared before and after offline rendering.
 - Add a bounded Render Deck so multiple offline previews/full renders can be

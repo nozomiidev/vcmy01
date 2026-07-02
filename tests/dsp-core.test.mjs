@@ -15,6 +15,7 @@ import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
+import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -37,6 +38,7 @@ const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
+assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "audition", "trace", "deck"], "studio plan should expose the full production flow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.equal(validateLineReadTargets().every((target) => target.ok), true, "line-read targets should reference real presets and copy");
 assert.equal(new Set(voiceRouteTargets().map((target) => target.presetId)).size, FACTORY_PRESETS.length, "route planner should cover every factory voice target");
@@ -50,6 +52,59 @@ const sourceTrace = analyzePerformanceTrace(source, sampleRate);
 assert.ok(sourceTrace.frames.length > 10, "performance trace should create time frames");
 assert.ok(sourceTrace.summary.pitchMedianHz > 90 && sourceTrace.summary.pitchMedianHz < 240, "performance trace should expose frame-level F0");
 assert.ok(Number.isFinite(sourceTrace.summary.endingDropCents), "performance trace should expose ending movement");
+const emptyStudioPlan = buildStudioPlan({ hasSource: false });
+assert.equal(emptyStudioPlan.nextAction.id, "load-source", "studio plan should start by loading a source");
+assert.equal(emptyStudioPlan.steps.length, STUDIO_PLAN_STEP_IDS.length, "studio plan should keep every workflow step visible");
+
+const mockReadySourceFit = { status: "ready", score: 96, patches: [] };
+const mockRoute = {
+  id: "route-otome",
+  presetId: "otome",
+  targetId: "otome_promise",
+  presetName: "Otome Romantic",
+  targetName: "Otome Promise",
+  status: "ready",
+  score: 91
+};
+const routeStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "clean",
+  activeLineReadId: "studio_check",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  renderDeckCount: 0
+});
+assert.equal(routeStudioPlan.nextAction.id, "apply-route", "studio plan should route before shaping when a better target is available");
+assert.equal(routeStudioPlan.nextAction.routeId, mockRoute.id, "studio plan route action should carry the route id");
+
+const shapeStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: {
+    status: "shape",
+    score: 84,
+    nextStageId: "texture",
+    nextPatch: { breath: 58 },
+    stages: [{ id: "texture", label: "Texture" }]
+  },
+  renderDeckCount: 0
+});
+assert.equal(shapeStudioPlan.nextAction.id, "chain-fix", "studio plan should expose the next character-chain fix");
+
+const auditionStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  renderDeckCount: 0
+});
+assert.equal(auditionStudioPlan.nextAction.id, "preview-region", "studio plan should request an audition before final judgment");
 
 for (const preset of FACTORY_PRESETS) {
   const processed = processVoiceBuffer(source, sampleRate, paramsForPreset(preset.id));
@@ -168,6 +223,20 @@ const trimmedDeck = addRenderDeckItem(deck, { id: "next", rendered: previewRende
 assert.equal(trimmedDeck.length, 2, "render deck should cap item count");
 const budgetDeck = addRenderDeckItem(deck, { id: "budget", rendered: previewRendered, review: renderReview(offline.source, previewRendered) }, { maxItems: 4, maxSeconds: 2 });
 assert.ok(totalDeckSeconds(budgetDeck) <= 2, "render deck should cap retained render seconds");
+const deckStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  renderReview: autoReview,
+  performanceComparison: { status: "ready", score: 92, items: [{ label: "Tail Air", value: "+800/s" }] },
+  renderDeckCount: 2,
+  renderDeckSeconds: totalDeckSeconds(deck)
+});
+assert.equal(deckStudioPlan.nextAction.id, "compare-deck", "studio plan should end in deck comparison once multiple takes exist");
+assert.equal(deckStudioPlan.status, "ready", "studio plan should mark a fully evidenced deck as ready");
 
 offline.generateSample(sampleRate, "high_bright");
 const highRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });

@@ -165,6 +165,14 @@ exposes the next meaningful patch. This is intentionally a production workflow
 layer: users should be able to see which part of the character voice is missing
 instead of guessing from a flat preset name or a wall of sliders.
 
+Studio Plan is the workflow coordinator above those panels. Source Fit, Voice
+Route, Character Chain, Performance Trace, and Render Deck are useful evidence,
+but they can still leave a user asking what to do next. Studio Plan keeps every
+production step visible and chooses the next action in order: load or analyze a
+source, apply a stronger route, fix the weakest chain stage, render a preview,
+compare performance evidence, then choose from the deck. This makes the app feel
+like a voice-production session instead of a collection of unrelated widgets.
+
 Performance Trace is the time-axis evidence layer. It analyzes source and
 rendered regions into bounded frames for energy, frame-level F0, ending motion,
 tail breath/frication, and delivery range, then overlays source/render curves.

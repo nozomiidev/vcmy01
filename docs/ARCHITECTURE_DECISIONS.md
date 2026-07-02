@@ -147,3 +147,19 @@ Decision:
   than only showing aggregate analysis cards.
 - Surface deltas for phrase lift, ending motion, tail air, delivery motion, and
   active coverage so subjective listening has repeatable time-axis evidence.
+
+## ADR 010 - Diagnostics Need A Production Plan
+
+Source Fit, Voice Route, Character Chain, Performance Trace, and Render Deck can
+all be correct while still forcing the user to decide which panel matters next.
+That creates a "dashboard" rather than a character voice production session.
+
+Decision:
+
+- Add a Studio Plan layer that keeps the whole production flow visible.
+- Let the plan choose one next action from the current state instead of making
+  users mentally stitch separate diagnostics together.
+- Keep the plan data-driven and testable so the UI does not become a pile of
+  hard-coded button shortcuts.
+- Treat the plan as orchestration only: it should call existing source, route,
+  chain, preview, trace, and deck workflows rather than replacing them.
