@@ -56,6 +56,8 @@ GitHub Pages.
   explicit render decision with visible patch deltas.
 - Add Voice Route planning so users can rank likely character targets for the
   current source and apply preset, Line Read, and source tuning together.
+- Add a bounded Render Deck so multiple offline previews/full renders can be
+  compared by audible output and measured deltas without leaking memory.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic

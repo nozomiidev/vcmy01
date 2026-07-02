@@ -12,6 +12,7 @@ import {
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
+import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
 import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
@@ -33,6 +34,9 @@ const state = {
   offlineRegion: { startSec: 0, durationSec: 0 },
   lineReadId: savedLineReadId || firstLineReadForPreset(savedPresetId).id,
   voiceRoutes: [],
+  renderDeck: [],
+  activeRenderId: null,
+  renderDeckSeq: 0,
   qualitySuite: null
 };
 
@@ -562,10 +566,16 @@ function bindOffline() {
     const button = event.target.closest("[data-route]");
     if (button) applyVoiceRoute(button.dataset.route);
   });
+
+  $("renderDeckList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-render-deck]");
+    if (button) selectRenderDeckItem(button.dataset.renderDeck);
+  });
 }
 
 function useOfflineSource(source) {
   setAudioPreview("sourceAudio", "source", source.blob, source.samples, source.sampleRate);
+  clearRenderDeck();
   clearOfflineRenderPreview();
   setDefaultRegion(source);
   $("sourceStatus").textContent = `${source.name} - ${source.analysis.range} source`;
@@ -587,8 +597,10 @@ function renderOfflineToPreview(preview) {
     setAudioPreview("renderAudio", "render", rendered.blob, rendered.samples, rendered.sampleRate);
     drawWaveform($("renderWave"), rendered.samples, "#8fa7ff");
     drawAnalysisCards($("offlineAnalysis"), offline.source, rendered);
+    addRenderedTakeToDeck(rendered, preview);
     updateSourceFit();
     updateRoutePlanner();
+    renderRenderDeck();
     $("renderStatus").textContent = preview
       ? autoTune ? "Preview - tuned" : "Preview ready"
       : autoTune ? "Rendered - tuned" : "Rendered";
@@ -599,6 +611,84 @@ function renderOfflineToPreview(preview) {
   } catch (error) {
     toast(preview ? "Preview needs a source" : "Render needs a source", error.message || "Generate or upload audio first.");
   }
+}
+
+function addRenderedTakeToDeck(rendered, preview) {
+  const review = renderReview(offline.source, rendered);
+  const item = {
+    id: `render-${Date.now()}-${state.renderDeckSeq += 1}`,
+    title: presetById(state.presetId).name,
+    target: lineReadById(state.lineReadId).name,
+    mode: preview ? "Preview" : "Full",
+    route: state.voiceRoutes.find((route) => route.presetId === state.presetId && route.targetId === state.lineReadId)?.targetName || null,
+    rendered,
+    review
+  };
+  state.renderDeck = addRenderDeckItem(state.renderDeck, item);
+  state.activeRenderId = item.id;
+}
+
+function selectRenderDeckItem(id) {
+  const item = state.renderDeck.find((candidate) => candidate.id === id);
+  if (!item) return;
+  state.activeRenderId = item.id;
+  offline.rendered = item.rendered;
+  setAudioPreview("renderAudio", "render", item.rendered.blob, item.rendered.samples, item.rendered.sampleRate);
+  drawWaveform($("renderWave"), item.rendered.samples, "#8fa7ff");
+  drawAnalysisCards($("offlineAnalysis"), offline.source, item.rendered);
+  $("renderStatus").textContent = item.rendered.mode === "preview" ? "Preview ready" : "Rendered";
+  $("downloadRender").disabled = false;
+  $("playCompare").disabled = false;
+  renderRenderDeck();
+}
+
+function renderRenderDeck() {
+  const host = $("renderDeckList");
+  if (!host) return;
+  if (!state.renderDeck.length) {
+    $("renderDeckStatus").textContent = "No renders";
+    host.innerHTML = "";
+    return;
+  }
+  $("renderDeckStatus").textContent = `${state.renderDeck.length} takes / ${totalDeckSeconds(state.renderDeck).toFixed(1)}s`;
+  host.innerHTML = state.renderDeck.map((item, index) => {
+    const review = item.review;
+    const active = item.id === state.activeRenderId;
+    const metrics = review?.items || [];
+    return `
+      <button class="render-card is-${review?.status || "empty"} ${active ? "is-active" : ""}" data-render-deck="${item.id}" type="button">
+        <span class="render-card-score">${review ? `${review.score}% ${renderReviewStatusLabel(review.status)}` : "No review"}</span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.target)} - ${escapeHtml(item.mode)} ${index === 0 ? "latest" : `#${index + 1}`}</small>
+        <div class="render-card-metrics">
+          ${metrics.map((metric) => `
+            <span>
+              ${escapeHtml(metric.label)}
+              <b>${escapeHtml(metric.value)}</b>
+            </span>
+          `).join("")}
+        </div>
+        <p>${escapeHtml(renderReviewSummary(review))}</p>
+      </button>
+    `;
+  }).join("");
+}
+
+function clearRenderDeck() {
+  state.renderDeck = [];
+  state.activeRenderId = null;
+  renderRenderDeck();
+}
+
+function renderReviewStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "check") return "Check";
+  return "Risk";
+}
+
+function renderReviewSummary(review) {
+  if (!review) return "Render review unavailable.";
+  return review.items.slice(0, 2).map((item) => `${item.label} ${item.value}`).join(" / ");
 }
 
 function updateSourceFit() {

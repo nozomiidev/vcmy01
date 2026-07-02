@@ -11,6 +11,7 @@ import {
   validateLineReadTargets
 } from "../src/audio/performance-targets.js";
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
+import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import {
   analyzeBuffer,
@@ -128,11 +129,22 @@ assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "body" && it
 const tunedLowToKawaiiFit = offline.sourceFitReport(autoRendered.appliedParams, kawaiiSpark);
 assert.equal(tunedLowToKawaiiFit.patches.length, 0, "source fit should not keep suggesting the same source patch after tuning");
 assert.ok(tunedLowToKawaiiFit.score > lowToKawaiiFit.score, "source fit should improve after tuning even when range remains risky");
+const autoReview = renderReview(offline.source, autoRendered);
+assert.ok(autoReview.score >= 70, "render review should score usable offline renders");
+assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.includes("+")), "render review should expose apparent F0 movement");
 const previewRendered = offline.render(kawaii, { autoCalibrate: true, region: { startSec: 0.5, durationSec: 0.75 }, mode: "preview" });
 assert.equal(previewRendered.mode, "preview", "offline preview should preserve render mode");
 assert.equal(previewRendered.region.isFull, false, "offline preview should be marked as a region render");
 assert.equal(previewRendered.samples.length, Math.round(sampleRate * 0.75), "offline preview should render only the requested region");
 assert.equal(previewRendered.region.startSample, Math.round(sampleRate * 0.5), "offline preview should preserve region start");
+const deck = [
+  { id: "full", rendered: autoRendered, review: autoReview },
+  { id: "preview", rendered: previewRendered, review: renderReview(offline.source, previewRendered) }
+];
+const trimmedDeck = addRenderDeckItem(deck, { id: "next", rendered: previewRendered, review: renderReview(offline.source, previewRendered) }, { maxItems: 2, maxSeconds: 5 });
+assert.equal(trimmedDeck.length, 2, "render deck should cap item count");
+const budgetDeck = addRenderDeckItem(deck, { id: "budget", rendered: previewRendered, review: renderReview(offline.source, previewRendered) }, { maxItems: 4, maxSeconds: 2 });
+assert.ok(totalDeckSeconds(budgetDeck) <= 2, "render deck should cap retained render seconds");
 
 offline.generateSample(sampleRate, "high_bright");
 const highRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });

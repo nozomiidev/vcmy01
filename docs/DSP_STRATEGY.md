@@ -158,6 +158,12 @@ match, patch load, and explicit source-profile hints, then lets the user apply
 the route as preset + Line Read + source-tuned parameters. This turns
 calibration from a corrective button into a route-selection workflow.
 
+Render Deck is the audition layer after rendering. Every offline preview or full
+render can be kept as a bounded in-memory take with F0 movement, level delta,
+tone delta, texture delta, and a review score. The deck is intentionally capped
+by item count and total seconds so comparison does not become an unbounded audio
+buffer leak.
+
 ## Prosody And Performance
 
 Real prosody transformation requires knowing phrase structure, syllable timing,

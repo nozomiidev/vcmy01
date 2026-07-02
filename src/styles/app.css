@@ -721,6 +721,139 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
 }
 
+.render-deck {
+  display: grid;
+  gap: 10px;
+  margin: 12px 14px 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.render-deck-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.render-deck-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.render-deck-head strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.render-deck-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.render-deck-list:empty {
+  display: none;
+}
+
+.render-card {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.render-card:hover,
+.render-card:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.render-card.is-active {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 56%, transparent);
+}
+
+.render-card.is-check {
+  border-color: color-mix(in srgb, var(--warn) 34%, var(--line));
+}
+
+.render-card.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 38%, var(--line));
+}
+
+.render-card-score {
+  justify-self: start;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.07);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.render-card strong,
+.render-card small,
+.render-card p {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.render-card strong {
+  font-size: 13px;
+}
+
+.render-card small,
+.render-card p {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.render-card p {
+  margin: 0;
+}
+
+.render-card-metrics {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.render-card-metrics span {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.render-card-metrics b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .meter-grid {
   display: grid;
   gap: 8px;
@@ -1378,6 +1511,7 @@ audio {
   .recipe-flow { grid-template-columns: 1fr; }
   .source-fit-grid { grid-template-columns: 1fr; }
   .voice-route-list { grid-template-columns: 1fr; }
+  .render-deck-list { grid-template-columns: 1fr; }
   .region-grid { grid-template-columns: 1fr; }
   .transport-main { align-items: flex-start; flex-direction: column; }
   .transport-actions { margin-left: 0; }

@@ -39,6 +39,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   level, tone, texture, and the calibration patch that Tune to Source would add.
 - Voice Route planning that ranks character targets for the current source and
   applies the preset, Line Read, and source-tuned chain as one workflow.
+- Render Deck auditions for offline previews/full renders with F0, level, tone,
+  texture, and review-score deltas for comparing multiple takes.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
   local take storage, and diagnostics.
 
