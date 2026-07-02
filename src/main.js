@@ -1,4 +1,11 @@
 import { DIRECTOR_DEFS, FACTORY_PRESETS, MACRO_DEFS, PARAM_DEFS, paramsForPreset, presetById } from "./audio/presets.js";
+import {
+  firstLineReadForPreset,
+  LINE_READ_TARGETS,
+  lineReadById,
+  paramsForLineReadTarget,
+  scoreLineReadTarget
+} from "./audio/performance-targets.js";
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
@@ -7,9 +14,11 @@ import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/ca
 import { toast } from "./ui/toast.js";
 
 const $ = (id) => document.getElementById(id);
+const savedPresetId = prefs.get("presetId", "clean");
+const savedLineReadId = prefs.get("lineReadId", null);
 
 const state = {
-  presetId: prefs.get("presetId", "clean"),
+  presetId: savedPresetId,
   params: prefs.get("params", null),
   theme: prefs.get("theme", "dark"),
   monitor: false,
@@ -18,10 +27,12 @@ const state = {
   renderUrl: null,
   sourceUrl: null,
   offlineRegion: { startSec: 0, durationSec: 0 },
+  lineReadId: savedLineReadId || firstLineReadForPreset(savedPresetId).id,
   qualitySuite: null
 };
 
 state.params = { ...paramsForPreset(state.presetId), ...(state.params || {}) };
+state.lineReadId = lineReadById(state.lineReadId).id;
 
 const engine = new LiveAudioEngine();
 const offline = new OfflineRenderer();
@@ -30,6 +41,7 @@ const takeStore = new TakeStore();
 function persist() {
   prefs.set("presetId", state.presetId);
   prefs.set("params", state.params);
+  prefs.set("lineReadId", state.lineReadId);
 }
 
 function init() {
@@ -37,10 +49,13 @@ function init() {
   renderPresets();
   renderReferenceSelectors();
   renderControls();
+  renderLineReadPanel();
+  renderLineReadLibrary();
   renderVoiceMap();
   bindTabs();
   bindTransport();
   bindOffline();
+  bindLineReads();
   bindDiagnostics();
   bindTheme();
   takeStore.open().then(async () => {
@@ -72,11 +87,14 @@ function renderPresets() {
   $("presetList").querySelectorAll("[data-preset]").forEach((button) => {
     button.addEventListener("click", () => {
       state.presetId = button.dataset.preset;
+      state.lineReadId = firstLineReadForPreset(state.presetId).id;
       state.params = paramsForPreset(state.presetId);
       persist();
       engine.setParams(state.params);
       renderPresets();
       renderControls();
+      renderLineReadPanel();
+      renderLineReadLibrary();
       updateActivePreset();
       toast(presetById(state.presetId).name, presetById(state.presetId).target);
     });
@@ -104,6 +122,7 @@ function renderControlGroup(host, defs) {
       if (output) output.textContent = formatValue(state.params[key], defs.find((d) => d.key === key));
       persist();
       engine.setParams(state.params);
+      updateLineReadScore();
     });
   });
 }
@@ -200,6 +219,7 @@ function bindTransport() {
     persist();
     engine.setParams(state.params);
     renderControls();
+    updateLineReadScore();
   });
 
   $("clearTakes").addEventListener("click", async () => {
@@ -214,6 +234,62 @@ function toggleMonitor(on) {
   engine.setMonitor(on);
   $("monitorToggle").setAttribute("aria-pressed", String(on));
   $("monitorToggle").classList.toggle("primary", on);
+}
+
+function bindLineReads() {
+  $("applyActiveLineRead").addEventListener("click", () => applyLineReadTarget(state.lineReadId));
+  $("nextLineRead").addEventListener("click", () => {
+    const index = LINE_READ_TARGETS.findIndex((target) => target.id === state.lineReadId);
+    const next = LINE_READ_TARGETS[(index + 1 + LINE_READ_TARGETS.length) % LINE_READ_TARGETS.length];
+    applyLineReadTarget(next.id);
+  });
+}
+
+function applyLineReadTarget(id) {
+  const target = lineReadById(id);
+  state.lineReadId = target.id;
+  state.presetId = target.presetId;
+  state.params = paramsForLineReadTarget(target.id);
+  persist();
+  engine.setParams(state.params);
+  const option = $("sampleProfile")?.querySelector(`option[value="${target.sourceProfileId}"]`);
+  if (option) $("sampleProfile").value = target.sourceProfileId;
+  renderPresets();
+  renderControls();
+  renderLineReadPanel();
+  renderLineReadLibrary();
+  updateActivePreset();
+  toast(target.name, target.direction);
+}
+
+function renderLineReadPanel() {
+  const target = lineReadById(state.lineReadId);
+  $("activeLineReadName").textContent = target.name;
+  $("activeLineReadPreset").textContent = presetById(target.presetId).name;
+  $("activeLineReadLine").textContent = target.line;
+  $("activeLineReadDirection").textContent = target.direction;
+  $("activeLineReadTags").innerHTML = target.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
+  updateLineReadScore();
+}
+
+function updateLineReadScore() {
+  const target = lineReadById(state.lineReadId);
+  $("activeLineReadScore").textContent = `${scoreLineReadTarget(state.params, target)}%`;
+}
+
+function renderLineReadLibrary() {
+  $("lineReadLibrary").innerHTML = LINE_READ_TARGETS.map((target) => `
+    <button class="line-read-card ${target.id === state.lineReadId ? "is-active" : ""}" data-line-read="${target.id}" type="button">
+      <span>${escapeHtml(presetById(target.presetId).name)}</span>
+      <strong>${escapeHtml(target.name)}</strong>
+      <p>${escapeHtml(target.line)}</p>
+      <small>${escapeHtml(target.direction)}</small>
+      <div class="tag-list">${target.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>
+    </button>
+  `).join("");
+  $("lineReadLibrary").querySelectorAll("[data-line-read]").forEach((button) => {
+    button.addEventListener("click", () => applyLineReadTarget(button.dataset.lineRead));
+  });
 }
 
 function bindOffline() {

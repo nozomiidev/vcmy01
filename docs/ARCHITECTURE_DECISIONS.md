@@ -105,6 +105,9 @@ Decision:
   softness, and breath placement as first-class features.
 - Keep Director controls wired into both live AudioWorklet processing and
   offline rendering so previewed character direction matches recorded output.
+- Add repeatable Line Read targets as product workflow objects: they bind a
+  script line, acting direction, preset, source profile, and real parameter
+  patch so subjective evaluation has stable material and operational controls.
 - Keep objective signal tests for regression safety, but do not confuse passing
   signal metrics with completing the product vision.
 - When adding DSP controls, connect them back to user-facing character intent

@@ -91,6 +91,31 @@
               </div>
             </section>
 
+            <section class="panel line-read-panel">
+              <div class="panel-head">
+                <h2>Line Read</h2>
+                <span id="activeLineReadPreset">Clean Studio</span>
+              </div>
+              <div class="line-read-body">
+                <div class="line-read-copy">
+                  <strong id="activeLineReadName">Studio Check</strong>
+                  <p id="activeLineReadLine">One clean phrase, steady breath, no surprises.</p>
+                  <span id="activeLineReadDirection">Neutral delivery with stable level and controlled endings.</span>
+                </div>
+                <div class="line-read-side">
+                  <div class="target-score">
+                    <span>Target Match</span>
+                    <strong id="activeLineReadScore">100%</strong>
+                  </div>
+                  <div class="tag-list" id="activeLineReadTags"></div>
+                  <div class="line-read-actions">
+                    <button class="command" id="applyActiveLineRead" type="button">Apply Target</button>
+                    <button class="command" id="nextLineRead" type="button">Next Read</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <section class="panel visual-panel">
               <div class="panel-head">
                 <h2>Signal</h2>
@@ -180,6 +205,14 @@
         </section>
 
         <section class="view" id="view-library" aria-label="Voice library">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Line Reads</h2>
+              <span>Performance Targets</span>
+            </div>
+            <div class="line-read-grid" id="lineReadLibrary"></div>
+          </section>
+
           <section class="panel">
             <div class="panel-head">
               <h2>Voice Targets</h2>

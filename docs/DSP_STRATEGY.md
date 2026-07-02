@@ -103,6 +103,13 @@ Current first-pass Director controls are shared by live and offline rendering:
 - Breath Placement maps breath/whisper texture toward phrase tails.
 - Confidence maps clarity, presence, consonant crispness, and delivery emphasis.
 
+Line Read targets are the first product workflow built on this layer. A target
+combines a voice preset, repeatable script line, acting direction, source voice
+profile, and parameter patch. Applying a target moves the actual preset and
+Director/Macro controls; it is not just a note card. This gives kawaii, anime,
+otome, ikemen, ASMR, streamer, narrator, and calibration reads stable material
+for listening tests and browser regression checks.
+
 ## Calibration
 
 Presets should eventually ask for or infer:
@@ -139,6 +146,8 @@ Therefore:
 
 - expose character/performance macros instead of only technical sliders
 - implement measurable DSP approximations first
+- use repeatable Line Read targets so subjective listening has stable script
+  material and known performance settings
 - keep UI and docs honest about "approximate prosody" vs "AI style/VC"
 - reserve future AI for true timbre identity and style conversion
 

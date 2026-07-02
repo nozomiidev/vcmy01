@@ -26,6 +26,9 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   consonant softness.
 - Character Director controls for phrase lift, ending softness, delivery
   energy, close-mic distance, romantic breath placement, and confidence.
+- Repeatable Line Read targets that apply character-specific performance
+  settings for otome, kawaii, anime, ikemen, ASMR, streamer, narrator, and
+  calibration reads.
 - Offline generated/uploaded source processing with analysis, A/B compare,
   preview-region rendering, source-aware Auto Tune, and WAV export.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
@@ -46,7 +49,7 @@ Known product capability gap:
   longer uploaded files.
 - The app still needs richer performance targets, repeatable line-read tests,
   phrase/ending behavior, distance, emotion, and delivery workflows beyond the
-  first Director controls.
+  first Director controls and first Line Read target set.
 
 ## Documentation Map
 

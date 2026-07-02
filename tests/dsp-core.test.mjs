@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import { DIRECTOR_DEFS, FACTORY_PRESETS, paramsForPreset } from "../src/audio/presets.js";
+import {
+  LINE_READ_TARGETS,
+  paramsForLineReadTarget,
+  scoreLineReadTarget,
+  validateLineReadTargets
+} from "../src/audio/performance-targets.js";
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
 import {
   analyzeBuffer,
@@ -22,6 +28,8 @@ const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
+assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
+assert.equal(validateLineReadTargets().every((target) => target.ok), true, "line-read targets should reference real presets and copy");
 assert.ok(REFERENCE_VOICE_PROFILES.length >= 4, "reference profiles should cover varied source voices");
 assert.equal(source.length, Math.round(sampleRate * 1.25), "generated sample length");
 const sourceAnalysis = analyzeBuffer(source, sampleRate);
@@ -59,6 +67,17 @@ const directedAnalysis = analyzeBuffer(directed, sampleRate);
 assert.equal(directed.length, source.length, "director processing preserves length");
 assert.ok(Math.abs(directedAnalysis.rmsDb - sourceAnalysis.rmsDb) > 0.3, "director layer should measurably change delivery dynamics");
 assert.ok(directedAnalysis.zeroCrossingsPerSecond > sourceAnalysis.zeroCrossingsPerSecond + 500, "director breath placement should add measurable tail texture");
+
+const otomeRead = LINE_READ_TARGETS.find((target) => target.id === "otome_promise");
+assert.ok(otomeRead, "otome line-read target should exist");
+const otomeReadParams = paramsForLineReadTarget(otomeRead.id);
+assert.equal(scoreLineReadTarget(otomeReadParams, otomeRead), 100, "applied line-read params should match target controls");
+assert.ok(otomeReadParams.endingSoftness > paramsForPreset("otome").endingSoftness, "otome line read should push soft endings beyond the base preset");
+assert.ok(otomeReadParams.romanticBreath > paramsForPreset("otome").romanticBreath, "otome line read should push breath placement beyond the base preset");
+const otomeReadRendered = processVoiceBuffer(source, sampleRate, otomeReadParams);
+const otomeReadAnalysis = analyzeBuffer(otomeReadRendered, sampleRate);
+assert.equal(otomeReadRendered.length, source.length, "line-read target processing preserves source length");
+assert.ok(otomeReadAnalysis.zeroCrossingsPerSecond > sourceAnalysis.zeroCrossingsPerSecond + 600, "otome line read should add measurable close breath texture");
 
 const lowSource = generateTestVoice({ sampleRate, duration: 1.0, f0: 95 });
 const lowProfile = buildCalibrationProfile(lowSource, sampleRate);

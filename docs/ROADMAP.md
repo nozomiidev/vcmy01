@@ -46,8 +46,8 @@ GitHub Pages.
 - Expand first-pass performance/director controls such as phrase lift, close-mic
   distance, ending softness, confidence, delivery energy, and romantic breath
   placement.
-- Add repeatable line-read targets so presets can be judged against acting
-  intent, not just signal movement.
+- Expand the first repeatable Line Read targets so presets can be judged
+  against acting intent, not just signal movement.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic
@@ -59,7 +59,7 @@ GitHub Pages.
 
 ## Stage 5 - Quality Evaluation
 
-- Add repeatable reference phrases for manual testing.
+- Add deeper repeatable reference phrases for manual testing.
 - Compare original, live processed, and offline processed audio.
 - Track latency, clipping, loudness, CPU load, and browser support.
 - Keep subjective listening notes per preset.
