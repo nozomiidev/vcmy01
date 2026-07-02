@@ -100,6 +100,7 @@ function renderPresets() {
       renderLineReadPanel();
       renderLineReadLibrary();
       updateActivePreset();
+      updateSourceFit();
       toast(presetById(state.presetId).name, presetById(state.presetId).target);
     });
   });
@@ -121,12 +122,14 @@ function renderControlGroup(host, defs) {
   host.querySelectorAll("input[type=range]").forEach((input) => {
     const key = input.dataset.key;
     input.addEventListener("input", () => {
+      delete state.params._sourceCalibration;
       state.params[key] = Number(input.value);
       const output = host.querySelector(`[data-output="${key}"]`);
       if (output) output.textContent = formatValue(state.params[key], defs.find((d) => d.key === key));
       persist();
       engine.setParams(state.params);
       updateLineReadScore();
+      updateSourceFit();
     });
   });
 }
@@ -225,6 +228,7 @@ function bindTransport() {
     engine.setParams(state.params);
     renderControls();
     updateLineReadScore();
+    updateSourceFit();
   });
 
   $("clearTakes").addEventListener("click", async () => {
@@ -265,6 +269,7 @@ function applyLineReadTarget(id) {
   renderLineReadPanel();
   renderLineReadLibrary();
   updateActivePreset();
+  updateSourceFit();
   toast(target.name, target.direction);
 }
 
@@ -281,6 +286,7 @@ function applyNextLineReadFix() {
   engine.setParams(state.params);
   renderControls();
   updateLineReadScore();
+  updateSourceFit();
   toast("Next fix applied", `${coach.cues[0].label} ${signed(Math.round(coach.cues[0].delta))}`);
 }
 
@@ -492,6 +498,7 @@ function bindOffline() {
       $("sourceStatus").textContent = `${offline.source.name} - ${profile.range} source`;
       drawSourceWaveform();
       drawAnalysisCards($("offlineAnalysis"), offline.source, offline.rendered);
+      updateSourceFit();
       toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
     } catch (error) {
       toast("Analysis needs a source", error.message || "Generate or upload audio first.");
@@ -505,6 +512,8 @@ function bindOffline() {
       persist();
       engine.setParams(state.params);
       renderControls();
+      updateLineReadScore();
+      updateSourceFit();
       toast("Tuned to source", describeCalibrationDelta(before, state.params));
     } catch (error) {
       toast("Tuning needs a source", error.message || "Generate or upload audio first.");
@@ -549,6 +558,7 @@ function useOfflineSource(source) {
   $("renderStatus").textContent = "Ready";
   updateRegionControls();
   drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
+  updateSourceFit();
 }
 
 function renderOfflineToPreview(preview) {
@@ -562,6 +572,7 @@ function renderOfflineToPreview(preview) {
     setAudioPreview("renderAudio", "render", rendered.blob, rendered.samples, rendered.sampleRate);
     drawWaveform($("renderWave"), rendered.samples, "#8fa7ff");
     drawAnalysisCards($("offlineAnalysis"), offline.source, rendered);
+    updateSourceFit();
     $("renderStatus").textContent = preview
       ? autoTune ? "Preview - tuned" : "Preview ready"
       : autoTune ? "Rendered - tuned" : "Rendered";
@@ -572,6 +583,40 @@ function renderOfflineToPreview(preview) {
   } catch (error) {
     toast(preview ? "Preview needs a source" : "Render needs a source", error.message || "Generate or upload audio first.");
   }
+}
+
+function updateSourceFit() {
+  const panel = $("sourceFitPanel");
+  if (!panel) return;
+  const report = offline.sourceFitReport(state.params, lineReadById(state.lineReadId));
+  if (!report) {
+    panel.className = "source-fit";
+    $("sourceFitScore").textContent = "No source";
+    $("sourceFitGrid").innerHTML = "";
+    $("sourceFitPatches").innerHTML = "";
+    return;
+  }
+  panel.className = `source-fit is-${report.status}`;
+  $("sourceFitScore").textContent = `${report.score}% ${sourceFitStatusLabel(report.status)}`;
+  $("sourceFitGrid").innerHTML = report.items.map((item) => `
+    <div class="source-fit-card is-${item.status}" data-fit="${item.id}">
+      <span>${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <small>${escapeHtml(item.detail)}</small>
+    </div>
+  `).join("");
+  $("sourceFitPatches").innerHTML = report.patches.length ? report.patches.slice(0, 6).map((patch) => `
+    <span data-patch="${patch.key}">
+      ${escapeHtml(paramLabel(patch.key))}
+      <b>${formatPatchDelta(patch)}</b>
+    </span>
+  `).join("") : `<span>No source patch needed <b>0</b></span>`;
+}
+
+function sourceFitStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "tune") return "Tune";
+  return "Risk";
 }
 
 function setDefaultRegion(source) {
@@ -669,6 +714,18 @@ function describeCalibrationDelta(before, after) {
     .slice(0, 4)
     .map((item) => `${names.get(item.key) || item.key} ${item.delta > 0 ? "+" : ""}${item.delta.toFixed(item.key === "pitch" || item.key === "formant" ? 1 : 0)}`);
   return changes.length ? changes.join(", ") : "Profile already fits this voice.";
+}
+
+function paramLabel(key) {
+  if (key === "inputGain") return "Input Gain";
+  return [...MACRO_DEFS, ...DIRECTOR_DEFS, ...PARAM_DEFS].find((def) => def.key === key)?.label || key;
+}
+
+function formatPatchDelta(patch) {
+  const def = [...MACRO_DEFS, ...DIRECTOR_DEFS, ...PARAM_DEFS].find((item) => item.key === patch.key);
+  const unit = patch.key === "inputGain" ? " dB" : def?.unit || "";
+  const fixed = patch.key === "pitch" || patch.key === "formant" || patch.key === "inputGain" ? 1 : 0;
+  return `${patch.delta > 0 ? "+" : ""}${patch.delta.toFixed(fixed)}${unit}`;
 }
 
 function playSnippet(audio, seconds, startSec = 0) {

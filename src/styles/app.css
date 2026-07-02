@@ -437,6 +437,132 @@ input[type="range"] {
   margin-left: auto;
 }
 
+.source-fit {
+  display: grid;
+  gap: 10px;
+  margin: 14px 14px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.source-fit.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
+}
+
+.source-fit.is-tune {
+  border-color: color-mix(in srgb, var(--warn) 42%, var(--line));
+}
+
+.source-fit.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 42%, var(--line));
+}
+
+.source-fit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.source-fit-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.source-fit-head strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.source-fit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.source-fit-grid:empty,
+.source-fit-patches:empty {
+  display: none;
+}
+
+.source-fit-card {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+}
+
+.source-fit-card.is-tune {
+  border-color: color-mix(in srgb, var(--warn) 44%, var(--line));
+}
+
+.source-fit-card.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 44%, var(--line));
+}
+
+.source-fit-card span,
+.source-fit-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-fit-card span {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.source-fit-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.source-fit-card small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.source-fit-patches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.source-fit-patches span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.source-fit-patches b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .meter-grid {
   display: grid;
   gap: 8px;
@@ -1092,6 +1218,7 @@ audio {
   .line-read-copy p { font-size: 20px; }
   .target-axis-list { grid-template-columns: 1fr; }
   .recipe-flow { grid-template-columns: 1fr; }
+  .source-fit-grid { grid-template-columns: 1fr; }
   .region-grid { grid-template-columns: 1fr; }
   .transport-main { align-items: flex-start; flex-direction: column; }
   .transport-actions { margin-left: 0; }

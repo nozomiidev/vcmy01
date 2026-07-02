@@ -210,6 +210,8 @@ export function buildCalibrationProfile(buffer, sampleRate) {
 }
 
 export function calibrateParamsForVoice(rawParams = {}, profile = {}) {
+  const fingerprint = calibrationFingerprint(profile);
+  if (rawParams._sourceCalibration === fingerprint) return { ...rawParams };
   const p = { ...rawParams };
   if (profile.tooQuiet) p.inputGain = clamp((p.inputGain || 0) + 5, -12, 18);
   if (profile.tooHot) p.inputGain = clamp((p.inputGain || 0) - 4, -18, 12);
@@ -236,7 +238,18 @@ export function calibrateParamsForVoice(rawParams = {}, profile = {}) {
     p.breath = clamp((p.breath || 0) - 10, 0, 100);
     p.deEss = clamp((p.deEss || 35) + 8, 0, 100);
   }
+  p._sourceCalibration = fingerprint;
   return p;
+}
+
+function calibrationFingerprint(profile = {}) {
+  return [
+    profile.range || "unknown",
+    profile.tooQuiet ? "quiet" : "level",
+    profile.tooHot ? "hot" : "headroom",
+    profile.bright ? "bright" : profile.dark ? "dark" : "balanced",
+    profile.breathyOrNoisy ? "noisy" : "clean"
+  ].join(":");
 }
 
 export function normalizeParams(params = {}) {

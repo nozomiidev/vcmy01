@@ -52,6 +52,8 @@ GitHub Pages.
   before rendering or recording another take.
 - Turn Line Read target drift into coaching and one-step corrections so users
   can shape a read progressively instead of only applying a full preset.
+- Add Source Fit scoring for generated/uploaded audio so calibration becomes an
+  explicit render decision with visible patch deltas.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic

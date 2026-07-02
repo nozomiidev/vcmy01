@@ -146,6 +146,12 @@ to the rendered output without permanently moving the user's live sliders, while
 the explicit Tune to Source command remains available when the user wants to
 commit those offsets to the current voice chain.
 
+Source Fit is the workflow layer on top of this calibration. It compares the
+loaded or generated source against the active Line Read target, scores range,
+level, tone, and texture, and exposes the exact patch that Tune to Source would
+apply. This makes source calibration part of the creative decision flow instead
+of a hidden DSP side effect.
+
 ## Prosody And Performance
 
 Real prosody transformation requires knowing phrase structure, syllable timing,

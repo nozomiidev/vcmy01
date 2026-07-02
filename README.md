@@ -35,6 +35,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   focused Apply Next Fix workflow before committing to a full target.
 - Offline generated/uploaded source processing with analysis, A/B compare,
   preview-region rendering, source-aware Auto Tune, and WAV export.
+- Source Fit scoring for generated or uploaded audio, including target range,
+  level, tone, texture, and the calibration patch that Tune to Source would add.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
   local take storage, and diagnostics.
 
