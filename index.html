@@ -2733,3 +2733,211 @@ window.addEventListener("pointerup", bypassOff);
 bypassBtn.addEventListener("pointerleave", bypassOff);
 
 /* Preset actions */
+$("savePresetBtn").addEventListener("click", () => {
+  const base = findPreset(state.presetId);
+  const name = prompt("Name your custom voice:", base.name + " (custom)");
+  if (!name) return;
+  const id = "custom-" + Date.now();
+  const diff = {};
+  Object.keys(state.params).forEach(k => {
+    if (state.params[k] !== DEFAULT_PARAMS[k]) diff[k] = state.params[k];
+  });
+  state.customPresets.push({ id, name: name.trim().slice(0, 40), icon: "⭐", desc: "Custom voice", p: diff, custom: true });
+  store.set("customPresets", state.customPresets);
+  state.presetId = id;
+  persistParams();
+  buildPresetGrid();
+  toast("Preset saved", '"' + name.trim().slice(0, 40) + '" added to your library. Right-click / long-press a custom tile to delete it.', "ok");
+});
+
+$("duplicatePresetBtn").addEventListener("click", () => {
+  const base = findPreset(state.presetId);
+  const id = "custom-" + Date.now();
+  const diff = {};
+  Object.keys(state.params).forEach(k => {
+    if (state.params[k] !== DEFAULT_PARAMS[k]) diff[k] = state.params[k];
+  });
+  state.customPresets.push({ id, name: base.name + " copy", icon: "⭐", desc: "Duplicate of " + base.name, p: diff, custom: true });
+  store.set("customPresets", state.customPresets);
+  state.presetId = id;
+  persistParams();
+  buildPresetGrid();
+  toast("Preset duplicated", "Edit freely — the original is untouched.", "ok", 2600);
+});
+
+$("resetPresetBtn").addEventListener("click", () => {
+  applyPreset(state.presetId);
+  toast("Reset", "Parameters restored to the preset's defaults.", "ok", 2000);
+});
+
+$("exportPresetsBtn").addEventListener("click", () => {
+  const payload = {
+    app: "VoiceForge",
+    version: 1,
+    exported: new Date().toISOString(),
+    customPresets: state.customPresets,
+    currentParams: state.params
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "voiceforge-presets.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast("Presets exported", "voiceforge-presets.json downloaded.", "ok", 2600);
+});
+
+$("importPresetsBtn").addEventListener("click", () => $("importPresetsFile").click());
+$("importPresetsFile").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || data.app !== "VoiceForge" || !Array.isArray(data.customPresets)) throw new Error("bad");
+    let added = 0;
+    data.customPresets.forEach(p => {
+      if (!p || typeof p.name !== "string" || typeof p.p !== "object") return;
+      const id = "custom-" + Date.now() + "-" + Math.floor(Math.random() * 9999);
+      state.customPresets.push({ id, name: String(p.name).slice(0, 40), icon: p.icon || "⭐", desc: p.desc || "Imported voice", p: p.p, custom: true });
+      added++;
+    });
+    store.set("customPresets", state.customPresets);
+    buildPresetGrid();
+    toast("Import complete", added + " preset" + (added === 1 ? "" : "s") + " added.", "ok");
+  } catch {
+    toast("Import failed", "That file doesn't look like a VoiceForge preset export.", "err");
+  }
+});
+
+/* Panel collapse */
+document.querySelectorAll(".panel-head[data-collapse]").forEach(head => {
+  const key = head.getAttribute("data-collapse");
+  const panel = head.closest(".panel");
+  if (state.collapsed[key]) panel.classList.add("collapsed");
+  head.addEventListener("click", () => {
+    panel.classList.toggle("collapsed");
+    state.collapsed[key] = panel.classList.contains("collapsed");
+    store.set("collapsed", state.collapsed);
+  });
+  head.setAttribute("role", "button");
+  head.setAttribute("tabindex", "0");
+  head.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); head.click(); }
+  });
+});
+
+/* Clip dot reset */
+$("inClip").addEventListener("click", () => { viz.inClipHold = 0; });
+$("outClip").addEventListener("click", () => { viz.outClipHold = 0; });
+
+/* Keyboard shortcuts */
+window.addEventListener("keydown", (e) => {
+  const tag = (e.target && e.target.tagName) || "";
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+  if (!$("studioScreen").classList.contains("active")) return;
+  if (e.key === "r" || e.key === "R") { e.preventDefault(); $("recordBtn").click(); }
+  else if (e.key === "m" || e.key === "M") { e.preventDefault(); $("monitorBtn").click(); }
+  else if (e.key === "t" || e.key === "T") { e.preventDefault(); $("studioThemeBtn").click(); }
+  else if (e.key === "b" || e.key === "B") { e.preventDefault(); if (!e.repeat) bypassOn(); }
+  else if (e.key === " ") {
+    e.preventDefault();
+    if (takes.length) playTake(takes[0]);
+  } else if (e.key === "Escape") {
+    document.querySelectorAll(".overlay:not(.hidden)").forEach(o => {
+      if (o.id !== "resumeOverlay") o.classList.add("hidden");
+    });
+  }
+});
+window.addEventListener("keyup", (e) => {
+  if (e.key === "b" || e.key === "B") bypassOff();
+});
+
+/* Context suspension & tab lifecycle */
+$("resumeAudioBtn").addEventListener("click", async () => {
+  try {
+    if (engine.ctx) await engine.ctx.resume();
+    $("resumeOverlay").classList.add("hidden");
+  } catch {
+    toast("Couldn't resume", "Try interacting with the page again.", "err");
+  }
+});
+setInterval(() => {
+  if (engine.ctx && engine.ready) {
+    if (engine.ctx.state === "suspended" || engine.ctx.state === "interrupted") {
+      if ($("resumeOverlay").classList.contains("hidden") && document.visibilityState === "visible")
+        $("resumeOverlay").classList.remove("hidden");
+    } else {
+      $("resumeOverlay").classList.add("hidden");
+    }
+  }
+}, 1200);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && state.recording)
+    toast("Recording continues", "VoiceForge keeps capturing while the tab is in the background (browser permitting).", "warn", 3000);
+});
+
+window.addEventListener("beforeunload", (e) => {
+  if (state.recording) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
+/* Window resize → redraw take waveforms */
+let resizeT = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => {
+    document.querySelectorAll(".take").forEach((el, i) => {
+      if (takes[i]) drawTakeWave(el.querySelector(".take-wave"), takes[i]);
+    });
+  }, 200);
+});
+
+/* ---------------- Init ---------------- */
+(async function init() {
+  applyTheme();
+  buildSwatches();
+  applyAccent();
+  buildControls();
+  buildPresetGrid();
+  buildQuickPresets();
+  wireConstraintSwitch("swNS", "ns");
+  wireConstraintSwitch("swEC", "ec");
+  wireConstraintSwitch("swAGC", "agc");
+  refreshControlValues();
+  ui.updateMicPill();
+  ui.updateMonPill();
+
+  /* Feature detection */
+  if (!(window.AudioContext || window.webkitAudioContext) || !navigator.mediaDevices) {
+    $("fallbackBanner").classList.remove("hidden");
+    $("fallbackBannerText").textContent = "This browser doesn't support the Web Audio APIs VoiceForge needs. Try a recent version of Chrome, Edge, Firefox, or Safari.";
+    $("enterStudioBtn").disabled = true;
+    $("micCheckBtn").disabled = true;
+  }
+
+  /* Restore takes from IndexedDB */
+  await takesDB.open();
+  const stored = await takesDB.all();
+  if (stored.length) {
+    takes = stored.sort((a, b) => b.date - a.date);
+    renderTakes();
+    renderRecent();
+    $("sessionRecoveryNote").textContent = "Restored " + takes.length + " recording" + (takes.length === 1 ? "" : "s") + " and your last studio setup from this device.";
+    toast("Session restored", takes.length + " take" + (takes.length === 1 ? "" : "s") + ", your preset, and all settings were recovered.", "ok", 3800);
+  } else {
+    renderTakes();
+  }
+
+  /* Restore selected preset marker without overwriting tweaked params */
+  buildPresetGrid();
+  viz.loop();
+})();
+</script>
+</body>
+</html>
