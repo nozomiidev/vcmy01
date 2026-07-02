@@ -115,6 +115,25 @@ Recorded and uploaded audio needs a dedicated workflow:
 Offline rendering can afford more latency and can use higher-quality algorithms
 than the live path.
 
+## Quality Evaluation
+
+DSP changes need repeatable evidence, not only subjective listening notes.
+
+Maintain a generated reference voice and a preset quality matrix that checks:
+
+- output length stability
+- clipping and limiter behavior
+- RMS and peak ranges
+- apparent F0 movement
+- brightness movement
+- render speed against realtime duration
+- per-preset warnings for weak character movement
+
+This matrix cannot prove that a voice is emotionally convincing, but it catches
+regressions where a character preset stops moving the signal, clips, becomes too
+quiet, or loses basic F0 tracking. Browser Diagnostics and `npm run quality`
+should stay aligned.
+
 ## AI Escalation Criteria
 
 Consider browser AI voice conversion only when:

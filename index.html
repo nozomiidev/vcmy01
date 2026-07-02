@@ -161,9 +161,13 @@
           <section class="panel">
             <div class="panel-head">
               <h2>Runtime</h2>
-              <button class="text-action" id="runSelfTest" type="button">Run Self-Test</button>
+              <div class="panel-actions">
+                <button class="text-action" id="runQualityMatrix" type="button">Quality Matrix</button>
+                <button class="text-action" id="runSelfTest" type="button">Run Self-Test</button>
+              </div>
             </div>
             <div class="diag-grid" id="diagGrid"></div>
+            <div class="quality-matrix" id="qualityMatrix"></div>
             <pre class="test-log" id="selfTestLog">Self-test not run.</pre>
           </section>
         </section>

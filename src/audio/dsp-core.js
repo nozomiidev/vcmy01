@@ -1,4 +1,4 @@
-import { DEFAULT_PARAMS } from "./presets.js";
+import { DEFAULT_PARAMS, FACTORY_PRESETS, paramsForPreset } from "./presets.js";
 
 export const TAU = Math.PI * 2;
 
@@ -78,20 +78,19 @@ export function estimatePitch(buffer, sampleRate, options = {}) {
     let bestLag = -1;
     let bestScore = 0;
     for (let lag = minLag; lag <= maxLag; lag++) {
-      let corr = 0;
-      let e0 = 0;
-      let e1 = 0;
-      for (let i = 0; i < frameSize - lag; i += 2) {
-        const a = buffer[start + i];
-        const b = buffer[start + i + lag];
-        corr += a * b;
-        e0 += a * a;
-        e1 += b * b;
-      }
-      const score = corr / Math.sqrt(Math.max(1e-12, e0 * e1));
+      const score = autocorrScore(buffer, start, frameSize, lag);
       if (score > bestScore) {
         bestScore = score;
         bestLag = lag;
+      }
+    }
+    for (let divisor = 2; divisor <= 4 && bestLag > 0; divisor++) {
+      const candidate = Math.round(bestLag / divisor);
+      if (candidate < minLag) continue;
+      const candidateScore = autocorrScore(buffer, start, frameSize, candidate);
+      if (candidateScore > bestScore * 0.62) {
+        bestLag = candidate;
+        bestScore = candidateScore;
       }
     }
     if (bestLag > 0 && bestScore > 0.38) {
@@ -109,6 +108,20 @@ export function estimatePitch(buffer, sampleRate, options = {}) {
     frames: totalFrames,
     voicedFrames: pitches.length
   };
+}
+
+function autocorrScore(buffer, start, frameSize, lag) {
+  let corr = 0;
+  let e0 = 0;
+  let e1 = 0;
+  for (let i = 0; i < frameSize - lag; i += 2) {
+    const a = buffer[start + i];
+    const b = buffer[start + i + lag];
+    corr += a * b;
+    e0 += a * a;
+    e1 += b * b;
+  }
+  return corr / Math.sqrt(Math.max(1e-12, e0 * e1));
 }
 
 export function estimateBrightness(buffer, sampleRate) {
@@ -296,6 +309,95 @@ export function processVoiceBuffer(input, sampleRate, rawParams = {}, options = 
   const out = new Float32Array(work.length);
   for (let i = 0; i < out.length; i++) out[i] = (dry[i] * (1 - wet) + work[i] * wet) * outGain;
   return options.skipLimiter ? out : limiter(out, params.limiter);
+}
+
+export function runPresetQualitySuite({
+  sampleRate = 48000,
+  duration = 1.25,
+  f0 = 145,
+  presets = FACTORY_PRESETS
+} = {}) {
+  const source = generateTestVoice({ sampleRate, duration, f0 });
+  const sourceAnalysis = analyzeBuffer(source, sampleRate);
+  const started = nowMs();
+  const results = presets.map((preset) => evaluatePresetQuality(source, sampleRate, sourceAnalysis, preset));
+  const elapsedMs = nowMs() - started;
+  const counts = results.reduce((acc, item) => {
+    acc[item.status] = (acc[item.status] || 0) + 1;
+    return acc;
+  }, { pass: 0, warn: 0, fail: 0 });
+  return {
+    ok: counts.fail === 0,
+    counts,
+    sampleRate,
+    duration,
+    elapsedMs,
+    realtimeFactor: elapsedMs / Math.max(1, duration * 1000),
+    source: sourceAnalysis,
+    results
+  };
+}
+
+export function evaluatePresetQuality(source, sampleRate, sourceAnalysis, preset) {
+  const started = nowMs();
+  const rendered = processVoiceBuffer(source, sampleRate, paramsForPreset(preset.id));
+  const elapsedMs = nowMs() - started;
+  const analysis = analyzeBuffer(rendered, sampleRate);
+  const duration = source.length / sampleRate;
+  const deltas = {
+    rmsDb: analysis.rmsDb - sourceAnalysis.rmsDb,
+    peakDb: analysis.peakDb - sourceAnalysis.peakDb,
+    pitchHz: analysis.pitchMedianHz - sourceAnalysis.pitchMedianHz,
+    brightness: analysis.brightnessRatio - sourceAnalysis.brightnessRatio,
+    zcr: analysis.zeroCrossingsPerSecond - sourceAnalysis.zeroCrossingsPerSecond
+  };
+  const realtimeFactor = elapsedMs / Math.max(1, duration * 1000);
+  const issues = qualityIssues(preset, source.length, rendered, analysis, deltas, realtimeFactor);
+  const status = issues.some((item) => item.level === "fail") ? "fail" :
+    issues.some((item) => item.level === "warn") ? "warn" : "pass";
+  return {
+    id: preset.id,
+    name: preset.name,
+    target: preset.target,
+    status,
+    elapsedMs,
+    realtimeFactor,
+    analysis,
+    deltas,
+    issues
+  };
+}
+
+function qualityIssues(preset, sourceLength, rendered, analysis, deltas, realtimeFactor) {
+  const issues = [];
+  if (rendered.length !== sourceLength) issues.push({ level: "fail", text: "length drift" });
+  if (!Number.isFinite(analysis.rms) || analysis.rms <= 0) issues.push({ level: "fail", text: "invalid rms" });
+  if (analysis.clipped || analysis.peakDb > -0.15) issues.push({ level: "fail", text: "clips" });
+  if (analysis.rmsDb < -38) issues.push({ level: "fail", text: "too quiet" });
+  if (analysis.rmsDb > -7) issues.push({ level: "warn", text: "very loud" });
+  if (analysis.peakDb > -0.8) issues.push({ level: "warn", text: "near ceiling" });
+  if (realtimeFactor > 0.8) issues.push({ level: "warn", text: "slow render" });
+  if (analysis.pitchMedianHz <= 0 && !/robot|creature/i.test(preset.id)) issues.push({ level: "warn", text: "weak F0 lock" });
+
+  if (/kawaii|anime|otome|asmr/.test(preset.id) && deltas.brightness < 0.035) {
+    issues.push({ level: "warn", text: "weak brightening" });
+  }
+  if (/ikemen|narrator|creature/.test(preset.id) && deltas.pitchHz > -10) {
+    issues.push({ level: "warn", text: "weak pitch/body shift" });
+  }
+  if (/radio|streamer/.test(preset.id) && analysis.rmsDb < -24) {
+    issues.push({ level: "warn", text: "presentation too soft" });
+  }
+  if (preset.id !== "clean" && Math.abs(deltas.rmsDb) < 0.3 && Math.abs(deltas.brightness) < 0.01 && Math.abs(deltas.pitchHz) < 2) {
+    issues.push({ level: "warn", text: "weak character movement" });
+  }
+  return issues;
+}
+
+function nowMs() {
+  return globalThis.performance && typeof globalThis.performance.now === "function"
+    ? globalThis.performance.now()
+    : Date.now();
 }
 
 export function toMono(input) {
@@ -614,15 +716,18 @@ export function selfTestDspCore() {
   });
   const sourceAnalysis = analyzeBuffer(source, sampleRate);
   const processedAnalysis = analyzeBuffer(processed, sampleRate);
+  const quality = runPresetQualitySuite({ sampleRate, duration: 0.55 });
   return {
     ok: processed.length === source.length &&
       Number.isFinite(processedAnalysis.rms) &&
       Number.isFinite(sourceAnalysis.pitchMedianHz) &&
       processedAnalysis.peak <= 1 &&
-      Math.abs(processedAnalysis.rms - sourceAnalysis.rms) > 0.001,
+      Math.abs(processedAnalysis.rms - sourceAnalysis.rms) > 0.001 &&
+      quality.ok,
     source: sourceAnalysis,
     profile,
     calibratedParams,
-    processed: processedAnalysis
+    processed: processedAnalysis,
+    quality
   };
 }

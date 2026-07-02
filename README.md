@@ -61,3 +61,11 @@ as long as the built result remains deployable by GitHub Pages as static files.
 
 When browser GUI testing requires Chrome, use only the Google account window for
 `nozomidevbusin@gmail.com`. See [docs/DEVELOPMENT_RULES.md](docs/DEVELOPMENT_RULES.md).
+
+## Local Checks
+
+- `npm test` runs the DSP unit and quality assertions.
+- `npm run quality` renders every factory preset against generated reference
+  speech and reports clipping, loudness, F0 movement, brightness movement, and
+  render speed.
+- `npm run serve` starts a no-build static server for browser verification.

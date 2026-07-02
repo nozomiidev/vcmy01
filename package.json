@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node tests/dsp-core.test.mjs",
+    "quality": "node scripts/quality-report.mjs",
     "serve": "node scripts/static-server.mjs 4174"
   }
 }

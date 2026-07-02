@@ -1,5 +1,5 @@
 import { FACTORY_PRESETS, MACRO_DEFS, PARAM_DEFS, paramsForPreset, presetById } from "./audio/presets.js";
-import { encodeWavMono, selfTestDspCore } from "./audio/dsp-core.js";
+import { encodeWavMono, runPresetQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
 import { TakeStore, prefs } from "./storage.js";
@@ -16,7 +16,8 @@ const state = {
   bypass: false,
   takes: [],
   renderUrl: null,
-  sourceUrl: null
+  sourceUrl: null,
+  qualitySuite: null
 };
 
 state.params = state.params || paramsForPreset(state.presetId);
@@ -355,6 +356,22 @@ function bindDiagnostics() {
     updateDiagnostics();
     toast(result.ok ? "Self-test passed" : "Self-test failed", "DSP core generated and processed reference audio.");
   });
+
+  $("runQualityMatrix").addEventListener("click", async () => {
+    $("selfTestLog").textContent = "Running preset quality matrix...";
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const suite = runPresetQualitySuite({ duration: 0.9 });
+    state.qualitySuite = suite;
+    renderQualityMatrix(suite);
+    updateDiagnostics();
+    $("selfTestLog").textContent = JSON.stringify({
+      ok: suite.ok,
+      counts: suite.counts,
+      elapsedMs: Number(suite.elapsedMs.toFixed(1)),
+      realtimeFactor: Number(suite.realtimeFactor.toFixed(3))
+    }, null, 2);
+    toast(suite.ok ? "Quality matrix passed" : "Quality matrix needs attention", `${suite.counts.pass} pass, ${suite.counts.warn} warn, ${suite.counts.fail} fail.`);
+  });
 }
 
 function bindTheme() {
@@ -403,15 +420,68 @@ function renderVoiceMap() {
 }
 
 function updateDiagnostics() {
+  const quality = state.qualitySuite
+    ? `${state.qualitySuite.counts.pass}/${state.qualitySuite.results.length} pass`
+    : "Not run";
   const items = [
     ["Static", "GitHub Pages"],
     ["AudioWorklet", "Live DSP"],
     ["Offline", "Local render"],
     ["Presets", String(FACTORY_PRESETS.length)],
+    ["Quality", quality],
     ["Privacy", "Local first"],
     ["AI", "Not loaded"]
   ];
   $("diagGrid").innerHTML = items.map(([k, v]) => `<div class="metric"><span>${k}</span><strong>${v}</strong></div>`).join("");
+}
+
+function renderQualityMatrix(suite) {
+  $("qualityMatrix").innerHTML = `
+    <table class="quality-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Preset</th>
+          <th class="numeric">RTx</th>
+          <th class="numeric">RMS</th>
+          <th class="numeric">Peak</th>
+          <th class="numeric">F0</th>
+          <th class="numeric">dF0</th>
+          <th class="numeric">Bright</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${suite.results.map((item) => `
+          <tr>
+            <td><span class="quality-pill ${item.status}">${item.status}</span></td>
+            <td>${escapeHtml(item.name)}</td>
+            <td class="numeric">${item.realtimeFactor.toFixed(2)}</td>
+            <td class="numeric">${item.analysis.rmsDb.toFixed(1)} dB</td>
+            <td class="numeric">${item.analysis.peakDb.toFixed(1)} dB</td>
+            <td class="numeric">${Math.round(item.analysis.pitchMedianHz || 0)} Hz</td>
+            <td class="numeric">${signed(Math.round(item.deltas.pitchHz || 0))} Hz</td>
+            <td class="numeric">${signed(Math.round(item.deltas.brightness * 100))}%</td>
+            <td>${escapeHtml(item.issues.map((issue) => issue.text).join(", ") || "stable")}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function signed(value) {
+  return value > 0 ? `+${value}` : String(value);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  })[char]);
 }
 
 function drawLoop() {

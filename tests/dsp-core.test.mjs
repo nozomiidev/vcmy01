@@ -8,6 +8,7 @@ import {
   generateTestVoice,
   granularShift,
   processVoiceBuffer,
+  runPresetQualitySuite,
   selfTestDspCore
 } from "../src/audio/dsp-core.js";
 
@@ -49,5 +50,14 @@ assert.ok(wav.size > 44, "wav has payload");
 const self = selfTestDspCore();
 assert.equal(self.ok, true, "core self test");
 assert.ok(self.profile && self.calibratedParams, "self test should include calibration data");
+assert.ok(self.quality && self.quality.ok, "self test should include a passing quality suite");
+
+const quality = runPresetQualitySuite({ sampleRate, duration: 0.65 });
+assert.equal(quality.ok, true, "preset quality suite should pass");
+assert.equal(quality.results.length, FACTORY_PRESETS.length, "quality suite should cover every preset");
+assert.equal(quality.counts.fail, 0, "quality suite should not fail any preset");
+assert.ok(quality.results.some((item) => item.id === "kawaii" && item.deltas.brightness > 0.03), "kawaii should brighten the source");
+assert.ok(quality.results.some((item) => item.id === "kawaii" && item.deltas.pitchHz > 20), "kawaii should lift the apparent F0");
+assert.ok(quality.results.some((item) => item.id === "ikemen" && item.deltas.pitchHz < -10), "ikemen should lower the apparent F0");
 
 console.log("dsp-core.test.mjs passed");
