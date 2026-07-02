@@ -29,7 +29,8 @@ import { rankRenderDeckTakes } from "./audio/take-decision.js";
 import { buildKeeperRefinement } from "./audio/take-refinement.js";
 import { buildSceneSession, sceneSessionSummary } from "./audio/scene-session.js";
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, sanitizeVoiceSnapshots } from "./audio/voice-memory.js";
-import { TakeStore, prefs } from "./storage.js";
+import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectParamPatch, sanitizeProjectSnapshots } from "./audio/project-vault.js";
+import { ProjectStore, TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
 
@@ -53,6 +54,9 @@ const state = {
   activeRenderId: null,
   renderDeckSeq: 0,
   voiceSnapshots: sanitizeVoiceSnapshots(prefs.get("voiceSnapshots", [])),
+  projectSnapshots: [],
+  activeProjectId: null,
+  projectStoreReady: false,
   qualitySuite: null
 };
 
@@ -62,6 +66,7 @@ state.lineReadId = lineReadById(state.lineReadId).id;
 const engine = new LiveAudioEngine();
 const offline = new OfflineRenderer();
 const takeStore = new TakeStore();
+const projectStore = new ProjectStore();
 
 function persist() {
   prefs.set("presetId", state.presetId);
@@ -71,6 +76,11 @@ function persist() {
 
 function persistVoiceSnapshots() {
   prefs.set("voiceSnapshots", state.voiceSnapshots);
+}
+
+async function persistProjectSnapshots() {
+  if (!state.projectStoreReady) return false;
+  return projectStore.replaceAll(state.projectSnapshots);
 }
 
 function init() {
@@ -88,6 +98,7 @@ function init() {
   renderEffectStack();
   renderStackAuditions();
   renderVoiceMemory();
+  renderProjectVault();
   renderPerformanceTrace();
   renderStudioPlan();
   renderAuditionVariants();
@@ -107,6 +118,12 @@ function init() {
   takeStore.open().then(async () => {
     state.takes = await takeStore.all();
     renderTakes();
+  });
+  projectStore.open().then(async (ok) => {
+    state.projectStoreReady = ok;
+    state.projectSnapshots = ok ? sanitizeProjectSnapshots(await projectStore.all()) : [];
+    renderProjectVault();
+    renderStudioPlan();
   });
   updateDiagnostics();
   requestAnimationFrame(drawLoop);
@@ -144,11 +161,13 @@ function renderPresets() {
       renderSceneKitPanel();
       renderSceneKitLibrary();
       renderSceneSession();
+      renderProjectVault();
       updateActivePreset();
       updateSourceFit();
       updateRoutePlanner();
       renderCharacterChain();
       renderEffectStack();
+      renderProjectVault();
       toast(presetById(state.presetId).name, presetById(state.presetId).target);
     });
   });
@@ -181,6 +200,7 @@ function renderControlGroup(host, defs) {
       updateRoutePlanner();
       renderCharacterChain();
       renderEffectStack();
+      renderProjectVault();
     });
   });
 }
@@ -338,6 +358,7 @@ function applyLineReadTarget(id) {
   renderSceneKitPanel();
   renderSceneKitLibrary();
   renderSceneSession();
+  renderProjectVault();
   updateActivePreset();
   updateSourceFit();
   updateRoutePlanner();
@@ -362,6 +383,7 @@ function applyNextLineReadFix() {
   renderSceneKitPanel();
   renderSceneKitLibrary();
   renderSceneSession();
+  renderProjectVault();
   updateSourceFit();
   updateRoutePlanner();
   renderCharacterChain();
@@ -936,6 +958,12 @@ function bindOffline() {
     const button = event.target.closest("[data-voice-memory]");
     if (button) applyVoiceMemory(button.dataset.voiceMemory);
   });
+  $("captureProject")?.addEventListener("click", () => captureProjectSnapshot({ manual: true }));
+  $("clearProjectVault")?.addEventListener("click", clearProjectVault);
+  $("projectVaultList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-project-vault]");
+    if (button) applyProjectSnapshot(button.dataset.projectVault);
+  });
   $("applyStudioPlanStep").addEventListener("click", applyStudioPlanStep);
 }
 
@@ -966,6 +994,7 @@ function tuneCurrentSource() {
     updateSourceFit();
     updateRoutePlanner();
     renderCharacterChain();
+    renderProjectVault();
     renderStudioPlan();
     toast("Tuned to source", describeCalibrationDelta(before, state.params));
   } catch (error) {
@@ -987,6 +1016,7 @@ function useOfflineSource(source) {
   renderCharacterChain();
   renderPerformanceTrace();
   renderSceneSession();
+  renderProjectVault();
 }
 
 function renderOfflineToPreview(preview) {
@@ -1009,6 +1039,7 @@ function renderOfflineToPreview(preview) {
     renderCharacterChain();
     renderPerformanceTrace();
     renderRenderDeck();
+    renderProjectVault();
     $("renderStatus").textContent = preview
       ? autoTune ? "Preview - tuned" : "Preview ready"
       : autoTune ? "Rendered - tuned" : "Rendered";
@@ -1053,6 +1084,7 @@ function addRenderedTakeToDeck(rendered, preview, variant = null, stackAudition 
   state.renderDeck = addRenderDeckItem(state.renderDeck, item);
   state.activeRenderId = item.id;
   renderSceneSession();
+  renderProjectVault();
 }
 
 function selectRenderDeckItem(id) {
@@ -1069,6 +1101,7 @@ function selectRenderDeckItem(id) {
   renderCharacterChain();
   renderPerformanceTrace();
   renderRenderDeck();
+  renderProjectVault();
 }
 
 function currentAuditionVariants() {
@@ -1209,6 +1242,7 @@ function renderStackAuditionSet(auditionId = null) {
   renderCharacterChain();
   renderPerformanceTrace();
   renderRenderDeck();
+  renderProjectVault();
   renderAuditionVariants();
   renderStackAuditions();
   $("downloadRender").disabled = false;
@@ -1268,6 +1302,7 @@ function renderAuditionVariantSet(variantId = null) {
   renderCharacterChain();
   renderPerformanceTrace();
   renderRenderDeck();
+  renderProjectVault();
   renderAuditionVariants();
   $("downloadRender").disabled = false;
   $("playCompare").disabled = false;
@@ -1325,6 +1360,7 @@ function renderCharacterChain() {
   $("applyChainFix").textContent = hasPatch && patchStage ? `Fix ${patchStage.label}` : "Chain Locked";
   renderEffectStack();
   renderVoiceMemory();
+  renderProjectVault();
   renderStudioPlan();
 }
 
@@ -1345,6 +1381,7 @@ function applyNextCharacterChainFix() {
   updateSourceFit();
   updateRoutePlanner();
   renderCharacterChain();
+  renderProjectVault();
   toast("Chain fix applied", `${stage?.label || "Character Chain"}: ${describePatchObject(patch)}`);
 }
 
@@ -1422,6 +1459,7 @@ function applyNextEffectStackFix() {
   updateRoutePlanner();
   renderCharacterChain();
   renderEffectStack();
+  renderProjectVault();
   renderStudioPlan();
   toast("Stack fix applied", `${stage?.label || "Signal Stack"}: ${describePatchObject(patch)}`);
 }
@@ -1499,6 +1537,7 @@ function captureVoiceMemory() {
   persistVoiceSnapshots();
   renderVoiceMemory();
   renderSceneSession();
+  renderProjectVault();
   renderStudioPlan();
   toast(
     beforeCount === state.voiceSnapshots.length ? "Design updated" : "Design captured",
@@ -1531,6 +1570,7 @@ function applyVoiceMemory(snapshotId) {
   renderCharacterChain();
   renderVoiceMemory();
   renderSceneSession();
+  renderProjectVault();
   renderStudioPlan();
   toast("Design restored", `${item.title}: ${describePatchList(item.patch)}`);
 }
@@ -1540,8 +1580,190 @@ function clearVoiceMemory() {
   persistVoiceSnapshots();
   renderVoiceMemory();
   renderSceneSession();
+  renderProjectVault();
   renderStudioPlan();
   toast("Design board cleared", "Saved voice designs were removed from this browser.");
+}
+
+function currentProjectContext() {
+  const target = lineReadById(state.lineReadId);
+  return {
+    presetId: state.presetId,
+    presetName: presetById(state.presetId).name,
+    lineReadId: state.lineReadId,
+    params: state.params,
+    source: offline.source,
+    voiceSnapshots: state.voiceSnapshots,
+    renderDeck: state.renderDeck,
+    activeRenderId: state.activeRenderId,
+    offlineRegion: state.offlineRegion,
+    sceneSession: currentSceneSession(),
+    takeDecision: currentTakeDecision(),
+    routes: state.voiceRoutes,
+    target
+  };
+}
+
+function currentProjectVault() {
+  return buildProjectVault(state.projectSnapshots, currentProjectContext());
+}
+
+function renderProjectVault() {
+  const panel = $("projectVaultPanel");
+  if (!panel) return;
+  const vault = currentProjectVault();
+  panel.className = `project-vault is-${vault.status}`;
+  $("projectVaultStatus").textContent = vault.count
+    ? `${vault.count} projects / ${vault.score}%`
+    : state.projectStoreReady ? "No projects" : "Opening";
+  $("captureProject").disabled = !state.projectStoreReady;
+  $("clearProjectVault").disabled = !state.projectStoreReady || !vault.count;
+  $("projectVaultList").innerHTML = vault.items.length ? vault.items.map((item) => `
+    <button class="project-vault-card is-${item.status} ${item.id === vault.best?.id ? "is-best" : ""} ${item.id === state.activeProjectId ? "is-active" : ""}" data-project-vault="${item.id}" type="button">
+      <span class="project-vault-score">${item.id === vault.best?.id ? "Best" : "Saved"} ${item.score}% ${projectVaultStatusLabel(item.status)}</span>
+      <strong>${escapeHtml(item.title)}</strong>
+      <small>${escapeHtml(item.sceneKitName || item.targetName)} - ${new Date(item.updatedAt).toLocaleString()}</small>
+      <div class="project-vault-metrics">
+        <span>Source <b>${item.source?.hasAudio ? "On" : item.source?.name ? "Ref" : "No"}</b></span>
+        <span>Takes <b>${item.renderDeckCount}</b></span>
+        <span>Designs <b>${item.voiceSnapshotCount}</b></span>
+        <span>Patch <b>${item.patch.length}</b></span>
+      </div>
+      <div class="project-vault-deltas">
+        ${item.patch.slice(0, 4).map((patch) => `<span>${escapeHtml(paramLabel(patch.key))} <b>${formatPatchDelta(patch)}</b></span>`).join("") || "<span>Current match <b>0</b></span>"}
+      </div>
+    </button>
+  `).join("") : `<div class="empty-note">No saved projects yet.</div>`;
+  const best = vault.best;
+  $("projectVaultPatches").innerHTML = best?.patch?.length
+    ? best.patch.slice(0, 8).map((patch) => `
+      <span>${escapeHtml(paramLabel(patch.key))}<b>${formatPatchDelta(patch)}</b></span>
+    `).join("")
+    : vault.count
+      ? `<span>Project design aligned <b>0</b></span>`
+      : `<span>No project patch <b>0</b></span>`;
+}
+
+async function captureProjectSnapshot(options = {}) {
+  if (!state.projectStoreReady) {
+    toast("Project vault unavailable", "IndexedDB is not ready in this browser session.");
+    return;
+  }
+  const title = $("projectTitleInput")?.value?.trim() || "";
+  const project = createProjectSnapshot(currentProjectContext(), {
+    title,
+    includeAudio: true,
+    updatedAt: Date.now(),
+    allowManualCapture: !!options.manual
+  });
+  state.projectSnapshots = addProjectSnapshot(state.projectSnapshots, project);
+  state.activeProjectId = project.id;
+  await persistProjectSnapshots();
+  if ($("projectTitleInput")) $("projectTitleInput").value = "";
+  renderProjectVault();
+  renderStudioPlan();
+  toast("Project saved", `${project.title}: ${project.renderDeck.length} takes and ${project.voiceSnapshots.length} designs.`);
+}
+
+function applyProjectSnapshot(projectId) {
+  const vault = currentProjectVault();
+  const project = vault.items.find((item) => item.id === projectId) || vault.best;
+  if (!project) {
+    toast("No saved project", "Save a project before restoring one.");
+    return;
+  }
+  const target = lineReadById(project.lineReadId);
+  const restorePatch = projectParamPatch(state.params, project.params);
+  state.activeProjectId = project.id;
+  state.presetId = project.presetId || target.presetId || state.presetId;
+  state.lineReadId = target.id;
+  state.params = { ...paramsForPreset(state.presetId), ...project.params };
+  state.offlineRegion = project.offlineRegion || state.offlineRegion;
+  restoreProjectSource(project);
+  restoreProjectDeck(project);
+  persist();
+  engine.setParams(state.params);
+  renderPresets();
+  renderControls();
+  renderLineReadPanel();
+  renderLineReadLibrary();
+  renderSceneKitPanel();
+  renderSceneKitLibrary();
+  updateActivePreset();
+  updateRegionControls();
+  drawAnalysisCards($("offlineAnalysis"), offline.source, offline.rendered);
+  updateSourceFit();
+  updateRoutePlanner();
+  renderCharacterChain();
+  renderVoiceMemory();
+  renderProjectVault();
+  renderPerformanceTrace();
+  renderRenderDeck();
+  renderStudioPlan();
+  toast("Project restored", `${project.title}: ${describePatchList(restorePatch)}.`);
+}
+
+function restoreProjectSource(project) {
+  const source = project.source;
+  if (!source?.hasAudio || !(source.samples instanceof Float32Array) || !source.blob) {
+    if (source?.sourceProfileId) {
+      const generated = offline.generateSample(48000, source.sourceProfileId);
+      setAudioPreview("sourceAudio", "source", generated.blob, generated.samples, generated.sampleRate);
+      $("sourceStatus").textContent = `${generated.name} - regenerated`;
+      setDefaultRegion(generated);
+    }
+    return;
+  }
+  offline.source = {
+    name: source.name,
+    sourceProfileId: source.sourceProfileId || "",
+    sampleRate: source.sampleRate,
+    samples: source.samples,
+    blob: source.blob,
+    analysis: source.analysis
+  };
+  offline.profile = source.analysis;
+  setAudioPreview("sourceAudio", "source", source.blob, source.samples, source.sampleRate);
+  $("sourceStatus").textContent = `${source.name} - restored`;
+}
+
+function restoreProjectDeck(project) {
+  state.renderDeck = (project.renderDeck || []).filter((item) =>
+    item?.rendered?.hasAudio &&
+    item.rendered.samples instanceof Float32Array &&
+    item.rendered.blob
+  );
+  state.activeRenderId = state.renderDeck.some((item) => item.id === project.activeRenderId)
+    ? project.activeRenderId
+    : state.renderDeck[0]?.id || null;
+  const active = state.renderDeck.find((item) => item.id === state.activeRenderId) || null;
+  offline.rendered = active?.rendered || null;
+  if (offline.rendered) {
+    setAudioPreview("renderAudio", "render", offline.rendered.blob, offline.rendered.samples, offline.rendered.sampleRate);
+    drawWaveform($("renderWave"), offline.rendered.samples, "#8fa7ff");
+    $("renderStatus").textContent = offline.rendered.mode === "preview" ? "Preview restored" : "Render restored";
+    $("downloadRender").disabled = false;
+    $("playCompare").disabled = !offline.source;
+  } else {
+    clearOfflineRenderPreview();
+    $("renderStatus").textContent = "Project restored";
+  }
+}
+
+async function clearProjectVault() {
+  state.projectSnapshots = [];
+  state.activeProjectId = null;
+  await projectStore.clear();
+  renderProjectVault();
+  renderStudioPlan();
+  toast("Project vault cleared", "Saved scene projects were removed from this browser.");
+}
+
+function projectVaultStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "empty") return "Empty";
+  if (status === "check") return "Check";
+  return "Risk";
 }
 
 function voiceMemoryStatusLabel(status) {
@@ -1737,6 +1959,7 @@ function currentStudioPlan() {
     takeDecision
   });
   return buildStudioPlan({
+    projectVault: currentProjectVault(),
     hasSource: !!offline.source,
     sourceFit,
     routes: state.voiceRoutes,
@@ -1813,6 +2036,14 @@ function applyStudioPlanStep() {
   const action = plan.nextAction;
   if (!action) {
     toast("Studio plan ready", "The current source, route, chain, and deck are ready for review.");
+    return;
+  }
+  if (action.id === "apply-project") {
+    applyProjectSnapshot(action.projectId);
+    return;
+  }
+  if (action.id === "capture-project") {
+    captureProjectSnapshot();
     return;
   }
   if (action.id === "load-source") {
@@ -2015,6 +2246,7 @@ function applyKeeperRefinement() {
   renderCharacterChain();
   renderAuditionVariants();
   renderTakeDecision();
+  renderProjectVault();
   toast("Keeper patch applied", `${refinement.winnerLabel}: ${describePatchList(refinement.patch)}`);
 }
 
@@ -2022,6 +2254,7 @@ function clearRenderDeck() {
   state.renderDeck = [];
   state.activeRenderId = null;
   renderRenderDeck();
+  renderProjectVault();
 }
 
 function renderReviewStatusLabel(status) {
@@ -2136,6 +2369,7 @@ function applyVoiceRoute(routeId) {
   updateSourceFit();
   updateRoutePlanner();
   renderCharacterChain();
+  renderProjectVault();
   toast("Route applied", `${route.presetName} - ${route.targetName}; ${route.patchCount ? `${route.patchCount} source patches` : "source aligned"}.`);
 }
 

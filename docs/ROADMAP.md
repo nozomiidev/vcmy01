@@ -73,9 +73,12 @@ GitHub Pages.
 - Add Design Board memory so promising voice designs can be captured, scored
   against the active Line Read target, and restored as meaningful
   macro/director/DSP deltas instead of being lost slider states.
+- Add Project Vault persistence so named scene/source/design/render sessions can
+  be saved locally with audio artifacts and restored as production projects
+  instead of loose control states.
 - Add Studio Plan orchestration so source, route, chain, signal stack, design
-  memory, script, preview, trace, scene coverage, and deck decisions are
-  connected by a single next-step production flow.
+  memory, script, preview, trace, scene coverage, project persistence, and deck
+  decisions are connected by a single next-step production flow.
 - Add Performance Trace visualization so phrase lift, ending release, tail air,
   and delivery motion can be compared before and after offline rendering.
 - Add Script Match scoring so rendered motion is judged against the planned

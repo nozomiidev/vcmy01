@@ -61,10 +61,14 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   designs against the active Line Read target, and restores the highest-impact
   macro/director/DSP deltas when a previous design fits better than the current
   chain.
+- Project Vault persistence that saves named local production sessions with the
+  active source, scene, Line Read, voice-design memory, Render Deck artifacts,
+  Take Decision evidence, and restore deltas so a character scene can be
+  resumed as a project instead of rebuilt from loose sliders.
 - Studio Plan production flow that connects source loading, route choice,
   chain shaping, signal-stack balance, design memory, script planning, preview
-  audition, trace evidence, scene coverage, and render-deck comparison into a
-  single next-step workflow.
+  audition, trace evidence, scene coverage, project save/restore, and
+  render-deck comparison into a single next-step workflow.
 - Performance Trace visualization for source/render timing, F0 motion, ending
   movement, tail breath/frication, and delivery dynamics across the region.
 - Script Match scoring that compares rendered phrase motion against the planned
@@ -94,10 +98,11 @@ Known product capability gap:
 - The Character Director layer is now functional, but still uses DSP
   approximations rather than real phrase understanding, emotion transfer, or
   actor-style timing conversion.
-- Offline post-processing has region preview, script-driven automation, and
-  audition variant batches, plus Signal Stack, Stack Audition, and Design Board
-  layers, but still needs persistent named scene/design collections, longer
-  uploaded-file workflow, and offline-only high-quality render modes.
+- Offline post-processing has region preview, script-driven automation,
+  audition variant batches, Signal Stack, Stack Audition, Design Board, Project
+  Vault persistence, and Render Deck comparison, but still needs a stronger
+  long-file workflow, deeper offline-only high-quality render modes, and richer
+  scene/export packaging.
 - The app still needs richer performance targets, repeatable line-read tests,
   phrase/ending behavior, distance, emotion, and delivery workflows beyond the
   first Director controls and first Line Read target set.

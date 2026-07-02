@@ -377,3 +377,25 @@ Decision:
 - Keep the layer deterministic and local so named scene collections, longer
   upload workflows, and future plugin/AI render paths can build on it without
   changing the static GitHub Pages architecture.
+
+## ADR 021 - Character Work Needs Project Persistence
+
+Design Board saves a useful voice design, but it does not save the production
+context around that design. A product-level character voice studio needs to
+resume a scene with its source, active target, saved designs, audition takes,
+and keeper evidence intact. Otherwise the user still has to reconstruct a
+session from loose sliders and cards.
+
+Decision:
+
+- Add Project Vault as a local persistence layer above Scene Session and Render
+  Deck.
+- Store bounded named project snapshots in IndexedDB rather than a backend, so
+  GitHub Pages deployment and local-first audio privacy remain intact.
+- Save the active source, Line Read, scene coverage, design-memory references,
+  Render Deck artifacts, Take Decision evidence, and restore deltas.
+- Let Studio Plan restore a relevant saved project before generating a fresh
+  source, and save the current project once it has meaningful source/design/take
+  evidence.
+- Keep the data shape replaceable so longer upload workflows, export bundles,
+  plugin chains, and optional browser AI render paths can extend it later.

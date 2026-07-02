@@ -387,6 +387,22 @@
 
           <section class="panel">
             <div class="panel-head">
+              <h2>Project Vault</h2>
+              <div class="panel-actions">
+                <span id="projectVaultStatus">No projects</span>
+                <input class="project-title-input" id="projectTitleInput" type="text" maxlength="60" placeholder="Project name" aria-label="Project name">
+                <button class="text-action" id="captureProject" type="button">Save Project</button>
+                <button class="text-action" id="clearProjectVault" type="button" disabled>Clear</button>
+              </div>
+            </div>
+            <div class="project-vault" id="projectVaultPanel">
+              <div class="project-vault-list" id="projectVaultList"></div>
+              <div class="project-vault-patches" id="projectVaultPatches"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
               <h2>Voice Targets</h2>
               <span>DSP first</span>
             </div>

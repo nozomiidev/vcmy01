@@ -217,16 +217,26 @@ snapshots, Render Deck takes, and Take Decision evidence, then offers the next
 beat handoff when the current beat is covered. This keeps character acting from
 collapsing back into isolated one-line presets.
 
+Project Vault is the persistence layer above Scene Session and Design Board.
+Design Board remembers a useful voice shape; Project Vault remembers the
+production unit around it: source audio, active Line Read, scene coverage,
+saved designs, Render Deck artifacts, Take Decision evidence, and the restore
+deltas needed to return to that project later. It uses local IndexedDB instead
+of a backend, keeps projects bounded, and lets Studio Plan restore a saved
+scene before starting a fresh source. This matters because a character voice
+studio is not just a realtime effect; it is an iterative production workspace.
+
 Studio Plan is the workflow coordinator above those panels. Source Fit, Voice
 Route, Character Chain, Signal Stack, Stack Audition, Design Board, Performance
-Script, Performance Trace, Scene Session, and Render Deck are useful evidence,
-but they can still leave a user asking what to do next.
+Script, Performance Trace, Scene Session, Project Vault, and Render Deck are
+useful evidence, but they can still leave a user asking what to do next.
 Studio Plan keeps every production step visible and chooses the next action in
 order: load or analyze a source, apply a stronger route, fix the weakest chain
 stage, balance or audition the signal stack, save or recall a design, inspect
 the acting script, render a preview, compare performance evidence, cover or
-advance the scene beat, then choose from the deck. This makes the app feel like
-a voice-production session instead of a collection of unrelated widgets.
+advance the scene beat, save or restore the project, then choose from the deck.
+This makes the app feel like a voice-production session instead of a collection
+of unrelated widgets.
 
 Performance Trace is the time-axis evidence layer. It analyzes source and
 rendered regions into bounded frames for energy, frame-level F0, ending motion,

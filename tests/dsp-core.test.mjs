@@ -28,6 +28,7 @@ import { automationSummary, buildPerformanceScript, compareScriptToPerformance, 
 import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.js";
 import { buildSceneSession, sceneSessionSummary } from "../src/audio/scene-session.js";
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, snapshotParamPatch } from "../src/audio/voice-memory.js";
+import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectParamPatch } from "../src/audio/project-vault.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -52,7 +53,7 @@ assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performanc
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
 assert.deepEqual(EFFECT_STACK_STAGE_IDS, ["input", "core", "tract", "tone", "texture", "performance", "dynamics", "space", "guard"], "effect stack should expose ordered signal-path layers");
 assert.equal(AUDITION_VARIANT_IDS.length >= 5, true, "audition variants should cover multiple nearby character directions");
-assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "stack", "memory", "script", "audition", "trace", "scene", "deck"], "studio plan should expose the full production flow");
+assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["project", "source", "route", "shape", "stack", "memory", "script", "audition", "trace", "scene", "deck"], "studio plan should expose the full production flow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.ok(SCENE_KITS.length >= 4, "scene kits should expand single reads into multi-beat acting workflows");
 assert.ok(ALL_LINE_READ_TARGETS.length > LINE_READ_TARGETS.length, "scene beats should be usable as line-read targets");
@@ -73,6 +74,18 @@ assert.ok(Number.isFinite(sourceTrace.summary.endingDropCents), "performance tra
 const emptyStudioPlan = buildStudioPlan({ hasSource: false });
 assert.equal(emptyStudioPlan.nextAction.id, "load-source", "studio plan should start by loading a source");
 assert.equal(emptyStudioPlan.steps.length, STUDIO_PLAN_STEP_IDS.length, "studio plan should keep every workflow step visible");
+const restoreProjectStudioPlan = buildStudioPlan({
+  hasSource: false,
+  projectVault: {
+    status: "check",
+    score: 82,
+    count: 1,
+    summary: "Saved project",
+    best: { id: "project-restore", title: "Saved Otome Scene" },
+    nextAction: { id: "apply-project", label: "Restore Project", projectId: "project-restore" }
+  }
+});
+assert.equal(restoreProjectStudioPlan.nextAction.id, "apply-project", "studio plan should restore a saved project before creating a fresh source");
 
 const mockReadySourceFit = { status: "ready", score: 96, patches: [] };
 const mockReadyStack = { status: "ready", score: 94, activeCount: 5, nextPatch: {}, summary: "Stack locked", stages: [] };
@@ -277,6 +290,53 @@ assert.equal(otomeSceneSession.activeBeat.status, "ready", "scene session should
 assert.equal(otomeSceneSession.nextAction.id, "apply-scene-beat", "scene session should offer the next uncovered beat");
 assert.equal(otomeSceneSessionSummary.readyCount, 1, "scene session summary should count covered beats");
 assert.ok(otomeSceneSession.items.some((item) => item.memoryCount === 1 && item.takeCount === 2), "scene session should connect saved designs and render takes to the beat");
+const otomeProject = createProjectSnapshot({
+  presetId: "otome",
+  presetName: "Otome Romantic",
+  lineReadId: otomeWhisperBeat.id,
+  params: otomeWhisperParams,
+  source: {
+    name: "Generated Neutral",
+    sourceProfileId: "neutral_medium",
+    sampleRate,
+    samples: source,
+    blob: null,
+    analysis: sourceAnalysis
+  },
+  voiceSnapshots: [otomeWhisperSnapshot],
+  renderDeck: [
+    { id: "scene-take-a", title: "Scene A", target: otomeWhisperBeat.name, targetId: otomeWhisperBeat.id, mode: "Preview", review: { score: 92, status: "ready", items: [] }, rendered: { sampleRate, samples: automatedWhisper.samples, analysis: analyzeBuffer(automatedWhisper.samples, sampleRate), mode: "preview", lineReadId: otomeWhisperBeat.id } },
+    { id: "scene-take-b", title: "Scene B", target: otomeWhisperBeat.name, targetId: otomeWhisperBeat.id, mode: "Preview", review: { score: 88, status: "ready", items: [] }, rendered: { sampleRate, samples: staticWhisper, analysis: analyzeBuffer(staticWhisper, sampleRate), mode: "preview", lineReadId: otomeWhisperBeat.id } }
+  ],
+  sceneSession: otomeSceneSession,
+  takeDecision: { winnerId: "scene-take-a", score: 93, winner: { label: "Scene A", weakest: "Script", score: 93 } }
+}, { id: "project-otome", title: "Otome close scene pass", createdAt: 2000, includeAudio: false });
+const otomeProjectVault = buildProjectVault([], {
+  presetId: "otome",
+  lineReadId: otomeWhisperBeat.id,
+  params: otomeWhisperParams,
+  source: { name: "Generated Neutral", sourceProfileId: "neutral_medium", sampleRate, samples: source, analysis: sourceAnalysis },
+  voiceSnapshots: [otomeWhisperSnapshot],
+  renderDeck: [{ id: "scene-take-a", targetId: otomeWhisperBeat.id, review: { score: 92 } }],
+  sceneSession: otomeSceneSession,
+  takeDecision: { winnerId: "scene-take-a", score: 93 }
+});
+assert.equal(otomeProject.renderDeck.length, 2, "project snapshot should retain bounded render-deck evidence");
+assert.equal(otomeProject.sceneSession.readyCount, 1, "project snapshot should retain scene coverage evidence");
+assert.equal(otomeProjectVault.nextAction.id, "capture-project", "project vault should save a current evidenced scene");
+const savedProjects = addProjectSnapshot([], otomeProject);
+const restoreProjectVault = buildProjectVault(savedProjects, {
+  presetId: "clean",
+  lineReadId: otomeWhisperBeat.id,
+  params: paramsForPreset("clean"),
+  source: null,
+  voiceSnapshots: [],
+  renderDeck: [],
+  sceneSession: buildSceneSession({ activeLineReadId: otomeWhisperBeat.id, params: paramsForPreset("clean"), hasSource: false })
+});
+assert.equal(savedProjects.length, 1, "project vault should retain captured projects");
+assert.equal(restoreProjectVault.nextAction.id, "apply-project", "project vault should restore a stronger saved scene project");
+assert.ok(projectParamPatch(paramsForPreset("clean"), otomeProject.params).some((patch) => patch.key === "closeMic" || patch.key === "romanticBreath"), "project restore patch should expose meaningful voice-design deltas");
 const otomeReadParams = paramsForLineReadTarget(otomeRead.id);
 assert.equal(scoreLineReadTarget(otomeReadParams, otomeRead), 100, "applied line-read params should match target controls");
 const otomeBreakdown = targetMatchBreakdown(otomeReadParams, otomeRead);

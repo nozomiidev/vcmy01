@@ -1,4 +1,5 @@
 export const STUDIO_PLAN_STEP_IDS = Object.freeze([
+  "project",
   "source",
   "route",
   "shape",
@@ -13,6 +14,7 @@ export const STUDIO_PLAN_STEP_IDS = Object.freeze([
 
 export function buildStudioPlan(options = {}) {
   const hasSource = !!options.hasSource;
+  const projectVault = options.projectVault || null;
   const sourceFit = options.sourceFit || null;
   const routes = Array.isArray(options.routes) ? options.routes : [];
   const activeRoute = routes.find((route) =>
@@ -37,6 +39,7 @@ export function buildStudioPlan(options = {}) {
   const renderDeckSeconds = Math.max(0, Number(options.renderDeckSeconds || 0));
 
   const steps = [
+    projectStep(projectVault),
     sourceStep(hasSource, sourceFit),
     routeStep(hasSource, topRoute, activeRoute),
     shapeStep(hasSource, chain),
@@ -59,6 +62,42 @@ export function buildStudioPlan(options = {}) {
     steps,
     nextAction
   };
+}
+
+function projectStep(projectVault) {
+  if (!projectVault) {
+    return step({
+      id: "project",
+      label: "Project",
+      status: "waiting",
+      score: null,
+      summary: "No vault",
+      detail: "Project recall is unavailable."
+    });
+  }
+  const action = projectVault.nextAction;
+  const status = projectVault.status === "empty" ? "waiting" : projectVault.status;
+  return step({
+    id: "project",
+    label: "Project",
+    status,
+    score: projectVault.count ? projectVault.score : null,
+    summary: projectVault.count
+      ? `${projectVault.count} projects`
+      : "No projects",
+    detail: action?.id === "apply-project"
+      ? `A saved project can restore source, scene, and renders: ${projectVault.best?.title || "Project"}.`
+      : action?.id === "capture-project"
+        ? "Current scene, source, design, and render evidence are not saved as a project."
+        : projectVault.savedCurrent
+          ? "Current project state is saved."
+          : projectVault.summary || "Project vault is ready.",
+    action: action?.id === "apply-project"
+      ? { id: "apply-project", label: action.label, projectId: action.projectId }
+      : action?.id === "capture-project"
+        ? { id: "capture-project", label: action.label }
+        : null
+  });
 }
 
 function sceneStep(hasSource, sceneSession) {
