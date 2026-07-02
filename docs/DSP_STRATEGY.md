@@ -116,6 +116,12 @@ gaps, and draws a compact radar so users can see whether a read is missing lift,
 softness, energy, distance, breath placement, or confidence before rendering
 another take.
 
+The next layer is coaching. Target drift is now grouped into Character,
+Performance, and Distance recipe stages, and the UI exposes an Apply Next Fix
+action that moves only the highest-priority missing axis. This keeps the full
+Apply Target path for fast setup while also supporting iterative shaping, which
+is closer to how a user would tune an acted character read.
+
 ## Calibration
 
 Presets should eventually ask for or infer:

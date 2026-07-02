@@ -50,6 +50,8 @@ GitHub Pages.
   against acting intent, not just signal movement.
 - Expand Line Read target visualizations so users can see macro/director drift
   before rendering or recording another take.
+- Turn Line Read target drift into coaching and one-step corrections so users
+  can shape a read progressively instead of only applying a full preset.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic

@@ -1,5 +1,6 @@
 import { DIRECTOR_DEFS, FACTORY_PRESETS, MACRO_DEFS, PARAM_DEFS, paramsForPreset, presetById } from "./audio/presets.js";
 import {
+  coachLineReadTarget,
   firstLineReadForPreset,
   LINE_READ_TARGETS,
   lineReadById,
@@ -242,6 +243,7 @@ function toggleMonitor(on) {
 
 function bindLineReads() {
   $("applyActiveLineRead").addEventListener("click", () => applyLineReadTarget(state.lineReadId));
+  $("applyNextLineReadFix").addEventListener("click", applyNextLineReadFix);
   $("nextLineRead").addEventListener("click", () => {
     const index = LINE_READ_TARGETS.findIndex((target) => target.id === state.lineReadId);
     const next = LINE_READ_TARGETS[(index + 1 + LINE_READ_TARGETS.length) % LINE_READ_TARGETS.length];
@@ -264,6 +266,22 @@ function applyLineReadTarget(id) {
   renderLineReadLibrary();
   updateActivePreset();
   toast(target.name, target.direction);
+}
+
+function applyNextLineReadFix() {
+  const target = lineReadById(state.lineReadId);
+  const coach = coachLineReadTarget(state.params, target, 1);
+  const [key, value] = Object.entries(coach.nextPatch)[0] || [];
+  if (!key) {
+    toast("Target already matched", "Line Read controls are locked to this read.");
+    return;
+  }
+  state.params = { ...state.params, [key]: value };
+  persist();
+  engine.setParams(state.params);
+  renderControls();
+  updateLineReadScore();
+  toast("Next fix applied", `${coach.cues[0].label} ${signed(Math.round(coach.cues[0].delta))}`);
 }
 
 function renderLineReadPanel() {
@@ -310,7 +328,40 @@ function renderLineReadDiagnostics() {
   $("activeLineReadGaps").innerHTML = gaps.map((axis) => `
     <span>${axis.action === "raise" ? "Raise" : "Lower"} ${escapeHtml(axis.fullLabel)} <b>${signed(Math.round(axis.delta))}</b></span>
   `).join("");
+  renderLineReadCoach(target);
   drawLineReadRadar(axes.slice(0, 6));
+}
+
+function renderLineReadCoach(target) {
+  const coach = coachLineReadTarget(state.params, target, 3);
+  $("lineReadCoachStatus").textContent = coachStatusLabel(coach.status);
+  $("lineReadRecipeFlow").innerHTML = coach.groups.map((group) => `
+    <div class="recipe-step is-${group.status}" data-recipe="${group.id}">
+      <span>${escapeHtml(group.label)}</span>
+      <strong>${group.score}%</strong>
+      <small>${group.gap ? `${group.gap.action === "raise" ? "Raise" : "Lower"} ${escapeHtml(group.gap.label)}` : "Locked"}</small>
+    </div>
+  `).join("");
+  $("lineReadCoachList").innerHTML = coach.cues.length ? coach.cues.map((cue) => `
+    <div class="coach-item" data-axis="${cue.key}">
+      <span>${cue.action === "raise" ? "Raise" : "Lower"} ${escapeHtml(cue.label)} <b>${signed(Math.round(cue.delta))}</b></span>
+      <p>${escapeHtml(cue.cue)}</p>
+    </div>
+  `).join("") : `
+    <div class="coach-item is-locked">
+      <span>Target locked</span>
+      <p>The current macro and director controls match this Line Read.</p>
+    </div>
+  `;
+  const next = coach.cues[0];
+  $("applyNextLineReadFix").disabled = !next;
+  $("applyNextLineReadFix").textContent = next ? `Fix ${next.label}` : "Target Locked";
+}
+
+function coachStatusLabel(status) {
+  if (status === "locked") return "Locked";
+  if (status === "polish") return "Polish";
+  return "Shape";
 }
 
 function drawLineReadRadar(axes) {

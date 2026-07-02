@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { DIRECTOR_DEFS, FACTORY_PRESETS, paramsForPreset } from "../src/audio/presets.js";
 import {
+  coachLineReadTarget,
   LINE_READ_TARGETS,
+  lineReadRecipe,
   paramsForLineReadTarget,
   scoreLineReadTarget,
   targetMatchBreakdown,
@@ -78,6 +80,12 @@ const otomeBreakdown = targetMatchBreakdown(otomeReadParams, otomeRead);
 assert.ok(otomeBreakdown.some((axis) => axis.key === "endingSoftness" && axis.score === 100), "line-read breakdown should expose per-axis target scores");
 const otomeGaps = topTargetGaps(paramsForPreset("otome"), otomeRead, 3);
 assert.ok(otomeGaps.some((axis) => axis.key === "endingSoftness" && axis.action === "raise"), "line-read gaps should identify target drift");
+const otomeCoach = coachLineReadTarget(paramsForPreset("otome"), otomeRead, 3);
+assert.equal(otomeCoach.status, "polish", "near-target line read should be in polish status");
+assert.equal(otomeCoach.cues[0].key, "breath", "coach should prioritize the largest target gap");
+assert.deepEqual(otomeCoach.nextPatch, { breath: 58 }, "coach should expose a one-step patch for the next fix");
+const otomeRecipe = lineReadRecipe(paramsForPreset("otome"), otomeRead);
+assert.ok(otomeRecipe.some((group) => group.id === "distance" && group.gap.key === "breath"), "recipe should map target drift into workflow groups");
 assert.ok(otomeReadParams.endingSoftness > paramsForPreset("otome").endingSoftness, "otome line read should push soft endings beyond the base preset");
 assert.ok(otomeReadParams.romanticBreath > paramsForPreset("otome").romanticBreath, "otome line read should push breath placement beyond the base preset");
 const otomeReadRendered = processVoiceBuffer(source, sampleRate, otomeReadParams);

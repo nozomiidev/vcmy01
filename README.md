@@ -31,6 +31,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   calibration reads.
 - Line Read target visualization with radar and per-axis gap bars for lift,
   softness, energy, distance, breath placement, confidence, and related macros.
+- Line Read coaching that turns target drift into recipe-group scores and a
+  focused Apply Next Fix workflow before committing to a full target.
 - Offline generated/uploaded source processing with analysis, A/B compare,
   preview-region rendering, source-aware Auto Tune, and WAV export.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,

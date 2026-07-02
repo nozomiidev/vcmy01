@@ -642,6 +642,120 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
 }
 
+.coach-panel {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+
+.coach-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.coach-head strong {
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.recipe-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recipe-step {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.recipe-step.is-shape {
+  border-color: color-mix(in srgb, var(--hot) 48%, var(--line));
+}
+
+.recipe-step.is-polish {
+  border-color: color-mix(in srgb, var(--warn) 48%, var(--line));
+}
+
+.recipe-step span,
+.recipe-step small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipe-step span {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.recipe-step strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.recipe-step small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.coach-list {
+  display: grid;
+  gap: 8px;
+}
+
+.coach-item {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-2) 86%, transparent);
+}
+
+.coach-item span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.coach-item b {
+  color: var(--hot);
+  font-variant-numeric: tabular-nums;
+}
+
+.coach-item p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.coach-item.is-locked b {
+  color: var(--ok);
+}
+
 .meter-line {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 76px;
@@ -977,6 +1091,7 @@ audio {
   .line-read-body { grid-template-columns: 1fr; }
   .line-read-copy p { font-size: 20px; }
   .target-axis-list { grid-template-columns: 1fr; }
+  .recipe-flow { grid-template-columns: 1fr; }
   .region-grid { grid-template-columns: 1fr; }
   .transport-main { align-items: flex-start; flex-direction: column; }
   .transport-actions { margin-left: 0; }
