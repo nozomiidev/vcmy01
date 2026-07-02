@@ -18,6 +18,7 @@ import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
 import { auditionVariantSummary, buildAuditionVariants } from "./audio/audition-variants.js";
 import { bestCharacterChainPatch, characterChainReport } from "./audio/character-chain.js";
+import { bestEffectStackPatch, buildEffectStack } from "./audio/effect-stack.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "./audio/performance-trace.js";
 import { buildPerformanceScript, compareScriptToPerformance } from "./audio/performance-script.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
@@ -75,6 +76,7 @@ function init() {
   renderSceneKitLibrary();
   renderPerformanceScript();
   renderCharacterChain();
+  renderEffectStack();
   renderPerformanceTrace();
   renderStudioPlan();
   renderAuditionVariants();
@@ -134,6 +136,7 @@ function renderPresets() {
       updateSourceFit();
       updateRoutePlanner();
       renderCharacterChain();
+      renderEffectStack();
       toast(presetById(state.presetId).name, presetById(state.presetId).target);
     });
   });
@@ -165,6 +168,7 @@ function renderControlGroup(host, defs) {
       updateSourceFit();
       updateRoutePlanner();
       renderCharacterChain();
+      renderEffectStack();
     });
   });
 }
@@ -266,6 +270,7 @@ function bindTransport() {
     updateSourceFit();
     updateRoutePlanner();
     renderCharacterChain();
+    renderEffectStack();
   });
 
   $("clearTakes").addEventListener("click", async () => {
@@ -319,6 +324,7 @@ function applyLineReadTarget(id) {
   updateSourceFit();
   updateRoutePlanner();
   renderCharacterChain();
+  renderEffectStack();
   toast(target.name, target.direction);
 }
 
@@ -340,6 +346,7 @@ function applyNextLineReadFix() {
   updateSourceFit();
   updateRoutePlanner();
   renderCharacterChain();
+  renderEffectStack();
   toast("Next fix applied", `${coach.cues[0].label} ${signed(Math.round(coach.cues[0].delta))}`);
 }
 
@@ -829,6 +836,7 @@ function bindOffline() {
   $("applyKeeperRefinement")?.addEventListener("click", applyKeeperRefinement);
 
   $("applyChainFix").addEventListener("click", applyNextCharacterChainFix);
+  $("applyStackFix")?.addEventListener("click", applyNextEffectStackFix);
   $("applyStudioPlanStep").addEventListener("click", applyStudioPlanStep);
 }
 
@@ -1098,6 +1106,7 @@ function renderCharacterChain() {
   const hasPatch = Object.keys(report.nextPatch).some((key) => !key.startsWith("_"));
   $("applyChainFix").disabled = !hasPatch;
   $("applyChainFix").textContent = hasPatch && patchStage ? `Fix ${patchStage.label}` : "Chain Locked";
+  renderEffectStack();
   renderStudioPlan();
 }
 
@@ -1127,6 +1136,83 @@ function characterChainStatusLabel(status) {
   return "Risk";
 }
 
+function currentEffectStackReport() {
+  const target = lineReadById(state.lineReadId);
+  const sourceFit = offline.source ? offline.sourceFitReport(state.params, target) : null;
+  const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
+  return buildEffectStack(state.params, {
+    target,
+    sourceFit,
+    renderReview: review,
+    rendered: offline.rendered,
+    performanceScript: currentPerformanceScript(),
+    scriptMatch: currentScriptMatch(),
+    keeperRefinement: currentKeeperRefinement()
+  });
+}
+
+function renderEffectStack() {
+  const panel = $("effectStackPanel");
+  if (!panel) return;
+  const stack = currentEffectStackReport();
+  panel.className = `effect-stack is-${stack.status}`;
+  $("effectStackStatus").textContent = `${stack.score}% ${effectStackStatusLabel(stack.status)} / ${stack.activeCount} active`;
+  $("effectStackFlow").innerHTML = stack.stages.map((stage, index) => `
+    <div class="effect-stage is-${stage.status} ${stage.id === stack.nextStageId ? "is-next" : ""}" data-stack-stage="${stage.id}">
+      <div class="effect-stage-head">
+        <span>${String(index + 1).padStart(2, "0")} ${escapeHtml(stage.label)}</span>
+        <strong>${stage.intensity}%</strong>
+      </div>
+      <small>${escapeHtml(stage.role)}</small>
+      <div class="effect-stage-mode">${escapeHtml(stage.mode)}${stage.notes.length ? ` / ${escapeHtml(stage.notes.join(" / "))}` : ""}</div>
+      <div class="effect-stage-bars">
+        ${stage.meters.map((meter) => `
+          <i style="--value:${meter.value}%">
+            <b>${escapeHtml(meter.label)}</b>
+            <em>${meter.value}%</em>
+          </i>
+        `).join("")}
+      </div>
+    </div>
+  `).join("");
+  const patchStage = stack.stages.find((stage) => stage.id === stack.nextStageId);
+  const patchItems = patchStage?.patch?.slice(0, 6) || [];
+  $("effectStackPatches").innerHTML = patchItems.length ? patchItems.map((patch) => `
+    <span>${escapeHtml(paramLabel(patch.key))} <b>${formatPatchDelta(patch)}</b><small>${escapeHtml(patch.reason)}</small></span>
+  `).join("") : `<span>Stack locked <b>0</b><small>No next move</small></span>`;
+  const hasPatch = Object.keys(stack.nextPatch).some((key) => !key.startsWith("_"));
+  $("applyStackFix").disabled = !hasPatch;
+  $("applyStackFix").textContent = hasPatch && patchStage ? `Fix ${patchStage.label}` : "Stack Locked";
+}
+
+function applyNextEffectStackFix() {
+  const stack = currentEffectStackReport();
+  const patch = bestEffectStackPatch(stack);
+  const keys = Object.keys(patch).filter((key) => !key.startsWith("_"));
+  if (!keys.length) {
+    toast("Signal stack locked", "The current processing stack has no next correction.");
+    return;
+  }
+  const stage = stack.stages.find((item) => item.id === stack.nextStageId);
+  state.params = { ...state.params, ...patch };
+  persist();
+  engine.setParams(state.params);
+  renderControls();
+  updateLineReadScore();
+  updateSourceFit();
+  updateRoutePlanner();
+  renderCharacterChain();
+  renderEffectStack();
+  renderStudioPlan();
+  toast("Stack fix applied", `${stage?.label || "Signal Stack"}: ${describePatchObject(patch)}`);
+}
+
+function effectStackStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "check") return "Check";
+  return "Risk";
+}
+
 function renderPerformanceTrace() {
   const panel = $("performanceTracePanel");
   if (!panel) return;
@@ -1137,6 +1223,7 @@ function renderPerformanceTrace() {
     drawPerformanceTraceCanvas($("performanceTraceCanvas"), null, null);
     renderScriptMatch();
     renderAutomationPanel();
+    renderEffectStack();
     renderStudioPlan();
     return;
   }
@@ -1169,6 +1256,7 @@ function renderPerformanceTrace() {
     `).join("");
   renderScriptMatch();
   renderAutomationPanel();
+  renderEffectStack();
   renderStudioPlan();
 }
 
@@ -1296,6 +1384,7 @@ function currentStudioPlan() {
   const target = lineReadById(state.lineReadId);
   const sourceFit = offline.source ? offline.sourceFitReport(state.params, target) : null;
   const chainReport = currentCharacterChainReport();
+  const effectStack = currentEffectStackReport();
   const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
   const takeDecision = currentTakeDecision();
   return buildStudioPlan({
@@ -1305,6 +1394,7 @@ function currentStudioPlan() {
     activePresetId: state.presetId,
     activeLineReadId: state.lineReadId,
     chainReport,
+    effectStack,
     renderReview: review,
     performanceComparison: currentPerformanceComparison(),
     performanceScript: currentPerformanceScript(),
@@ -1384,6 +1474,10 @@ function applyStudioPlanStep() {
   }
   if (action.id === "chain-fix") {
     applyNextCharacterChainFix();
+    return;
+  }
+  if (action.id === "stack-fix") {
+    applyNextEffectStackFix();
     return;
   }
   if (action.id === "preview-region") {

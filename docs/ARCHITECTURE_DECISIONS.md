@@ -281,3 +281,25 @@ Decision:
   keeper is not ready.
 - Keep the loop deterministic, static, local, and replaceable by stronger DSP
   or future browser VC later.
+
+## ADR 017 - Voice Design Needs A Signal Stack
+
+Character Chain explains target drift, but it does not show the actual
+signal-path operation. A user can match the target layers and still end up with
+an overloaded breath stack, too much close-mic ambience, weak render headroom,
+or a source-compensation move that should be treated as input prep rather than
+as character taste.
+
+Decision:
+
+- Add a Signal Stack layer separate from Character Chain.
+- Keep the stack ordered like the DSP path: input prep, core shift, voice
+  tract, tone, texture, performance motion, dynamics, space, and guardrails.
+- Compute per-stage intensity, evidence notes, live/offline mode, and bounded
+  patch moves from current params, Source Fit, Script Match, Keeper Refinement,
+  and Render Review.
+- Let Studio Plan surface `stack-fix` before auditioning when the signal path is
+  risky even if the target-facing Character Chain is already locked.
+- Treat this as the first non-destructive effect-stack design layer. Future work
+  can add per-layer bypass, snapshots, plugin slots, and offline-only high
+  quality processors without changing the static GitHub Pages constraint.

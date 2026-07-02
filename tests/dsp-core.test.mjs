@@ -21,6 +21,7 @@ import { rankRenderDeckTakes, sourceSamplesForRenderedRegion } from "../src/audi
 import { buildKeeperRefinement } from "../src/audio/take-refinement.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
+import { bestEffectStackPatch, buildEffectStack, EFFECT_STACK_STAGE_IDS } from "../src/audio/effect-stack.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
 import { automationSummary, buildPerformanceScript, compareScriptToPerformance, renderScriptAutomation, SCRIPT_LANES } from "../src/audio/performance-script.js";
 import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.js";
@@ -46,8 +47,9 @@ const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
+assert.deepEqual(EFFECT_STACK_STAGE_IDS, ["input", "core", "tract", "tone", "texture", "performance", "dynamics", "space", "guard"], "effect stack should expose ordered signal-path layers");
 assert.equal(AUDITION_VARIANT_IDS.length >= 5, true, "audition variants should cover multiple nearby character directions");
-assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "script", "audition", "trace", "deck"], "studio plan should expose the full production flow");
+assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "stack", "script", "audition", "trace", "deck"], "studio plan should expose the full production flow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.ok(SCENE_KITS.length >= 4, "scene kits should expand single reads into multi-beat acting workflows");
 assert.ok(ALL_LINE_READ_TARGETS.length > LINE_READ_TARGETS.length, "scene beats should be usable as line-read targets");
@@ -70,6 +72,7 @@ assert.equal(emptyStudioPlan.nextAction.id, "load-source", "studio plan should s
 assert.equal(emptyStudioPlan.steps.length, STUDIO_PLAN_STEP_IDS.length, "studio plan should keep every workflow step visible");
 
 const mockReadySourceFit = { status: "ready", score: 96, patches: [] };
+const mockReadyStack = { status: "ready", score: 94, activeCount: 5, nextPatch: {}, summary: "Stack locked", stages: [] };
 const mockRoute = {
   id: "route-otome",
   presetId: "otome",
@@ -86,6 +89,7 @@ const routeStudioPlan = buildStudioPlan({
   activePresetId: "clean",
   activeLineReadId: "studio_check",
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
   renderDeckCount: 0
 });
 assert.equal(routeStudioPlan.nextAction.id, "apply-route", "studio plan should route before shaping when a better target is available");
@@ -104,6 +108,7 @@ const shapeStudioPlan = buildStudioPlan({
     nextPatch: { breath: 58 },
     stages: [{ id: "texture", label: "Texture" }]
   },
+  effectStack: mockReadyStack,
   renderDeckCount: 0
 });
 assert.equal(shapeStudioPlan.nextAction.id, "chain-fix", "studio plan should expose the next character-chain fix");
@@ -115,9 +120,30 @@ const auditionStudioPlan = buildStudioPlan({
   activePresetId: "otome",
   activeLineReadId: "otome_promise",
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
   renderDeckCount: 0
 });
 assert.equal(auditionStudioPlan.nextAction.id, "preview-region", "studio plan should request an audition before final judgment");
+
+const stackStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: {
+    status: "check",
+    score: 78,
+    activeCount: 7,
+    nextStageId: "dynamics",
+    nextPatch: { outputGain: -1 },
+    summary: "1 Dynamics move",
+    stages: [{ id: "dynamics", label: "Dynamics" }]
+  },
+  renderDeckCount: 0
+});
+assert.equal(stackStudioPlan.nextAction.id, "stack-fix", "studio plan should fix a weak signal stack before auditioning");
 
 for (const preset of FACTORY_PRESETS) {
   const processed = processVoiceBuffer(source, sampleRate, paramsForPreset(preset.id));
@@ -238,12 +264,19 @@ const lowKawaiiChain = characterChainReport(kawaii, kawaiiSpark, {
   sourceFit: lowToKawaiiFit,
   sourceTunedParams: offline.calibratedParams(kawaii)
 });
+const lowKawaiiStack = buildEffectStack(kawaii, {
+  target: kawaiiSpark,
+  sourceFit: lowToKawaiiFit,
+  performanceScript: buildPerformanceScript(kawaiiSpark, kawaii)
+});
 assert.equal(lowToKawaiiFit.status, "risk", "low source should be risky for a bright kawaii target before tuning");
 assert.ok(lowToKawaiiFit.score < 70, "source fit should score mismatched source and target conservatively");
 assert.ok(lowToKawaiiFit.items.some((item) => item.id === "range" && item.status === "risk"), "source fit should flag range mismatch");
 assert.ok(lowToKawaiiFit.patches.some((item) => item.key === "pitch" && item.delta > 0), "source fit should expose calibration patches");
 assert.equal(lowKawaiiChain.nextStageId, "guardrail", "source mismatch should prioritize the guardrail chain stage");
 assert.ok(bestCharacterChainPatch(lowKawaiiChain)._sourceCalibration, "guardrail chain patch should carry calibration idempotency");
+assert.ok(lowKawaiiStack.stages.find((stage) => stage.id === "input").patch.length > 0, "effect stack should turn source mismatch into input/source-compensation moves");
+assert.ok(Object.keys(bestEffectStackPatch(lowKawaiiStack)).length > 0, "effect stack should expose an actionable next signal-path patch");
 const autoRendered = offline.render(kawaii, { autoCalibrate: true });
 assert.equal(autoRendered.autoCalibrated, true, "offline render should preserve auto calibration metadata");
 assert.equal(autoRendered.region.isFull, true, "default offline render should cover the full source");
@@ -256,6 +289,13 @@ assert.ok(tunedLowToKawaiiFit.score > lowToKawaiiFit.score, "source fit should i
 const autoReview = renderReview(offline.source, autoRendered);
 assert.ok(autoReview.score >= 70, "render review should score usable offline renders");
 assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.includes("+")), "render review should expose apparent F0 movement");
+const hotStack = buildEffectStack(paramsForPreset("streamer", { outputGain: 3, saturation: 62, compression: 80 }), {
+  target: LINE_READ_TARGETS.find((target) => target.id === "streamer_hook"),
+  renderReview: { status: "risk", score: 48, items: [] },
+  rendered: { analysis: { ...autoRendered.analysis, clipped: true, peakDb: -0.2, rmsDb: -7.8 } }
+});
+assert.equal(hotStack.nextStageId, "dynamics", "effect stack should prioritize dynamics when rendered audio loses headroom");
+assert.ok(bestEffectStackPatch(hotStack).outputGain < 3, "effect stack dynamics patch should restore output headroom");
 const previewRendered = offline.render(kawaii, { autoCalibrate: true, region: { startSec: 0.5, durationSec: 0.75 }, mode: "preview" });
 assert.equal(previewRendered.mode, "preview", "offline preview should preserve render mode");
 assert.equal(previewRendered.region.isFull, false, "offline preview should be marked as a region render");
@@ -313,6 +353,7 @@ const variantStudioPlan = buildStudioPlan({
   activePresetId: "otome",
   activeLineReadId: "otome_promise",
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
   renderReview: renderReview(offline.source, previewRendered),
   auditionVariantCount: kawaiiVariants.length,
   renderDeckCount: 1
@@ -333,6 +374,7 @@ const deckStudioPlan = buildStudioPlan({
   activePresetId: "otome",
   activeLineReadId: "otome_promise",
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
   renderReview: autoReview,
   performanceComparison: { status: "ready", score: 92, items: [{ label: "Tail Air", value: "+800/s" }] },
   performanceScript: otomeWhisperScript,
@@ -354,6 +396,7 @@ const refineStudioPlan = buildStudioPlan({
   activePresetId: "otome",
   activeLineReadId: "otome_promise",
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
   renderReview: autoReview,
   performanceComparison: { status: "ready", score: 92, items: [{ label: "Tail Air", value: "+800/s" }] },
   performanceScript: otomeWhisperScript,

@@ -47,8 +47,12 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
 - Character Chain staging that breaks the active voice into Core, Tone,
   Texture, Performance, Dynamics, Space, and Guardrail layers with measured
   drift and one-step chain fixes.
+- Signal Stack staging that shows the actual DSP signal-path layers, their
+  intensity, live/offline mode, source/render evidence, and bounded stack fixes
+  for input prep, voice tract, tone, texture, performance, dynamics, space, and
+  guardrails.
 - Studio Plan production flow that connects source loading, route choice,
-  chain shaping, script planning, preview audition, trace evidence, and
+  chain shaping, signal-stack balance, script planning, preview audition, trace evidence, and
   render-deck comparison into a single next-step workflow.
 - Performance Trace visualization for source/render timing, F0 motion, ending
   movement, tail breath/frication, and delivery dynamics across the region.
@@ -80,7 +84,8 @@ Known product capability gap:
   approximations rather than real phrase understanding, emotion transfer, or
   actor-style timing conversion.
 - Offline post-processing has region preview, script-driven automation, and
-  audition variant batches, but still needs non-destructive effect stacks and
+  audition variant batches, plus a first Signal Stack layer, but still needs
+  deeper non-destructive stack snapshots, per-layer bypass auditioning, and
   longer uploaded-file workflow.
 - The app still needs richer performance targets, repeatable line-read tests,
   phrase/ending behavior, distance, emotion, and delivery workflows beyond the

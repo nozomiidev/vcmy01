@@ -2,6 +2,7 @@ export const STUDIO_PLAN_STEP_IDS = Object.freeze([
   "source",
   "route",
   "shape",
+  "stack",
   "script",
   "audition",
   "trace",
@@ -18,6 +19,7 @@ export function buildStudioPlan(options = {}) {
   ) || null;
   const topRoute = routes[0] || null;
   const chain = options.chainReport || null;
+  const effectStack = options.effectStack || null;
   const script = options.performanceScript || null;
   const scriptMatch = options.scriptMatch || null;
   const scriptAutomation = options.scriptAutomation || null;
@@ -33,6 +35,7 @@ export function buildStudioPlan(options = {}) {
     sourceStep(hasSource, sourceFit),
     routeStep(hasSource, topRoute, activeRoute),
     shapeStep(hasSource, chain),
+    stackStep(hasSource, effectStack),
     scriptStep(script, scriptMatch, scriptAutomation),
     auditionStep(hasSource, review, renderDeckCount, auditionVariantCount),
     traceStep(hasSource, review, trace),
@@ -49,6 +52,37 @@ export function buildStudioPlan(options = {}) {
     steps,
     nextAction
   };
+}
+
+function stackStep(hasSource, effectStack) {
+  if (!hasSource) {
+    return waitingStep("stack", "Stack", "Waiting for source");
+  }
+  if (!effectStack) {
+    return step({
+      id: "stack",
+      label: "Stack",
+      status: "check",
+      score: 54,
+      summary: "No stack",
+      detail: "Signal stack diagnostics are unavailable."
+    });
+  }
+  const hasPatch = Object.keys(effectStack.nextPatch || {}).some((key) => !key.startsWith("_"));
+  const nextStage = effectStack.stages?.find((stage) => stage.id === effectStack.nextStageId);
+  return step({
+    id: "stack",
+    label: "Stack",
+    status: effectStack.status,
+    score: effectStack.score,
+    summary: `${effectStack.score}% ${labelForStatus(effectStack.status)}`,
+    detail: nextStage
+      ? `Next signal layer: ${nextStage.label}; ${effectStack.summary}.`
+      : `${effectStack.activeCount || 0} active signal layers are balanced.`,
+    action: hasPatch
+      ? { id: "stack-fix", label: `Fix ${nextStage?.label || "Stack"}` }
+      : null
+  });
 }
 
 function scriptStep(script, scriptMatch, scriptAutomation) {

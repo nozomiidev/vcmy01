@@ -182,13 +182,24 @@ exposes the next meaningful patch. This is intentionally a production workflow
 layer: users should be able to see which part of the character voice is missing
 instead of guessing from a flat preset name or a wall of sliders.
 
+Signal Stack is the signal-path view of the active processing design. Character
+Chain asks "which target layer is missing?" while Signal Stack asks "which DSP
+layer is currently active, risky, or overloaded?" It keeps input prep, core
+shift, voice tract, tone, texture, performance motion, dynamics, space, and
+guardrails in processing order, then surfaces bounded stack fixes from source
+fit, script match, keeper refinement, and render safety evidence. This is the
+first non-destructive effect-stack layer: it does not replace the DSP chain,
+but it makes the chain inspectable and gives Studio Plan an operational stack
+step before auditioning.
+
 Studio Plan is the workflow coordinator above those panels. Source Fit, Voice
-Route, Character Chain, Performance Script, Performance Trace, and Render Deck
-are useful evidence, but they can still leave a user asking what to do next.
+Route, Character Chain, Signal Stack, Performance Script, Performance Trace,
+and Render Deck are useful evidence, but they can still leave a user asking
+what to do next.
 Studio Plan keeps every production step visible and chooses the next action in
 order: load or analyze a source, apply a stronger route, fix the weakest chain
-stage, inspect the acting script, render a preview, compare performance
-evidence, then choose from the deck. This makes the app feel like a
+stage, balance the signal stack, inspect the acting script, render a preview,
+compare performance evidence, then choose from the deck. This makes the app feel like a
 voice-production session instead of a collection of unrelated widgets.
 
 Performance Trace is the time-axis evidence layer. It analyzes source and
