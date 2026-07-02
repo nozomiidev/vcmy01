@@ -1,4 +1,4 @@
-import { clamp } from "./dsp-core.js";
+import { clamp, processVoiceBuffer } from "./dsp-core.js";
 import { lineReadById, targetMatchBreakdown } from "./performance-targets.js";
 
 export const SCRIPT_LANES = Object.freeze([
@@ -62,6 +62,78 @@ export function compareScriptToPerformance(script = null, comparison = null) {
   };
 }
 
+export function renderScriptAutomation(input, sampleRate, baseParams = {}, script = null, options = {}) {
+  const source = input instanceof Float32Array ? input : new Float32Array(input || []);
+  if (!script || !source.length) {
+    return {
+      samples: processVoiceBuffer(source, sampleRate, baseParams),
+      plan: null
+    };
+  }
+
+  const opts = {
+    intensity: 0.72,
+    chunkSec: 0.42,
+    hopSec: 0.24,
+    ...options
+  };
+  const chunkSize = Math.max(1024, Math.min(source.length, Math.round(sampleRate * opts.chunkSec)));
+  const hopSize = Math.max(512, Math.min(chunkSize, Math.round(sampleRate * opts.hopSec)));
+  const acc = new Float32Array(source.length);
+  const weight = new Float32Array(source.length);
+  const frames = [];
+
+  for (let start = 0; start < source.length; start += hopSize) {
+    const end = Math.min(source.length, start + chunkSize);
+    if (end <= start) break;
+    const center = (start + end) * 0.5 / sampleRate;
+    const scriptTime = sourceTimeToScriptTime(center, source.length / sampleRate, script.durationSec);
+    const lanes = scriptLaneValuesAt(script, scriptTime);
+    const frameParams = automatedParamsForLanes(baseParams, script, lanes, opts.intensity);
+    const processed = processVoiceBuffer(source.slice(start, end), sampleRate, frameParams);
+    for (let i = 0; i < processed.length && start + i < source.length; i++) {
+      const win = chunkWindow(i, processed.length, start === 0, end >= source.length);
+      acc[start + i] += processed[i] * win;
+      weight[start + i] += win;
+    }
+    frames.push({
+      startSec: start / sampleRate,
+      endSec: end / sampleRate,
+      scriptTime,
+      lanes,
+      params: automationParamSnapshot(frameParams)
+    });
+    if (end >= source.length) break;
+  }
+
+  const out = new Float32Array(source.length);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = clamp(weight[i] > 1e-6 ? acc[i] / weight[i] : source[i], -1, 1);
+  }
+  return {
+    samples: out,
+    plan: automationPlan(script, frames, opts)
+  };
+}
+
+export function automationSummary(plan = null) {
+  if (!plan?.frames?.length) return null;
+  return {
+    frameCount: plan.frames.length,
+    intensity: plan.intensity,
+    lanes: SCRIPT_LANES.map((lane) => {
+      const values = plan.frames.map((frame) => frame.lanes[lane.id]).filter(Number.isFinite);
+      return {
+        id: lane.id,
+        label: lane.label,
+        min: round2(Math.min(...values)),
+        max: round2(Math.max(...values)),
+        range: round2(Math.max(...values) - Math.min(...values))
+      };
+    })
+  };
+}
+
 function scriptValues(target, params) {
   const breakdown = targetMatchBreakdown(params, target);
   const valueFor = (key) => {
@@ -83,6 +155,109 @@ function scriptValues(target, params) {
     consonantSoftness: valueFor("consonantSoftness"),
     whisper: Number(target.params?.whisper ?? params?.whisper ?? 0)
   };
+}
+
+function scriptLaneValuesAt(script, timeSec) {
+  return Object.fromEntries(script.lanes.map((lane) => [lane.id, laneValueAt(lane, timeSec)]));
+}
+
+function laneValueAt(lane, timeSec) {
+  const points = lane.points || [];
+  if (!points.length) return 0;
+  if (timeSec <= points[0].t) return points[0].value;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const next = points[i];
+    if (timeSec <= next.t) {
+      const ratio = clamp((timeSec - prev.t) / Math.max(1e-9, next.t - prev.t), 0, 1);
+      const smooth = ratio * ratio * (3 - ratio * 2);
+      return prev.value + (next.value - prev.value) * smooth;
+    }
+  }
+  return points[points.length - 1].value;
+}
+
+function sourceTimeToScriptTime(sourceTime, sourceDuration, scriptDuration) {
+  return clamp(sourceTime / Math.max(0.001, sourceDuration), 0, 1) * Math.max(0.001, scriptDuration || sourceDuration);
+}
+
+function automatedParamsForLanes(baseParams, script, lanes, intensity) {
+  const p = { ...baseParams };
+  const center = Object.fromEntries(script.lanes.map((lane) => [lane.id, lane.value]));
+  const lift = lanes.lift - (center.lift || 0);
+  const energy = lanes.energy - (center.energy || 0);
+  const distance = lanes.distance - (center.distance || 0);
+  const breath = lanes.breath - (center.breath || 0);
+  const release = lanes.release - (center.release || 0);
+  p.phraseLift = clamp(Number(p.phraseLift || 0) + lift * 58 * intensity, 0, 100);
+  p.pitch = clamp(Number(p.pitch || 0) + lift * 0.8 * intensity - release * 0.18 * intensity, -12, 12);
+  p.prosody = clamp(Number(p.prosody || 0) + (Math.abs(lift) * 28 + Math.max(0, energy) * 14 + Math.max(0, release) * 8) * intensity, 0, 100);
+  p.deliveryEnergy = clamp(Number(p.deliveryEnergy ?? 50) + energy * 48 * intensity, 0, 100);
+  p.presence = clamp(Number(p.presence || 0) + energy * 18 * intensity + lift * 8 * intensity, -100, 100);
+  p.compression = clamp(Number(p.compression || 0) + Math.max(0, energy) * 14 * intensity, 0, 100);
+  p.saturation = clamp(Number(p.saturation || 0) + Math.max(0, energy) * 6 * intensity, 0, 100);
+  p.closeMic = clamp(Number(p.closeMic || 0) + distance * 42 * intensity, 0, 100);
+  p.intimacy = clamp(Number(p.intimacy || 0) + distance * 32 * intensity + release * 8 * intensity, 0, 100);
+  p.body = clamp(Number(p.body || 0) + distance * 12 * intensity - lift * 6 * intensity, -100, 100);
+  p.lowCut = clamp(Number(p.lowCut || 70) - Math.max(0, distance) * 10 * intensity, 40, 260);
+  p.romanticBreath = clamp(Number(p.romanticBreath || 0) + breath * 58 * intensity + release * 14 * intensity, 0, 100);
+  p.breath = clamp(Number(p.breath || 0) + breath * 44 * intensity + release * 10 * intensity, 0, 100);
+  p.whisper = clamp(Number(p.whisper || 0) + breath * 25 * intensity + release * 16 * intensity, 0, 100);
+  p.air = clamp(Number(p.air || 0) + breath * 22 * intensity + release * 10 * intensity, -100, 100);
+  p.endingSoftness = clamp(Number(p.endingSoftness || 0) + release * 58 * intensity, 0, 100);
+  p.consonantSoftness = clamp(Number(p.consonantSoftness || 0) + release * 34 * intensity + breath * 10 * intensity, 0, 100);
+  p.deEss = clamp(Number(p.deEss || 0) + Math.max(0, breath + release) * 12 * intensity, 0, 100);
+  p.outputGain = clamp(Number(p.outputGain || 0) + energy * 1.4 * intensity - Math.max(0, breath) * 0.4 * intensity, -18, 12);
+  return p;
+}
+
+function chunkWindow(index, length, isFirst, isLast) {
+  if (length <= 1) return 1;
+  const edge = Math.max(16, Math.floor(length * 0.22));
+  const fadeIn = isFirst ? 1 : clamp(index / edge, 0, 1);
+  const fadeOut = isLast ? 1 : clamp((length - 1 - index) / edge, 0, 1);
+  return Math.sin(Math.min(fadeIn, fadeOut) * Math.PI * 0.5);
+}
+
+function automationParamSnapshot(params) {
+  return {
+    pitch: round2(Number(params.pitch || 0)),
+    phraseLift: Math.round(Number(params.phraseLift || 0)),
+    endingSoftness: Math.round(Number(params.endingSoftness || 0)),
+    deliveryEnergy: Math.round(Number(params.deliveryEnergy || 0)),
+    closeMic: Math.round(Number(params.closeMic || 0)),
+    romanticBreath: Math.round(Number(params.romanticBreath || 0)),
+    breath: Math.round(Number(params.breath || 0)),
+    whisper: Math.round(Number(params.whisper || 0))
+  };
+}
+
+function automationPlan(script, frames, opts) {
+  const summary = {
+    lift: automationLaneSummary(frames, "lift"),
+    energy: automationLaneSummary(frames, "energy"),
+    distance: automationLaneSummary(frames, "distance"),
+    breath: automationLaneSummary(frames, "breath"),
+    release: automationLaneSummary(frames, "release")
+  };
+  return {
+    targetId: script.targetId,
+    targetName: script.targetName,
+    intensity: opts.intensity,
+    chunkSec: opts.chunkSec,
+    hopSec: opts.hopSec,
+    frameCount: frames.length,
+    frames,
+    summary
+  };
+}
+
+function automationLaneSummary(frames, id) {
+  const values = frames.map((frame) => frame.lanes[id]).filter(Number.isFinite);
+  if (!values.length) return { min: 0, max: 0, range: 0 };
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return { min: round2(min), max: round2(max), range: round2(max - min) };
 }
 
 function estimateReadDuration(target) {
@@ -294,4 +469,8 @@ function formatExpectedActual(expected, actual) {
 
 function round1(value) {
   return Math.round(value * 10) / 10;
+}
+
+function round2(value) {
+  return Math.round(value * 100) / 100;
 }

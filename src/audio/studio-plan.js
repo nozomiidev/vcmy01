@@ -20,6 +20,7 @@ export function buildStudioPlan(options = {}) {
   const chain = options.chainReport || null;
   const script = options.performanceScript || null;
   const scriptMatch = options.scriptMatch || null;
+  const scriptAutomation = options.scriptAutomation || null;
   const review = options.renderReview || null;
   const trace = options.performanceComparison || null;
   const renderDeckCount = Math.max(0, Number(options.renderDeckCount || 0));
@@ -29,7 +30,7 @@ export function buildStudioPlan(options = {}) {
     sourceStep(hasSource, sourceFit),
     routeStep(hasSource, topRoute, activeRoute),
     shapeStep(hasSource, chain),
-    scriptStep(script, scriptMatch),
+    scriptStep(script, scriptMatch, scriptAutomation),
     auditionStep(hasSource, review, renderDeckCount),
     traceStep(hasSource, review, trace),
     deckStep(hasSource, renderDeckCount, renderDeckSeconds)
@@ -47,7 +48,7 @@ export function buildStudioPlan(options = {}) {
   };
 }
 
-function scriptStep(script, scriptMatch) {
+function scriptStep(script, scriptMatch, scriptAutomation) {
   if (!script) {
     return step({
       id: "script",
@@ -59,13 +60,17 @@ function scriptStep(script, scriptMatch) {
     });
   }
   if (scriptMatch && !scriptMatch.plannedOnly) {
+    const matchDetail = scriptMatch.items?.slice(0, 2).map((item) => `${item.label} ${item.value}`).join(" / ") || "Rendered motion compared to the script.";
+    const automationDetail = scriptAutomation?.frameCount
+      ? `${scriptAutomation.frameCount} acting-automation frames applied.`
+      : "Rendered with static character chain.";
     return step({
       id: "script",
       label: "Script",
       status: scriptMatch.status,
       score: scriptMatch.score,
       summary: `${scriptMatch.score}% Match`,
-      detail: scriptMatch.items?.slice(0, 2).map((item) => `${item.label} ${item.value}`).join(" / ") || "Rendered motion compared to the script."
+      detail: `${automationDetail} ${matchDetail}`
     });
   }
   return step({

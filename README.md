@@ -54,6 +54,9 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   movement, tail breath/frication, and delivery dynamics across the region.
 - Script Match scoring that compares rendered phrase motion against the planned
   performance script, so traces can be judged against acting intent.
+- Acting Automation for offline renders, which maps Performance Script lanes
+  into time-varying DSP parameters so lift, energy, distance, breath, and
+  release are rendered as automation frames instead of staying as notes.
 - Render Deck auditions for offline previews/full renders with F0, level, tone,
   texture, and review-score deltas for comparing multiple takes.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
@@ -69,9 +72,9 @@ Known product capability gap:
 - The Character Director layer is now functional, but still uses DSP
   approximations rather than real phrase understanding, emotion transfer, or
   actor-style timing conversion.
-- Offline post-processing has region preview, but still needs a fuller
-  production workflow for takes, batches, non-destructive effect stacks, and
-  longer uploaded files.
+- Offline post-processing has region preview and script-driven automation, but
+  still needs a fuller production workflow for batches, non-destructive effect
+  stacks, and longer uploaded files.
 - The app still needs richer performance targets, repeatable line-read tests,
   phrase/ending behavior, distance, emotion, and delivery workflows beyond the
   first Director controls and first Line Read target set.

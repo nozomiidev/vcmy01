@@ -538,6 +538,44 @@ function renderScriptMatch() {
   `).join("") || "";
 }
 
+function renderAutomationPanel() {
+  const panel = $("automationPanel");
+  if (!panel) return;
+  const rendered = offline.rendered;
+  const summary = rendered?.scriptAutomationSummary;
+  if (!offline.source) {
+    panel.className = "automation-panel";
+    $("automationStatus").textContent = "No source";
+    $("automationGrid").innerHTML = "";
+    return;
+  }
+  if (!rendered) {
+    panel.className = "automation-panel is-planned";
+    $("automationStatus").textContent = $("scriptAutomationRender")?.checked ? "Armed" : "Off";
+    $("automationGrid").innerHTML = currentPerformanceScript().lanes.map((lane) => `
+      <div class="automation-card">
+        <span>${escapeHtml(lane.label)}</span>
+        <strong>${lane.score}%</strong>
+        <small>${escapeHtml(lane.summary)}</small>
+      </div>
+    `).join("");
+    return;
+  }
+  panel.className = `automation-panel ${rendered.scriptAutomated ? "is-active" : "is-static"}`;
+  $("automationStatus").textContent = rendered.scriptAutomated
+    ? `${rendered.scriptAutomation?.frameCount || 0} frames`
+    : "Static";
+  $("automationGrid").innerHTML = rendered.scriptAutomated && summary
+    ? summary.lanes.map((lane) => `
+      <div class="automation-card">
+        <span>${escapeHtml(lane.label)}</span>
+        <strong>${Math.round(lane.range * 100)}%</strong>
+        <small>${Math.round(lane.min * 100)}-${Math.round(lane.max * 100)}%</small>
+      </div>
+    `).join("")
+    : `<div class="automation-card"><span>Static</span><strong>0%</strong><small>Script automation disabled.</small></div>`;
+}
+
 function currentScriptMatch() {
   const comparison = currentPerformanceComparison();
   if (!comparison) return null;
@@ -729,6 +767,11 @@ function bindOffline() {
 
   $("renderOffline").addEventListener("click", () => renderOfflineToPreview(false));
 
+  $("scriptAutomationRender")?.addEventListener("change", () => {
+    renderAutomationPanel();
+    renderStudioPlan();
+  });
+
   $("downloadRender").addEventListener("click", () => {
     if (!offline.rendered) return;
     const a = document.createElement("a");
@@ -820,8 +863,11 @@ function useOfflineSource(source) {
 function renderOfflineToPreview(preview) {
   try {
     const autoTune = $("autoTuneRender").checked;
+    const scriptAuto = $("scriptAutomationRender")?.checked ?? true;
     const rendered = offline.render(state.params, {
       autoCalibrate: autoTune,
+      automatePerformance: scriptAuto,
+      performanceScript: currentPerformanceScript(),
       region: preview ? currentRegion() : null,
       mode: preview ? "preview" : "full"
     });
@@ -840,7 +886,12 @@ function renderOfflineToPreview(preview) {
     $("downloadRender").disabled = false;
     $("playCompare").disabled = false;
     const scope = preview ? `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)}s` : "full source";
-    toast(preview ? "Preview rendered" : "Offline render complete", autoTune ? `${scope}; ${describeCalibrationDelta(rendered.baseParams, rendered.appliedParams)}` : `${scope}; manual chain rendered.`);
+    const renderNote = [
+      scope,
+      autoTune ? describeCalibrationDelta(rendered.baseParams, rendered.appliedParams) : "manual chain rendered",
+      rendered.scriptAutomated ? `${rendered.scriptAutomation?.frameCount || 0} script frames` : "static script"
+    ].join("; ");
+    toast(preview ? "Preview rendered" : "Offline render complete", renderNote);
   } catch (error) {
     toast(preview ? "Preview needs a source" : "Render needs a source", error.message || "Generate or upload audio first.");
   }
@@ -852,7 +903,7 @@ function addRenderedTakeToDeck(rendered, preview) {
     id: `render-${Date.now()}-${state.renderDeckSeq += 1}`,
     title: presetById(state.presetId).name,
     target: lineReadById(state.lineReadId).name,
-    mode: preview ? "Preview" : "Full",
+    mode: `${preview ? "Preview" : "Full"}${rendered.scriptAutomated ? " Scripted" : ""}`,
     route: state.voiceRoutes.find((route) => route.presetId === state.presetId && route.targetId === state.lineReadId)?.targetName || null,
     rendered,
     review
@@ -960,6 +1011,7 @@ function renderPerformanceTrace() {
     $("performanceTraceMetrics").innerHTML = "";
     drawPerformanceTraceCanvas($("performanceTraceCanvas"), null, null);
     renderScriptMatch();
+    renderAutomationPanel();
     renderStudioPlan();
     return;
   }
@@ -991,6 +1043,7 @@ function renderPerformanceTrace() {
       </div>
     `).join("");
   renderScriptMatch();
+  renderAutomationPanel();
   renderStudioPlan();
 }
 
@@ -1130,6 +1183,7 @@ function currentStudioPlan() {
     performanceComparison: currentPerformanceComparison(),
     performanceScript: currentPerformanceScript(),
     scriptMatch: currentScriptMatch(),
+    scriptAutomation: offline.rendered?.scriptAutomationSummary || null,
     renderDeckCount: state.renderDeck.length,
     renderDeckSeconds: totalDeckSeconds(state.renderDeck)
   });

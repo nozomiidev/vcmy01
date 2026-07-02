@@ -259,6 +259,10 @@
                   <input id="autoTuneRender" type="checkbox" checked>
                   <span>Auto Tune</span>
                 </label>
+                <label class="toggle-command">
+                  <input id="scriptAutomationRender" type="checkbox" checked>
+                  <span>Script Auto</span>
+                </label>
                 <button class="command" id="playCompare" type="button" disabled>A/B Compare</button>
                 <button class="command" id="downloadRender" type="button" disabled>Download WAV</button>
               </div>
@@ -277,6 +281,13 @@
                     <strong id="scriptMatchStatus">No render</strong>
                   </div>
                   <div class="script-match-grid" id="scriptMatchGrid"></div>
+                </div>
+                <div class="automation-panel" id="automationPanel">
+                  <div class="automation-head">
+                    <span>Acting Automation</span>
+                    <strong id="automationStatus">Idle</strong>
+                  </div>
+                  <div class="automation-grid" id="automationGrid"></div>
                 </div>
                 <div class="performance-trace-grid" id="performanceTraceMetrics"></div>
               </div>

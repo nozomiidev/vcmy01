@@ -204,3 +204,24 @@ Decision:
 - Include Script as a Studio Plan step between chain shaping and audition, so
   the production flow becomes target -> route -> shape -> script -> render ->
   trace -> choose.
+
+## ADR 013 - Acting Scripts Should Drive Offline Automation
+
+Performance Script is useful as a planning and scoring layer, but a character
+voice studio also needs the plan to affect the rendered take. If lift, breath,
+distance, and release stay as only cards or charts, the product still behaves
+like a fixed DSP preset with better documentation.
+
+Decision:
+
+- Let offline rendering optionally use Performance Script lanes as automation
+  sources.
+- Render scripted takes in overlapping chunks, sampling the script timeline for
+  each chunk and mapping lane deltas into existing Director, macro, and DSP
+  parameters.
+- Preserve automation frame metadata and summaries on rendered takes so Studio
+  Plan, Script Match, tests, and the UI can distinguish scripted renders from
+  static chain renders.
+- Keep this layer deterministic and local-first. It is a non-AI prosody
+  approximation and should remain replaceable by stronger DSP or future browser
+  VC later.

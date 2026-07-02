@@ -1093,6 +1093,27 @@ input[type="range"] {
   border-color: color-mix(in srgb, var(--bad) 36%, var(--line));
 }
 
+.automation-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,0.02);
+}
+
+.automation-panel.is-active {
+  border-color: color-mix(in srgb, var(--ok) 34%, var(--line));
+}
+
+.automation-panel.is-planned {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+
+.automation-panel.is-static {
+  border-color: color-mix(in srgb, var(--warn) 32%, var(--line));
+}
+
 .performance-trace-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1600,7 +1621,8 @@ input[type="range"] {
 }
 
 .performance-script-head,
-.script-match-head {
+.script-match-head,
+.automation-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1608,7 +1630,8 @@ input[type="range"] {
 }
 
 .performance-script-head span,
-.script-match-head span {
+.script-match-head span,
+.automation-head span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 800;
@@ -1617,7 +1640,8 @@ input[type="range"] {
 }
 
 .performance-script-head strong,
-.script-match-head strong {
+.script-match-head strong,
+.automation-head strong {
   color: var(--ink);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
@@ -1633,14 +1657,16 @@ input[type="range"] {
 }
 
 .performance-script-grid,
-.script-match-grid {
+.script-match-grid,
+.automation-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 8px;
 }
 
 .performance-script-card,
-.script-match-card {
+.script-match-card,
+.automation-card {
   min-width: 0;
   display: grid;
   gap: 4px;
@@ -1668,7 +1694,10 @@ input[type="range"] {
 .performance-script-card small,
 .script-match-card span,
 .script-match-card strong,
-.script-match-card small {
+.script-match-card small,
+.automation-card span,
+.automation-card strong,
+.automation-card small {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1676,7 +1705,8 @@ input[type="range"] {
 }
 
 .performance-script-card span,
-.script-match-card span {
+.script-match-card span,
+.automation-card span {
   color: var(--muted);
   font-size: 10.5px;
   font-weight: 900;
@@ -1685,14 +1715,16 @@ input[type="range"] {
 }
 
 .performance-script-card strong,
-.script-match-card strong {
+.script-match-card strong,
+.automation-card strong {
   color: var(--ink);
   font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 
 .performance-script-card small,
-.script-match-card small {
+.script-match-card small,
+.automation-card small {
   color: var(--muted);
   font-size: 11px;
 }
@@ -2200,6 +2232,7 @@ audio {
   .studio-plan-flow { grid-template-columns: 1fr; }
   .performance-script-grid { grid-template-columns: 1fr; }
   .script-match-grid { grid-template-columns: 1fr; }
+  .automation-grid { grid-template-columns: 1fr; }
   .performance-trace-grid { grid-template-columns: 1fr; }
   .render-deck-list { grid-template-columns: 1fr; }
   .region-grid { grid-template-columns: 1fr; }

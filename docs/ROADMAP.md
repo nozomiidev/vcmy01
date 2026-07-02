@@ -68,6 +68,8 @@ GitHub Pages.
   and delivery motion can be compared before and after offline rendering.
 - Add Script Match scoring so rendered motion is judged against the planned
   acting script, not only generic signal quality.
+- Add Acting Automation so Performance Script lanes drive time-varying offline
+  DSP frames instead of remaining only planning and scoring data.
 - Add a bounded Render Deck so multiple offline previews/full renders can be
   compared by audible output and measured deltas without leaking memory.
 - Build target voices:

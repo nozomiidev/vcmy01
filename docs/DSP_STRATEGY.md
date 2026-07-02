@@ -204,6 +204,13 @@ tail-air, energy, and coverage moves. This does not claim to judge beauty or
 acting truth, but it prevents a render from looking "good" only because generic
 signal metrics passed while the intended scene gesture was missed.
 
+Acting Automation is the first point where Performance Script changes the
+offline render itself. The renderer chunks the source, samples the planned lift,
+energy, distance, breath, and release lanes over time, maps those lanes into
+Director/Macro/DSP parameters, and overlap-adds the processed chunks back into a
+single take. This is still non-AI approximation, but it makes the script an
+active render control rather than a passive note card.
+
 Render Deck is the audition layer after rendering. Every offline preview or full
 render can be kept as a bounded in-memory take with F0 movement, level delta,
 tone delta, texture delta, and a review score. The deck is intentionally capped
@@ -237,6 +244,8 @@ Recorded and uploaded audio needs a dedicated workflow:
 - A/B original vs processed
 - adjust the region and character macros without committing a full render
 - optionally apply render-time source calibration
+- optionally apply Performance Script / Acting Automation to time-vary the
+  offline DSP chain
 - render full processed output
 - export WAV/WebM
 - keep processing local

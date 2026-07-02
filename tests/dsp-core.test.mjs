@@ -19,7 +19,7 @@ import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
-import { buildPerformanceScript, compareScriptToPerformance, SCRIPT_LANES } from "../src/audio/performance-script.js";
+import { automationSummary, buildPerformanceScript, compareScriptToPerformance, renderScriptAutomation, SCRIPT_LANES } from "../src/audio/performance-script.js";
 import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.js";
 import {
   analyzeBuffer,
@@ -162,6 +162,15 @@ assert.equal(otomeWhisperScript.lanes.length, SCRIPT_LANES.length, "scene beat s
 assert.equal(otomeWhisperScript.sceneKitId, "otome_close_scene", "performance script should preserve scene context");
 assert.ok(otomeWhisperScript.durationSec >= 1.4, "performance script should estimate a usable read duration");
 assert.ok(otomeWhisperScript.cues.some((cue) => /breath|close/i.test(cue)), "performance script should produce actionable acting cues");
+const automatedWhisper = renderScriptAutomation(source, sampleRate, otomeWhisperParams, otomeWhisperScript);
+const staticWhisper = processVoiceBuffer(source, sampleRate, otomeWhisperParams);
+const automationDelta = automatedWhisper.samples.reduce((sum, value, index) => sum + Math.abs(value - staticWhisper[index]), 0) / automatedWhisper.samples.length;
+const automatedSummary = automationSummary(automatedWhisper.plan);
+assert.equal(automatedWhisper.samples.length, source.length, "script automation should preserve source length");
+assert.ok(automatedWhisper.plan.frameCount >= 4, "script automation should create overlapping automation frames");
+assert.ok(automatedWhisper.plan.summary.breath.range > 0, "script automation should move breath lane over time");
+assert.ok(automationDelta > 0.0005, "script automation should change rendered audio beyond static processing");
+assert.equal(automatedSummary.frameCount, automatedWhisper.plan.frameCount, "automation summary should track frame count");
 const otomeReadParams = paramsForLineReadTarget(otomeRead.id);
 assert.equal(scoreLineReadTarget(otomeReadParams, otomeRead), 100, "applied line-read params should match target controls");
 const otomeBreakdown = targetMatchBreakdown(otomeReadParams, otomeRead);
@@ -241,6 +250,16 @@ assert.equal(previewRendered.mode, "preview", "offline preview should preserve r
 assert.equal(previewRendered.region.isFull, false, "offline preview should be marked as a region render");
 assert.equal(previewRendered.samples.length, Math.round(sampleRate * 0.75), "offline preview should render only the requested region");
 assert.equal(previewRendered.region.startSample, Math.round(sampleRate * 0.5), "offline preview should preserve region start");
+const scriptedPreview = offline.render(kawaii, {
+  autoCalibrate: true,
+  automatePerformance: true,
+  performanceScript: buildPerformanceScript(kawaiiSpark, paramsForLineReadTarget(kawaiiSpark.id)),
+  region: { startSec: 0.5, durationSec: 0.75 },
+  mode: "preview"
+});
+assert.equal(scriptedPreview.scriptAutomated, true, "offline preview should preserve acting automation metadata");
+assert.ok(scriptedPreview.scriptAutomation.frameCount > 0, "offline preview should expose automation frame count");
+assert.equal(scriptedPreview.scriptAutomationSummary.lanes.length, SCRIPT_LANES.length, "offline preview should summarize every script lane");
 const deck = [
   { id: "full", rendered: autoRendered, review: autoReview },
   { id: "preview", rendered: previewRendered, review: renderReview(offline.source, previewRendered) }
@@ -259,12 +278,14 @@ const deckStudioPlan = buildStudioPlan({
   renderReview: autoReview,
   performanceComparison: { status: "ready", score: 92, items: [{ label: "Tail Air", value: "+800/s" }] },
   performanceScript: otomeWhisperScript,
+  scriptAutomation: scriptedPreview.scriptAutomationSummary,
   scriptMatch: { status: "ready", score: 88, items: [{ label: "Breath", value: "+900 / +850" }] },
   renderDeckCount: 2,
   renderDeckSeconds: totalDeckSeconds(deck)
 });
 assert.equal(deckStudioPlan.nextAction.id, "compare-deck", "studio plan should end in deck comparison once multiple takes exist");
 assert.equal(deckStudioPlan.status, "ready", "studio plan should mark a fully evidenced deck as ready");
+assert.ok(deckStudioPlan.steps.find((step) => step.id === "script").detail.includes("acting-automation frames"), "studio plan should preserve scripted automation evidence");
 
 offline.generateSample(sampleRate, "high_bright");
 const highRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });
