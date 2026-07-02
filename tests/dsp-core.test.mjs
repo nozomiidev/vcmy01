@@ -4,6 +4,8 @@ import {
   LINE_READ_TARGETS,
   paramsForLineReadTarget,
   scoreLineReadTarget,
+  targetMatchBreakdown,
+  topTargetGaps,
   validateLineReadTargets
 } from "../src/audio/performance-targets.js";
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
@@ -72,6 +74,10 @@ const otomeRead = LINE_READ_TARGETS.find((target) => target.id === "otome_promis
 assert.ok(otomeRead, "otome line-read target should exist");
 const otomeReadParams = paramsForLineReadTarget(otomeRead.id);
 assert.equal(scoreLineReadTarget(otomeReadParams, otomeRead), 100, "applied line-read params should match target controls");
+const otomeBreakdown = targetMatchBreakdown(otomeReadParams, otomeRead);
+assert.ok(otomeBreakdown.some((axis) => axis.key === "endingSoftness" && axis.score === 100), "line-read breakdown should expose per-axis target scores");
+const otomeGaps = topTargetGaps(paramsForPreset("otome"), otomeRead, 3);
+assert.ok(otomeGaps.some((axis) => axis.key === "endingSoftness" && axis.action === "raise"), "line-read gaps should identify target drift");
 assert.ok(otomeReadParams.endingSoftness > paramsForPreset("otome").endingSoftness, "otome line read should push soft endings beyond the base preset");
 assert.ok(otomeReadParams.romanticBreath > paramsForPreset("otome").romanticBreath, "otome line read should push breath placement beyond the base preset");
 const otomeReadRendered = processVoiceBuffer(source, sampleRate, otomeReadParams);

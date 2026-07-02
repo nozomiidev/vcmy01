@@ -4,7 +4,9 @@ import {
   LINE_READ_TARGETS,
   lineReadById,
   paramsForLineReadTarget,
-  scoreLineReadTarget
+  scoreLineReadTarget,
+  targetMatchBreakdown,
+  topTargetGaps
 } from "./audio/performance-targets.js";
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
@@ -58,6 +60,7 @@ function init() {
   bindLineReads();
   bindDiagnostics();
   bindTheme();
+  window.addEventListener("resize", renderLineReadDiagnostics);
   takeStore.open().then(async () => {
     state.takes = await takeStore.all();
     renderTakes();
@@ -152,6 +155,7 @@ function bindTabs() {
       document.querySelectorAll(".view").forEach((view) => view.classList.remove("is-active"));
       tab.classList.add("is-active");
       $(`view-${tab.dataset.viewTab}`).classList.add("is-active");
+      requestAnimationFrame(renderLineReadDiagnostics);
     });
   });
 }
@@ -275,6 +279,125 @@ function renderLineReadPanel() {
 function updateLineReadScore() {
   const target = lineReadById(state.lineReadId);
   $("activeLineReadScore").textContent = `${scoreLineReadTarget(state.params, target)}%`;
+  renderLineReadDiagnostics();
+}
+
+function renderLineReadDiagnostics() {
+  if (!$("lineReadBreakdown")) return;
+  const target = lineReadById(state.lineReadId);
+  const axes = targetMatchBreakdown(state.params, target);
+  const targeted = axes.filter((axis) => axis.targeted);
+  $("lineReadBreakdown").innerHTML = targeted.map((axis) => {
+    const currentPercent = axisValuePercent(axis.key, axis.current);
+    const targetPercent = axisValuePercent(axis.key, axis.target);
+    return `
+      <div class="target-axis ${axis.normalizedGap > 0.08 ? "is-drift" : ""}" data-axis="${axis.key}">
+        <div class="target-axis-head">
+          <strong>${escapeHtml(axis.fullLabel)}</strong>
+          <span>${axis.score}%</span>
+        </div>
+        <div class="axis-track" style="--current:${currentPercent}%; --target:${targetPercent}%">
+          <b></b><i></i>
+        </div>
+        <div class="target-axis-foot">
+          <span>Now ${formatAxisNumber(axis.current)}</span>
+          <span>Target ${formatAxisNumber(axis.target)}</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+  const gaps = topTargetGaps(state.params, target, 3);
+  $("activeLineReadGaps").innerHTML = gaps.map((axis) => `
+    <span>${axis.action === "raise" ? "Raise" : "Lower"} ${escapeHtml(axis.fullLabel)} <b>${signed(Math.round(axis.delta))}</b></span>
+  `).join("");
+  drawLineReadRadar(axes.slice(0, 6));
+}
+
+function drawLineReadRadar(axes) {
+  const canvas = $("lineReadRadar");
+  if (!canvas || !axes.length) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  const w = width / dpr;
+  const h = height / dpr;
+  const cx = w / 2;
+  const cy = h / 2 + 2;
+  const radius = Math.max(36, Math.min(w, h) * 0.33);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(255,255,255,0.13)";
+  ctx.fillStyle = "rgba(255,255,255,0.03)";
+  for (let ring = 3; ring >= 1; ring -= 1) {
+    const points = radarPoints(axes, cx, cy, radius * ring / 3, () => 1);
+    drawPolygon(ctx, points, ring === 3);
+  }
+  axes.forEach((axis, index) => {
+    const angle = -Math.PI / 2 + index * Math.PI * 2 / axes.length;
+    const endX = cx + Math.cos(angle) * radius;
+    const endY = cy + Math.sin(angle) * radius;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(247,247,251,0.72)";
+    ctx.font = "10px Inter, system-ui, sans-serif";
+    ctx.textAlign = endX < cx - 6 ? "right" : endX > cx + 6 ? "left" : "center";
+    ctx.textBaseline = endY < cy ? "bottom" : "top";
+    ctx.fillText(axis.label, endX + Math.cos(angle) * 8, endY + Math.sin(angle) * 8);
+  });
+  const targetPoints = radarPoints(axes, cx, cy, radius, (axis) => axisValueRatio(axis.key, axis.target));
+  ctx.strokeStyle = "rgba(255,109,158,0.92)";
+  ctx.fillStyle = "rgba(255,109,158,0.13)";
+  drawPolygon(ctx, targetPoints, true);
+  const currentPoints = radarPoints(axes, cx, cy, radius, (axis) => axisValueRatio(axis.key, axis.current));
+  ctx.strokeStyle = "rgba(105,227,181,0.95)";
+  ctx.fillStyle = "rgba(105,227,181,0.16)";
+  drawPolygon(ctx, currentPoints, true);
+  ctx.restore();
+}
+
+function radarPoints(axes, cx, cy, radius, valueForAxis) {
+  return axes.map((axis, index) => {
+    const angle = -Math.PI / 2 + index * Math.PI * 2 / axes.length;
+    const value = Math.max(0, Math.min(1, valueForAxis(axis)));
+    return {
+      x: cx + Math.cos(angle) * radius * value,
+      y: cy + Math.sin(angle) * radius * value
+    };
+  });
+}
+
+function drawPolygon(ctx, points, fill) {
+  if (!points.length) return;
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y);
+  });
+  ctx.closePath();
+  if (fill) ctx.fill();
+  ctx.stroke();
+}
+
+function axisValueRatio(key, value) {
+  if (key === "body") return (Math.max(-100, Math.min(100, value)) + 100) / 200;
+  return Math.max(0, Math.min(100, value)) / 100;
+}
+
+function axisValuePercent(key, value) {
+  return Math.round(axisValueRatio(key, value) * 100);
+}
+
+function formatAxisNumber(value) {
+  return `${Math.round(value)}`;
 }
 
 function renderLineReadLibrary() {

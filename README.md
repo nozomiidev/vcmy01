@@ -29,6 +29,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
 - Repeatable Line Read targets that apply character-specific performance
   settings for otome, kawaii, anime, ikemen, ASMR, streamer, narrator, and
   calibration reads.
+- Line Read target visualization with radar and per-axis gap bars for lift,
+  softness, energy, distance, breath placement, confidence, and related macros.
 - Offline generated/uploaded source processing with analysis, A/B compare,
   preview-region rendering, source-aware Auto Tune, and WAV export.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,

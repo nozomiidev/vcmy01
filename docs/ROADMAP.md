@@ -48,6 +48,8 @@ GitHub Pages.
   placement.
 - Expand the first repeatable Line Read targets so presets can be judged
   against acting intent, not just signal movement.
+- Expand Line Read target visualizations so users can see macro/director drift
+  before rendering or recording another take.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic

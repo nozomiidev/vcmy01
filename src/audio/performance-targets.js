@@ -15,6 +15,21 @@ export const PERFORMANCE_TARGET_KEYS = Object.freeze([
   "confidence"
 ]);
 
+export const PERFORMANCE_AXES = Object.freeze([
+  { key: "phraseLift", label: "Lift", fullLabel: "Phrase Lift", range: 100 },
+  { key: "endingSoftness", label: "Soft", fullLabel: "Ending Softness", range: 100 },
+  { key: "deliveryEnergy", label: "Energy", fullLabel: "Delivery Energy", range: 100 },
+  { key: "closeMic", label: "Near", fullLabel: "Close Mic", range: 100 },
+  { key: "romanticBreath", label: "Breath", fullLabel: "Breath Placement", range: 100 },
+  { key: "confidence", label: "Conf", fullLabel: "Confidence", range: 100 },
+  { key: "cuteness", label: "Cute", fullLabel: "Cuteness", range: 100 },
+  { key: "anime", label: "Anime", fullLabel: "Anime Lift", range: 100 },
+  { key: "intimacy", label: "Intimacy", fullLabel: "Intimacy", range: 100 },
+  { key: "body", label: "Body", fullLabel: "Body", range: 200 },
+  { key: "breath", label: "Air", fullLabel: "Breath", range: 100 },
+  { key: "consonantSoftness", label: "Consonants", fullLabel: "Soft Consonants", range: 100 }
+]);
+
 const SCORE_RANGES = Object.freeze({
   body: 200,
   default: 100
@@ -209,12 +224,40 @@ export function validateLineReadTargets() {
 }
 
 export function scoreLineReadTarget(params, targetOrId) {
-  const target = typeof targetOrId === "string" ? lineReadById(targetOrId) : targetOrId;
-  const keys = PERFORMANCE_TARGET_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(target.params, key));
-  if (!keys.length) return 100;
-  const miss = keys.reduce((sum, key) => {
-    const range = SCORE_RANGES[key] || SCORE_RANGES.default;
-    return sum + Math.min(1, Math.abs(Number(params[key] ?? 0) - Number(target.params[key])) / range);
-  }, 0) / keys.length;
+  const breakdown = targetMatchBreakdown(params, targetOrId).filter((axis) => axis.targeted);
+  if (!breakdown.length) return 100;
+  const miss = breakdown.reduce((sum, axis) => sum + Math.min(1, axis.normalizedGap), 0) / breakdown.length;
   return Math.max(0, Math.round((1 - miss) * 100));
+}
+
+export function targetMatchBreakdown(params, targetOrId) {
+  const target = typeof targetOrId === "string" ? lineReadById(targetOrId) : targetOrId;
+  return PERFORMANCE_AXES.map((axis) => {
+    const targeted = Object.prototype.hasOwnProperty.call(target.params, axis.key);
+    const fallbackTarget = paramsForPreset(target.presetId)[axis.key] ?? 0;
+    const targetValue = Number(targeted ? target.params[axis.key] : fallbackTarget);
+    const currentValue = Number(params[axis.key] ?? 0);
+    const range = SCORE_RANGES[axis.key] || axis.range || SCORE_RANGES.default;
+    const delta = targetValue - currentValue;
+    const normalizedGap = Math.min(1, Math.abs(delta) / range);
+    return {
+      key: axis.key,
+      label: axis.label,
+      fullLabel: axis.fullLabel,
+      current: currentValue,
+      target: targetValue,
+      delta,
+      targeted,
+      normalizedGap,
+      score: Math.max(0, Math.round((1 - normalizedGap) * 100)),
+      action: Math.abs(delta) < 0.5 ? "hold" : delta > 0 ? "raise" : "lower"
+    };
+  });
+}
+
+export function topTargetGaps(params, targetOrId, limit = 3) {
+  return targetMatchBreakdown(params, targetOrId)
+    .filter((axis) => axis.targeted && axis.action !== "hold")
+    .sort((a, b) => b.normalizedGap - a.normalizedGap)
+    .slice(0, limit);
 }

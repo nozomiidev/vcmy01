@@ -110,6 +110,12 @@ Director/Macro controls; it is not just a note card. This gives kawaii, anime,
 otome, ikemen, ASMR, streamer, narrator, and calibration reads stable material
 for listening tests and browser regression checks.
 
+The Line Read view should also make target drift visible. The current
+implementation scores each targeted macro/director axis, surfaces the largest
+gaps, and draws a compact radar so users can see whether a read is missing lift,
+softness, energy, distance, breath placement, or confidence before rendering
+another take.
+
 ## Calibration
 
 Presets should eventually ask for or infer:
