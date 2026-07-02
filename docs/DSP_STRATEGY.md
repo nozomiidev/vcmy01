@@ -152,6 +152,12 @@ level, tone, and texture, and exposes the exact patch that Tune to Source would
 apply. This makes source calibration part of the creative decision flow instead
 of a hidden DSP side effect.
 
+Voice Route planning sits one layer above Source Fit. It ranks every character
+target for the loaded source, combines pre-tune fit, post-tune fit, Line Read
+match, patch load, and explicit source-profile hints, then lets the user apply
+the route as preset + Line Read + source-tuned parameters. This turns
+calibration from a corrective button into a route-selection workflow.
+
 ## Prosody And Performance
 
 Real prosody transformation requires knowing phrase structure, syllable timing,

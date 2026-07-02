@@ -12,6 +12,7 @@ import {
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
+import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
@@ -31,6 +32,7 @@ const state = {
   sourceUrl: null,
   offlineRegion: { startSec: 0, durationSec: 0 },
   lineReadId: savedLineReadId || firstLineReadForPreset(savedPresetId).id,
+  voiceRoutes: [],
   qualitySuite: null
 };
 
@@ -101,6 +103,7 @@ function renderPresets() {
       renderLineReadLibrary();
       updateActivePreset();
       updateSourceFit();
+      updateRoutePlanner();
       toast(presetById(state.presetId).name, presetById(state.presetId).target);
     });
   });
@@ -130,6 +133,7 @@ function renderControlGroup(host, defs) {
       engine.setParams(state.params);
       updateLineReadScore();
       updateSourceFit();
+      updateRoutePlanner();
     });
   });
 }
@@ -229,6 +233,7 @@ function bindTransport() {
     renderControls();
     updateLineReadScore();
     updateSourceFit();
+    updateRoutePlanner();
   });
 
   $("clearTakes").addEventListener("click", async () => {
@@ -270,6 +275,7 @@ function applyLineReadTarget(id) {
   renderLineReadLibrary();
   updateActivePreset();
   updateSourceFit();
+  updateRoutePlanner();
   toast(target.name, target.direction);
 }
 
@@ -287,6 +293,7 @@ function applyNextLineReadFix() {
   renderControls();
   updateLineReadScore();
   updateSourceFit();
+  updateRoutePlanner();
   toast("Next fix applied", `${coach.cues[0].label} ${signed(Math.round(coach.cues[0].delta))}`);
 }
 
@@ -499,6 +506,7 @@ function bindOffline() {
       drawSourceWaveform();
       drawAnalysisCards($("offlineAnalysis"), offline.source, offline.rendered);
       updateSourceFit();
+      updateRoutePlanner();
       toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
     } catch (error) {
       toast("Analysis needs a source", error.message || "Generate or upload audio first.");
@@ -514,6 +522,7 @@ function bindOffline() {
       renderControls();
       updateLineReadScore();
       updateSourceFit();
+      updateRoutePlanner();
       toast("Tuned to source", describeCalibrationDelta(before, state.params));
     } catch (error) {
       toast("Tuning needs a source", error.message || "Generate or upload audio first.");
@@ -548,6 +557,11 @@ function bindOffline() {
       toast("A/B playback failed", error.message || "Use the audio controls to play both versions.");
     }
   });
+
+  $("voiceRouteList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-route]");
+    if (button) applyVoiceRoute(button.dataset.route);
+  });
 }
 
 function useOfflineSource(source) {
@@ -559,6 +573,7 @@ function useOfflineSource(source) {
   updateRegionControls();
   drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
   updateSourceFit();
+  updateRoutePlanner();
 }
 
 function renderOfflineToPreview(preview) {
@@ -573,6 +588,7 @@ function renderOfflineToPreview(preview) {
     drawWaveform($("renderWave"), rendered.samples, "#8fa7ff");
     drawAnalysisCards($("offlineAnalysis"), offline.source, rendered);
     updateSourceFit();
+    updateRoutePlanner();
     $("renderStatus").textContent = preview
       ? autoTune ? "Preview - tuned" : "Preview ready"
       : autoTune ? "Rendered - tuned" : "Rendered";
@@ -613,7 +629,74 @@ function updateSourceFit() {
   `).join("") : `<span>No source patch needed <b>0</b></span>`;
 }
 
+function updateRoutePlanner() {
+  const panel = $("routePlanner");
+  if (!panel) return;
+  if (!offline.source || !offline.profile) {
+    state.voiceRoutes = [];
+    panel.className = "route-planner";
+    $("routePlannerStatus").textContent = "No source";
+    $("voiceRouteList").innerHTML = "";
+    return;
+  }
+  state.voiceRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });
+  const topRoute = state.voiceRoutes[0];
+  panel.className = `route-planner is-${topRoute?.status || "empty"}`;
+  $("routePlannerStatus").textContent = topRoute ? `${topRoute.score}% best` : "No route";
+  $("voiceRouteList").innerHTML = state.voiceRoutes.map((route) => {
+    const active = route.presetId === state.presetId && route.targetId === state.lineReadId;
+    const patchText = route.patches.length
+      ? route.patches.slice(0, 3).map((patch) => `<span>${escapeHtml(paramLabel(patch.key))} <b>${formatPatchDelta(patch)}</b></span>`).join("")
+      : `<span>No patch <b>0</b></span>`;
+    const reasonText = route.reasons.length
+      ? route.reasons.slice(0, 2).map((reason) => `<span>${escapeHtml(reason)}</span>`).join("")
+      : `<span>Source aligned</span>`;
+    return `
+      <button class="voice-route is-${route.status} ${active ? "is-active" : ""}" data-route="${route.id}" type="button">
+        <span class="route-score">${route.score}% ${routeStatusLabel(route.status)}</span>
+        <strong>${escapeHtml(route.presetName)}</strong>
+        <small>${escapeHtml(route.targetName)}</small>
+        <p>${escapeHtml(route.direction)}</p>
+        <div class="route-metrics">
+          <span>Fit <b>${route.fitAfterScore}%</b></span>
+          <span>Read <b>${route.targetScore}%</b></span>
+          <span>Patch <b>${route.patchCount}</b></span>
+        </div>
+        <div class="route-patches">${patchText}</div>
+        <div class="route-reasons">${reasonText}</div>
+      </button>
+    `;
+  }).join("");
+}
+
+function applyVoiceRoute(routeId) {
+  const route = state.voiceRoutes.find((item) => item.id === routeId);
+  if (!route) {
+    toast("Route needs a source", "Generate or upload audio before choosing a voice route.");
+    return;
+  }
+  state.presetId = route.presetId;
+  state.lineReadId = route.hasLineRead ? route.targetId : firstLineReadForPreset(route.presetId).id;
+  state.params = { ...route.tunedParams };
+  persist();
+  engine.setParams(state.params);
+  renderPresets();
+  renderControls();
+  renderLineReadPanel();
+  renderLineReadLibrary();
+  updateActivePreset();
+  updateSourceFit();
+  updateRoutePlanner();
+  toast("Route applied", `${route.presetName} - ${route.targetName}; ${route.patchCount ? `${route.patchCount} source patches` : "source aligned"}.`);
+}
+
 function sourceFitStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "tune") return "Tune";
+  return "Risk";
+}
+
+function routeStatusLabel(status) {
   if (status === "ready") return "Ready";
   if (status === "tune") return "Tune";
   return "Risk";

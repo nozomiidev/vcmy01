@@ -11,6 +11,7 @@ import {
   validateLineReadTargets
 } from "../src/audio/performance-targets.js";
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
+import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -34,6 +35,7 @@ assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multi
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.equal(validateLineReadTargets().every((target) => target.ok), true, "line-read targets should reference real presets and copy");
+assert.equal(new Set(voiceRouteTargets().map((target) => target.presetId)).size, FACTORY_PRESETS.length, "route planner should cover every factory voice target");
 assert.ok(REFERENCE_VOICE_PROFILES.length >= 4, "reference profiles should cover varied source voices");
 assert.equal(source.length, Math.round(sampleRate * 1.25), "generated sample length");
 const sourceAnalysis = analyzeBuffer(source, sampleRate);
@@ -105,6 +107,12 @@ assert.equal(tunedKawaiiAgain.pitch, tunedKawaii.pitch, "calibration should not 
 
 const offline = new OfflineRenderer();
 offline.generateSample(sampleRate, "low_warm");
+const lowRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 12 });
+const lowIkemenRoute = lowRoutes.find((route) => route.presetId === "ikemen");
+const lowKawaiiRoute = lowRoutes.find((route) => route.presetId === "kawaii");
+assert.ok(lowRoutes.length >= FACTORY_PRESETS.length, "route planner should rank line-read and synthetic preset routes");
+assert.ok(lowIkemenRoute.score > lowKawaiiRoute.score, "low warm sources should rank low/close character routes above kawaii stretch routes");
+assert.ok(lowIkemenRoute.tunedParams._sourceCalibration, "applied route params should carry source calibration idempotency");
 const kawaiiSpark = LINE_READ_TARGETS.find((target) => target.id === "kawaii_spark");
 const lowToKawaiiFit = offline.sourceFitReport(kawaii, kawaiiSpark);
 assert.equal(lowToKawaiiFit.status, "risk", "low source should be risky for a bright kawaii target before tuning");
@@ -125,6 +133,13 @@ assert.equal(previewRendered.mode, "preview", "offline preview should preserve r
 assert.equal(previewRendered.region.isFull, false, "offline preview should be marked as a region render");
 assert.equal(previewRendered.samples.length, Math.round(sampleRate * 0.75), "offline preview should render only the requested region");
 assert.equal(previewRendered.region.startSample, Math.round(sampleRate * 0.5), "offline preview should preserve region start");
+
+offline.generateSample(sampleRate, "high_bright");
+const highRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });
+assert.equal(highRoutes[0].presetId, "kawaii", "high bright sources should surface kawaii as the strongest route");
+offline.generateSample(sampleRate, "breathy_close");
+const breathyRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });
+assert.equal(breathyRoutes[0].presetId, "asmr", "breathy close sources should surface ASMR as the strongest route");
 
 const clampedRegion = normalizeRenderRegion(sampleRate * 3, sampleRate, { startSec: 2.8, durationSec: 1 });
 assert.equal(clampedRegion.endSample, sampleRate * 3, "region should clamp to source end");

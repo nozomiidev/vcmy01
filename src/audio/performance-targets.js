@@ -267,6 +267,67 @@ export const LINE_READ_TARGETS = Object.freeze([
       ambience: 16,
       compression: 64
     }
+  },
+  {
+    id: "radio_tag",
+    presetId: "radio",
+    name: "Radio Tag",
+    line: "You are tuned to the signal that cuts through the whole night.",
+    direction: "Compressed broadcast push, narrow space, clear tag ending.",
+    tags: ["radio", "broadcast", "compressed"],
+    sourceProfileId: "neutral_medium",
+    params: {
+      body: 36,
+      phraseLift: 6,
+      endingSoftness: 10,
+      deliveryEnergy: 90,
+      closeMic: 18,
+      romanticBreath: 0,
+      confidence: 92,
+      compression: 82,
+      presence: 72
+    }
+  },
+  {
+    id: "robot_protocol",
+    presetId: "robot",
+    name: "Robot Protocol",
+    line: "Protocol accepted. Emotional variance remains within useful limits.",
+    direction: "Mechanical timing, dry confidence, intelligible metallic tone.",
+    tags: ["robot", "machine", "dry"],
+    sourceProfileId: "neutral_medium",
+    params: {
+      phraseLift: 4,
+      endingSoftness: 0,
+      deliveryEnergy: 72,
+      closeMic: 0,
+      romanticBreath: 0,
+      confidence: 70,
+      consonantSoftness: 8,
+      robot: 84,
+      compression: 62
+    }
+  },
+  {
+    id: "creature_warning",
+    presetId: "creature",
+    name: "Creature Warning",
+    line: "Step back while the room still remembers your shape.",
+    direction: "Large dark mouth, forward threat, minimal lift, rough body.",
+    tags: ["creature", "monster", "dark"],
+    sourceProfileId: "low_warm",
+    params: {
+      body: 92,
+      phraseLift: 0,
+      endingSoftness: 24,
+      deliveryEnergy: 82,
+      closeMic: 58,
+      romanticBreath: 0,
+      confidence: 62,
+      breath: 20,
+      consonantSoftness: 8,
+      creature: 78
+    }
   }
 ]);
 

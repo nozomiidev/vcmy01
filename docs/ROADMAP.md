@@ -54,6 +54,8 @@ GitHub Pages.
   can shape a read progressively instead of only applying a full preset.
 - Add Source Fit scoring for generated/uploaded audio so calibration becomes an
   explicit render decision with visible patch deltas.
+- Add Voice Route planning so users can rank likely character targets for the
+  current source and apply preset, Line Read, and source tuning together.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic

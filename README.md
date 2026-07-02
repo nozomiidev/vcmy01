@@ -37,6 +37,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   preview-region rendering, source-aware Auto Tune, and WAV export.
 - Source Fit scoring for generated or uploaded audio, including target range,
   level, tone, texture, and the calibration patch that Tune to Source would add.
+- Voice Route planning that ranks character targets for the current source and
+  applies the preset, Line Read, and source-tuned chain as one workflow.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
   local take storage, and diagnostics.
 
