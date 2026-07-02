@@ -244,18 +244,31 @@ export function normalizeParams(params = {}) {
   const cute = p.cuteness / 100;
   const anime = p.anime / 100;
   const intimate = p.intimacy / 100;
+  const phraseLift = p.phraseLift / 100;
+  const endingSoftness = p.endingSoftness / 100;
+  const energy = (p.deliveryEnergy - 50) / 100;
+  const close = p.closeMic / 100;
+  const romantic = p.romanticBreath / 100;
+  const confidence = (p.confidence - 50) / 100;
   p.pitch += cute * 1.6 + anime * 0.9;
   p.formant += cute * 1.9 + anime * 0.75 + p.mouth * 0.035;
-  p.brightness += cute * 18 + anime * 16;
-  p.air += cute * 10 + anime * 8 + intimate * 12;
-  p.body += cute * -18 + intimate * 6 + p.creature * 0.4;
-  p.presence += anime * 12 + intimate * 5;
-  p.consonantSoftness += cute * 16 + intimate * 8;
-  p.breath += intimate * 8;
-  p.whisper += intimate * 4;
-  p.compression += intimate * 8;
-  p.lowCut = Math.max(45, p.lowCut - intimate * 16);
-  p.prosody = clamp(p.prosody + p.cuteness * 0.18 + p.anime * 0.36 + p.intimacy * 0.14, 0, 100);
+  p.brightness += cute * 18 + anime * 16 + energy * 20 + confidence * 12 + phraseLift * 6;
+  p.air += cute * 10 + anime * 8 + intimate * 12 + close * 10 + romantic * 20 + endingSoftness * 4;
+  p.body += cute * -18 + intimate * 6 + close * 14 - Math.max(0, energy) * 4 + p.creature * 0.4;
+  p.presence += anime * 12 + intimate * 5 + energy * 16 + confidence * 20 - endingSoftness * 6 + close * 5;
+  p.consonantSoftness += cute * 16 + intimate * 8 + endingSoftness * 22 - confidence * 18;
+  p.breath += intimate * 8 + romantic * 24 + close * 6;
+  p.whisper += intimate * 4 + endingSoftness * 12 + romantic * 8 - Math.max(0, confidence) * 4;
+  p.compression += intimate * 8 + Math.max(0, energy) * 18 + close * 8 + Math.max(0, confidence) * 8;
+  p.saturation += Math.max(0, energy) * 8;
+  p.lowCut = Math.max(45, p.lowCut - intimate * 16 - close * 16);
+  p.prosody = clamp(p.prosody + p.cuteness * 0.18 + p.anime * 0.36 + p.intimacy * 0.14 + p.phraseLift * 0.28 + p.endingSoftness * 0.16 + Math.max(0, energy) * 22, 0, 100);
+  p.phraseLift = clamp(p.phraseLift, 0, 100);
+  p.endingSoftness = clamp(p.endingSoftness, 0, 100);
+  p.deliveryEnergy = clamp(p.deliveryEnergy, 0, 100);
+  p.closeMic = clamp(p.closeMic, 0, 100);
+  p.romanticBreath = clamp(p.romanticBreath, 0, 100);
+  p.confidence = clamp(p.confidence, 0, 100);
   p.breath = clamp(p.breath, 0, 100);
   p.whisper = clamp(p.whisper, 0, 100);
   p.air = clamp(p.air, -100, 100);
@@ -601,16 +614,24 @@ export function prosodyPitchShift(input, sampleRate, baseRatio = 1, params = {})
   let ratioState = baseRatio;
   const anime = clamp((params.anime || 0) / 100, 0, 1);
   const cute = clamp((params.cuteness || 0) / 100, 0, 1);
+  const phraseLift = clamp((params.phraseLift || 0) / 100, 0, 1);
+  const endingSoftness = clamp((params.endingSoftness || 0) / 100, 0, 1);
+  const deliveryEnergy = clamp((params.deliveryEnergy ?? 50) / 100, 0, 1);
+  const confidence = clamp((params.confidence ?? 50) / 100, 0, 1);
   const liftDepth = amount * (anime * 0.045 + cute * 0.028);
-  const vibratoDepth = amount * (0.002 + anime * 0.0035 + cute * 0.002);
-  const phraseRate = 0.44 + anime * 0.16 + cute * 0.08;
-  const vibratoRate = 4.7 + anime * 0.8;
+  const vibratoDepth = amount * (0.002 + anime * 0.0035 + cute * 0.002 + phraseLift * 0.0015);
+  const phraseRate = 0.44 + anime * 0.16 + cute * 0.08 + deliveryEnergy * 0.08;
+  const vibratoRate = 4.7 + anime * 0.8 + confidence * 0.3;
 
   for (let i = 0; i < n; i++) {
     const t = i / sampleRate;
+    const cycle = (t * phraseRate) % 1;
     const phrase = 0.5 + 0.5 * Math.sin(TAU * phraseRate * t - Math.PI / 2);
+    const rise = smoothstep(0.18, 0.62, cycle) * (1 - smoothstep(0.62, 0.96, cycle));
+    const ending = smoothstep(0.62, 1, cycle);
     const vibrato = Math.sin(TAU * vibratoRate * t) * vibratoDepth;
-    const ratio = baseRatio * (1 + phrase * liftDepth + vibrato);
+    const directorLift = amount * (phraseLift * (rise * 0.038 + ending * 0.014) - endingSoftness * ending * 0.018);
+    const ratio = baseRatio * (1 + phrase * liftDepth + directorLift + vibrato);
     const abs = Math.abs(input[i]);
     env = abs > env ? env + (abs - env) * 0.06 : env * 0.996;
     const voiceGate = clamp((env - 0.0025) * 42, 0, 1);
@@ -697,21 +718,33 @@ function performanceShape(input, dry, sampleRate, p) {
   const anime = clamp(p.anime / 100, 0, 1);
   const cute = clamp(p.cuteness / 100, 0, 1);
   const intimate = clamp(p.intimacy / 100, 0, 1);
+  const phraseLift = clamp(p.phraseLift / 100, 0, 1);
+  const endingSoftness = clamp(p.endingSoftness / 100, 0, 1);
+  const deliveryEnergy = clamp(p.deliveryEnergy / 100, 0, 1);
+  const close = clamp(p.closeMic / 100, 0, 1);
+  const confidence = clamp(p.confidence / 100, 0, 1);
   let fast = 0;
   let slow = 0;
-  const phraseRate = 0.5 + anime * 0.12;
+  const phraseRate = 0.5 + anime * 0.12 + deliveryEnergy * 0.08;
   for (let i = 0; i < input.length; i++) {
     const abs = Math.abs(dry[i]);
     fast += (abs - fast) * (abs > fast ? 0.055 : 0.006);
     slow += (abs - slow) * 0.00075;
     const syllable = clamp((fast - slow * 0.75) * 16, 0, 1);
     const t = i / sampleRate;
+    const cycle = (t * phraseRate) % 1;
     const phrase = 0.5 + 0.5 * Math.sin(TAU * phraseRate * t - Math.PI / 2);
+    const ending = smoothstep(0.62, 1, cycle);
     const delivery = 1 +
       amount * anime * phrase * 0.035 +
       amount * cute * syllable * 0.026 +
-      amount * intimate * (1 - syllable) * 0.018;
-    out[i] = input[i] * delivery;
+      amount * intimate * (1 - syllable) * 0.018 +
+      amount * phraseLift * phrase * 0.018 +
+      deliveryEnergy * syllable * 0.052 +
+      confidence * syllable * 0.026 +
+      close * (1 - syllable) * 0.012 -
+      endingSoftness * ending * 0.045;
+    out[i] = input[i] * Math.max(0.72, delivery);
   }
   return out;
 }
@@ -763,7 +796,9 @@ function biquadCoefficients(sampleRate, type, freq, q, gainDb) {
 }
 
 function addBreathAndWhisper(input, dry, sampleRate, p) {
-  const amount = clamp((p.breath + p.whisper * 1.4) / 100, 0, 1);
+  const romantic = clamp((p.romanticBreath || 0) / 100, 0, 1);
+  const endingSoftness = clamp((p.endingSoftness || 0) / 100, 0, 1);
+  const amount = clamp((p.breath + p.whisper * 1.4 + p.romanticBreath * 0.7) / 100, 0, 1);
   if (amount <= 0.001) return input;
   const out = new Float32Array(input.length);
   let seed = 22222;
@@ -791,11 +826,20 @@ function addBreathAndWhisper(input, dry, sampleRate, p) {
     const breathBed = clamp(slow * 10, 0, 1) * (0.52 + intimate * 0.48);
     const whisperFocus = clamp(consonant * (1 - soft * 0.55) + tail * intimate * 0.75, 0, 1);
     const shaped = hp * (0.65 + clamp(Math.max(0, p.air) / 100, 0, 1) * 0.35);
-    const textureGain = breath * 0.085 * breathBed + whisper * 0.13 * whisperFocus;
+    const romanticTail = tail * (0.45 + intimate * 0.55);
+    const textureGain = breath * 0.085 * breathBed +
+      whisper * 0.13 * whisperFocus +
+      romantic * 0.09 * romanticTail +
+      endingSoftness * 0.028 * tail;
     const duck = 1 - whisper * 0.22 * clamp(slow * 8, 0, 1);
     out[i] = input[i] * duck + shaped * textureGain;
   }
   return out;
+}
+
+function smoothstep(edge0, edge1, value) {
+  const x = clamp((value - edge0) / Math.max(1e-9, edge1 - edge0), 0, 1);
+  return x * x * (3 - 2 * x);
 }
 
 function robotAndCreature(input, sampleRate, p) {

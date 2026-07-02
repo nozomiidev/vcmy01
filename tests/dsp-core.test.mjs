@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { FACTORY_PRESETS, paramsForPreset } from "../src/audio/presets.js";
+import { DIRECTOR_DEFS, FACTORY_PRESETS, paramsForPreset } from "../src/audio/presets.js";
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
 import {
   analyzeBuffer,
@@ -9,6 +9,7 @@ import {
   generateReferenceVoice,
   generateTestVoice,
   granularShift,
+  normalizeParams,
   processVoiceBuffer,
   REFERENCE_VOICE_PROFILES,
   runPresetQualitySuite,
@@ -20,6 +21,7 @@ const sampleRate = 48000;
 const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
+assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
 assert.ok(REFERENCE_VOICE_PROFILES.length >= 4, "reference profiles should cover varied source voices");
 assert.equal(source.length, Math.round(sampleRate * 1.25), "generated sample length");
 const sourceAnalysis = analyzeBuffer(source, sampleRate);
@@ -39,6 +41,24 @@ for (const preset of FACTORY_PRESETS) {
 const shifted = granularShift(source, sampleRate, Math.pow(2, 4 / 12), 0.085);
 assert.equal(shifted.length, source.length, "granular shifter preserves length");
 assert.notEqual(analyzeBuffer(shifted, sampleRate).zeroCrossingsPerSecond, analyzeBuffer(source, sampleRate).zeroCrossingsPerSecond);
+
+const directedParams = paramsForPreset("clean", {
+  phraseLift: 85,
+  endingSoftness: 78,
+  deliveryEnergy: 82,
+  closeMic: 72,
+  romanticBreath: 86,
+  confidence: 74
+});
+const directedNormalized = normalizeParams(directedParams);
+assert.ok(directedNormalized.prosody > paramsForPreset("clean").prosody, "director controls should feed the prosody layer");
+assert.ok(directedNormalized.breath > paramsForPreset("clean").breath, "romantic breath placement should feed breath texture");
+assert.ok(directedNormalized.presence > paramsForPreset("clean").presence, "confidence/energy should feed presence");
+const directed = processVoiceBuffer(source, sampleRate, directedParams);
+const directedAnalysis = analyzeBuffer(directed, sampleRate);
+assert.equal(directed.length, source.length, "director processing preserves length");
+assert.ok(Math.abs(directedAnalysis.rmsDb - sourceAnalysis.rmsDb) > 0.3, "director layer should measurably change delivery dynamics");
+assert.ok(directedAnalysis.zeroCrossingsPerSecond > sourceAnalysis.zeroCrossingsPerSecond + 500, "director breath placement should add measurable tail texture");
 
 const lowSource = generateTestVoice({ sampleRate, duration: 1.0, f0: 95 });
 const lowProfile = buildCalibrationProfile(lowSource, sampleRate);

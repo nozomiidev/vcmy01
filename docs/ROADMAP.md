@@ -43,8 +43,9 @@ GitHub Pages.
 - Redesign presets around character targets, not only effects.
 - Add macro controls such as cuteness, intimacy, breath, body, and anime amount.
 - Add source-voice calibration.
-- Add performance/director controls such as phrase lift, emotional distance,
-  ending softness, confidence, and romantic breath placement.
+- Expand first-pass performance/director controls such as phrase lift, close-mic
+  distance, ending softness, confidence, delivery energy, and romantic breath
+  placement.
 - Add repeatable line-read targets so presets can be judged against acting
   intent, not just signal movement.
 - Build target voices:

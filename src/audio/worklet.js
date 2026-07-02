@@ -28,6 +28,12 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       robot: 0,
       creature: 0,
       prosody: 0,
+      phraseLift: 0,
+      endingSoftness: 0,
+      deliveryEnergy: 0.5,
+      closeMic: 0,
+      romanticBreath: 0,
+      confidence: 0.5,
       anime: 0,
       cuteness: 0,
       intimacy: 0,
@@ -85,9 +91,14 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       this.buf[this.w & this.mask] = s;
       this.w++;
       const t = (currentFrame + i) / sampleRate;
-      const phrase = 0.5 + 0.5 * Math.sin(2 * Math.PI * (0.44 + p.anime * 0.16 + p.cuteness * 0.08) * t - Math.PI / 2);
-      const vibrato = Math.sin(2 * Math.PI * (4.7 + p.anime * 0.8) * t) * p.prosody * (0.002 + p.anime * 0.0035 + p.cuteness * 0.002);
-      const lift = p.prosody * (p.anime * 0.045 + p.cuteness * 0.028) * phrase;
+      const phraseRate = 0.44 + p.anime * 0.16 + p.cuteness * 0.08 + p.deliveryEnergy * 0.08;
+      const cycle = (t * phraseRate) % 1;
+      const phrase = 0.5 + 0.5 * Math.sin(2 * Math.PI * phraseRate * t - Math.PI / 2);
+      const rise = smoothstep(0.18, 0.62, cycle) * (1 - smoothstep(0.62, 0.96, cycle));
+      const ending = smoothstep(0.62, 1, cycle);
+      const vibrato = Math.sin(2 * Math.PI * (4.7 + p.anime * 0.8 + p.confidence * 0.3) * t) * p.prosody * (0.002 + p.anime * 0.0035 + p.cuteness * 0.002 + p.phraseLift * 0.0015);
+      const lift = p.prosody * (p.anime * 0.045 + p.cuteness * 0.028) * phrase +
+        p.prosody * (p.phraseLift * (rise * 0.038 + ending * 0.014) - p.endingSoftness * ending * 0.018);
       const rawRatio = p.pitch * (1 + lift + vibrato);
       const voiceGate = Math.max(0, Math.min(1, (this.env - 0.0025) * 42));
       const targetRatio = 1 + (rawRatio - 1) * (0.3 + voiceGate * 0.7);
@@ -131,7 +142,7 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
         y = y * (1 - p.robot * 0.45) + y * ring * p.robot * 0.72 + y * growl * p.creature * 0.34;
       }
 
-      const breath = Math.min(1, p.breath + p.whisper * 1.4);
+      const breath = Math.min(1, p.breath + p.whisper * 1.4 + p.romanticBreath * 0.7);
       if (breath > 0) {
         this.seed = (this.seed * 1664525 + 1013904223) >>> 0;
         const noise = (this.seed / 0xffffffff) * 2 - 1;
@@ -143,7 +154,11 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
         const breathBed = Math.max(0, Math.min(1, this.slow * 10)) * (0.52 + p.intimacy * 0.48);
         const whisperFocus = Math.max(0, Math.min(1, consonant * (1 - p.consonantSoftness * 0.55) + tail * p.intimacy * 0.75));
         const shaped = this.noiseHp * (0.65 + Math.max(0, p.air) * 0.35);
-        const textureGain = p.breath * 0.085 * breathBed + p.whisper * 0.13 * whisperFocus;
+        const romanticTail = tail * (0.45 + p.intimacy * 0.55);
+        const textureGain = p.breath * 0.085 * breathBed +
+          p.whisper * 0.13 * whisperFocus +
+          p.romanticBreath * 0.09 * romanticTail +
+          p.endingSoftness * 0.028 * tail;
         const duck = 1 - p.whisper * 0.22 * Math.max(0, Math.min(1, this.slow * 8));
         y = y * duck + shaped * textureGain;
       }
@@ -154,8 +169,17 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       }
 
       if (p.prosody > 0) {
-        const delivery = 1 + p.prosody * (p.anime * phrase * 0.028 + p.cuteness * Math.min(1, this.env * 12) * 0.02 + p.intimacy * 0.012);
-        y *= delivery;
+        const cycle2 = (t * (0.5 + p.anime * 0.12 + p.deliveryEnergy * 0.08)) % 1;
+        const ending2 = smoothstep(0.62, 1, cycle2);
+        const syllable = Math.min(1, this.env * 12);
+        const delivery = 1 +
+          p.prosody * (p.anime * phrase * 0.028 + p.cuteness * syllable * 0.02 + p.intimacy * 0.012) +
+          p.prosody * p.phraseLift * phrase * 0.018 +
+          p.deliveryEnergy * syllable * 0.052 +
+          p.confidence * syllable * 0.026 +
+          p.closeMic * (1 - syllable) * 0.012 -
+          p.endingSoftness * ending2 * 0.045;
+        y *= Math.max(0.72, delivery);
       }
 
       out[i] = Math.max(-0.98, Math.min(0.98, y * p.outputGain));
@@ -190,3 +214,8 @@ class VoiceForgeRecorder extends AudioWorkletProcessor {
 
 registerProcessor("voiceforge-processor", VoiceForgeProcessor);
 registerProcessor("voiceforge-recorder", VoiceForgeRecorder);
+
+function smoothstep(edge0, edge1, value) {
+  const x = Math.max(0, Math.min(1, (value - edge0) / Math.max(1e-9, edge1 - edge0)));
+  return x * x * (3 - 2 * x);
+}

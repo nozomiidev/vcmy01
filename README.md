@@ -24,6 +24,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
 - Pitch and "formant-like" controls.
 - Character macros for cuteness, anime lift, intimacy, breath, body, and
   consonant softness.
+- Character Director controls for phrase lift, ending softness, delivery
+  energy, close-mic distance, romantic breath placement, and confidence.
 - Offline generated/uploaded source processing with analysis, A/B compare,
   preview-region rendering, source-aware Auto Tune, and WAV export.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
@@ -36,12 +38,15 @@ Known product capability gap:
 - Pitch/formant changes are not enough for kawaii/anime/ikemen/otome voices.
 - Prosody, breath, whisper, and mouth/voice-tract character need further
   refinement to feel like performed character voices.
+- The Character Director layer is now functional, but still uses DSP
+  approximations rather than real phrase understanding, emotion transfer, or
+  actor-style timing conversion.
 - Offline post-processing has region preview, but still needs a fuller
   production workflow for takes, batches, non-destructive effect stacks, and
   longer uploaded files.
-- The app still needs a Character Director layer: performance targets,
-  phrase/ending behavior, distance, emotion, and delivery macros that are more
-  than technical effect sliders.
+- The app still needs richer performance targets, repeatable line-read tests,
+  phrase/ending behavior, distance, emotion, and delivery workflows beyond the
+  first Director controls.
 
 ## Documentation Map
 

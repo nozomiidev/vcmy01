@@ -92,6 +92,17 @@ envelope tracking, pitch motion, breath shaping, dynamics, and UI workflow. It
 is still a first-class product feature because it defines what AI escalation
 would need to preserve later.
 
+Current first-pass Director controls are shared by live and offline rendering:
+
+- Phrase Lift maps to phrase-rate pitch motion and mild delivery lift.
+- Ending Softness maps to falling-end pitch motion, tail softening, and breath
+  texture.
+- Delivery Energy maps to dynamics, brightness, presence, compression, and
+  stronger syllable envelopes.
+- Close Mic maps to low-mid proximity, air, breath bed, and lower low-cut.
+- Breath Placement maps breath/whisper texture toward phrase tails.
+- Confidence maps clarity, presence, consonant crispness, and delivery emphasis.
+
 ## Calibration
 
 Presets should eventually ask for or infer:

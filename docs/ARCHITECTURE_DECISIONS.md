@@ -103,6 +103,8 @@ Decision:
   and export as core product workflow, not auxiliary utilities.
 - Treat Character Director controls such as phrase lift, distance, confidence,
   softness, and breath placement as first-class features.
+- Keep Director controls wired into both live AudioWorklet processing and
+  offline rendering so previewed character direction matches recorded output.
 - Keep objective signal tests for regression safety, but do not confuse passing
   signal metrics with completing the product vision.
 - When adding DSP controls, connect them back to user-facing character intent

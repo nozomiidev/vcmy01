@@ -1,4 +1,4 @@
-import { FACTORY_PRESETS, MACRO_DEFS, PARAM_DEFS, paramsForPreset, presetById } from "./audio/presets.js";
+import { DIRECTOR_DEFS, FACTORY_PRESETS, MACRO_DEFS, PARAM_DEFS, paramsForPreset, presetById } from "./audio/presets.js";
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
@@ -21,7 +21,7 @@ const state = {
   qualitySuite: null
 };
 
-state.params = state.params || paramsForPreset(state.presetId);
+state.params = { ...paramsForPreset(state.presetId), ...(state.params || {}) };
 
 const engine = new LiveAudioEngine();
 const offline = new OfflineRenderer();
@@ -90,6 +90,7 @@ function updateActivePreset() {
 
 function renderControls() {
   renderControlGroup($("macroControls"), MACRO_DEFS);
+  renderControlGroup($("directorControls"), DIRECTOR_DEFS);
   renderControlGroup($("voiceControls"), PARAM_DEFS);
 }
 
@@ -411,7 +412,7 @@ function clearOfflineRenderPreview() {
 
 function describeCalibrationDelta(before, after) {
   const keys = ["inputGain", "pitch", "formant", "body", "brightness", "air", "deEss", "breath"];
-  const names = new Map([...MACRO_DEFS, ...PARAM_DEFS].map((def) => [def.key, def.label]));
+  const names = new Map([...MACRO_DEFS, ...DIRECTOR_DEFS, ...PARAM_DEFS].map((def) => [def.key, def.label]));
   const changes = keys
     .map((key) => ({ key, delta: Number(after[key] || 0) - Number(before[key] || 0) }))
     .filter((item) => Math.abs(item.delta) >= 0.1)

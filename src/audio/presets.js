@@ -6,6 +6,12 @@ export const DEFAULT_PARAMS = Object.freeze({
   anime: 0,
   intimacy: 18,
   prosody: 0,
+  phraseLift: 0,
+  endingSoftness: 0,
+  deliveryEnergy: 50,
+  closeMic: 0,
+  romanticBreath: 0,
+  confidence: 50,
   breath: 0,
   whisper: 0,
   body: 0,
@@ -61,6 +67,15 @@ export const MACRO_DEFS = Object.freeze([
   { key: "consonantSoftness", label: "Soft Consonants", min: 0, max: 100, step: 1, unit: "%" }
 ]);
 
+export const DIRECTOR_DEFS = Object.freeze([
+  { key: "phraseLift", label: "Phrase Lift", min: 0, max: 100, step: 1, unit: "%" },
+  { key: "endingSoftness", label: "Ending Softness", min: 0, max: 100, step: 1, unit: "%" },
+  { key: "deliveryEnergy", label: "Delivery Energy", min: 0, max: 100, step: 1, unit: "%" },
+  { key: "closeMic", label: "Close Mic", min: 0, max: 100, step: 1, unit: "%" },
+  { key: "romanticBreath", label: "Breath Placement", min: 0, max: 100, step: 1, unit: "%" },
+  { key: "confidence", label: "Confidence", min: 0, max: 100, step: 1, unit: "%" }
+]);
+
 export const FACTORY_PRESETS = Object.freeze([
   {
     id: "clean",
@@ -75,7 +90,9 @@ export const FACTORY_PRESETS = Object.freeze([
     params: {
       pitch: 4.25, formant: 4.5, mouth: 42, cuteness: 78, anime: 46,
       brightness: 42, presence: 18, air: 34, body: -38, breath: 18,
-      consonantSoftness: 48, deEss: 58, compression: 48, ambience: 9
+      consonantSoftness: 48, phraseLift: 72, endingSoftness: 36,
+      deliveryEnergy: 62, closeMic: 28, romanticBreath: 22, confidence: 58,
+      deEss: 58, compression: 48, ambience: 9
     }
   },
   {
@@ -85,7 +102,9 @@ export const FACTORY_PRESETS = Object.freeze([
     params: {
       pitch: 3.5, formant: 3.25, mouth: 28, cuteness: 54, anime: 82,
       brightness: 58, presence: 36, air: 26, body: -22, breath: 10,
-      consonantSoftness: 32, deEss: 50, compression: 56, saturation: 8
+      consonantSoftness: 32, phraseLift: 86, endingSoftness: 18,
+      deliveryEnergy: 82, closeMic: 18, romanticBreath: 12, confidence: 76,
+      deEss: 50, compression: 56, saturation: 8
     }
   },
   {
@@ -95,7 +114,9 @@ export const FACTORY_PRESETS = Object.freeze([
     params: {
       pitch: 1.75, formant: 1.8, mouth: 16, cuteness: 36, anime: 18,
       intimacy: 86, breath: 48, whisper: 12, brightness: 24, air: 48,
-      consonantSoftness: 64, deEss: 72, compression: 62, ambience: 18
+      consonantSoftness: 64, phraseLift: 46, endingSoftness: 82,
+      deliveryEnergy: 42, closeMic: 76, romanticBreath: 88, confidence: 42,
+      deEss: 72, compression: 62, ambience: 18
     }
   },
   {
@@ -105,7 +126,9 @@ export const FACTORY_PRESETS = Object.freeze([
     params: {
       pitch: -2.25, formant: -3.25, mouth: -34, body: 72, intimacy: 68,
       breath: 24, brightness: 8, presence: 42, air: 28, consonantSoftness: 22,
-      deEss: 44, compression: 60, saturation: 16, ambience: 10
+      phraseLift: 18, endingSoftness: 58, deliveryEnergy: 46, closeMic: 70,
+      romanticBreath: 54, confidence: 68, deEss: 44, compression: 60,
+      saturation: 16, ambience: 10
     }
   },
   {
@@ -115,7 +138,8 @@ export const FACTORY_PRESETS = Object.freeze([
     params: {
       pitch: 0.25, formant: 0.75, intimacy: 96, breath: 72, whisper: 42,
       brightness: 12, presence: -8, air: 56, body: -8, consonantSoftness: 82,
-      deEss: 82, compression: 72, ambience: 6
+      phraseLift: 18, endingSoftness: 92, deliveryEnergy: 30, closeMic: 92,
+      romanticBreath: 96, confidence: 24, deEss: 82, compression: 72, ambience: 6
     }
   },
   {
@@ -124,7 +148,9 @@ export const FACTORY_PRESETS = Object.freeze([
     target: "Punchy, clear creator voice with safe loudness.",
     params: {
       pitch: 0, formant: 0, body: 18, brightness: 28, presence: 30,
-      air: 18, deEss: 52, compression: 66, saturation: 10, ambience: 4
+      air: 18, phraseLift: 28, endingSoftness: 20, deliveryEnergy: 78,
+      closeMic: 36, romanticBreath: 8, confidence: 84, deEss: 52,
+      compression: 66, saturation: 10, ambience: 4
     }
   },
   {
@@ -133,7 +159,9 @@ export const FACTORY_PRESETS = Object.freeze([
     target: "Warm narration with authority and controlled space.",
     params: {
       pitch: -3.2, formant: -2.5, mouth: -18, body: 58, brightness: 4,
-      presence: 20, air: 12, compression: 62, saturation: 12, ambience: 14
+      presence: 20, air: 12, phraseLift: 10, endingSoftness: 38,
+      deliveryEnergy: 45, closeMic: 42, romanticBreath: 10, confidence: 72,
+      compression: 62, saturation: 12, ambience: 14
     }
   },
   {
@@ -143,7 +171,8 @@ export const FACTORY_PRESETS = Object.freeze([
     params: {
       pitch: -0.75, formant: -0.5, body: 34, brightness: -22,
       presence: 68, air: -50, compression: 78, saturation: 42,
-      lowCut: 180, highCut: 5600, ambience: 0
+      phraseLift: 8, endingSoftness: 12, deliveryEnergy: 86, closeMic: 18,
+      romanticBreath: 0, confidence: 88, lowCut: 180, highCut: 5600, ambience: 0
     }
   },
   {
@@ -152,7 +181,9 @@ export const FACTORY_PRESETS = Object.freeze([
     target: "Metallic machine character with intelligible speech.",
     params: {
       pitch: -1.5, formant: -1, robot: 78, brightness: 18,
-      presence: 24, compression: 58, saturation: 18, ambience: 4
+      presence: 24, phraseLift: 4, endingSoftness: 0, deliveryEnergy: 70,
+      closeMic: 0, romanticBreath: 0, confidence: 66, compression: 58,
+      saturation: 18, ambience: 4
     }
   },
   {
@@ -162,7 +193,8 @@ export const FACTORY_PRESETS = Object.freeze([
     params: {
       pitch: -6, formant: -7, mouth: -72, body: 88, creature: 70,
       brightness: -34, presence: 20, saturation: 38, compression: 72,
-      ambience: 24, delay: 8
+      phraseLift: 0, endingSoftness: 22, deliveryEnergy: 76, closeMic: 54,
+      romanticBreath: 0, confidence: 58, ambience: 24, delay: 8
     }
   }
 ]);
