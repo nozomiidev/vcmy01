@@ -353,3 +353,27 @@ Decision:
 - Keep the feature deterministic, local, and static so deeper per-layer bypass,
   plugin insert slots, or offline-only processors can replace the approximation
   later without changing the GitHub Pages constraint.
+
+## ADR 020 - Scene Kits Need Production Coverage
+
+Scene Kits define multi-beat acting arcs, but a list of beats is not yet a
+production workflow. A user needs to know which beats have a matched target,
+which have recoverable voice-design memory, and which have enough rendered
+takes to trust before moving through an otome, ikemen, kawaii, or ASMR scene.
+Without that layer, the app still behaves like isolated Line Reads rather than
+a character voice studio.
+
+Decision:
+
+- Add Scene Session as the coverage layer above Scene Kits.
+- Derive beat coverage from active Line Read match, Design Board snapshots,
+  Render Deck takes, and Take Decision evidence.
+- Attach target and scene metadata to newly rendered deck takes so later
+  workflow layers can tell which beat a take belongs to.
+- Expose target/design/take coverage in the live Line Read area instead of
+  hiding it in a separate report.
+- Let Studio Plan advance to the next uncovered Scene Beat after the current
+  beat has enough design and take evidence.
+- Keep the layer deterministic and local so named scene collections, longer
+  upload workflows, and future plugin/AI render paths can build on it without
+  changing the static GitHub Pages architecture.

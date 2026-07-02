@@ -26,6 +26,7 @@ import { buildStackAuditions, stackAuditionSummary } from "../src/audio/stack-au
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
 import { automationSummary, buildPerformanceScript, compareScriptToPerformance, renderScriptAutomation, SCRIPT_LANES } from "../src/audio/performance-script.js";
 import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.js";
+import { buildSceneSession, sceneSessionSummary } from "../src/audio/scene-session.js";
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, snapshotParamPatch } from "../src/audio/voice-memory.js";
 import {
   analyzeBuffer,
@@ -51,7 +52,7 @@ assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performanc
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
 assert.deepEqual(EFFECT_STACK_STAGE_IDS, ["input", "core", "tract", "tone", "texture", "performance", "dynamics", "space", "guard"], "effect stack should expose ordered signal-path layers");
 assert.equal(AUDITION_VARIANT_IDS.length >= 5, true, "audition variants should cover multiple nearby character directions");
-assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "stack", "memory", "script", "audition", "trace", "deck"], "studio plan should expose the full production flow");
+assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "stack", "memory", "script", "audition", "trace", "scene", "deck"], "studio plan should expose the full production flow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.ok(SCENE_KITS.length >= 4, "scene kits should expand single reads into multi-beat acting workflows");
 assert.ok(ALL_LINE_READ_TARGETS.length > LINE_READ_TARGETS.length, "scene beats should be usable as line-read targets");
@@ -167,6 +168,34 @@ const stackAuditionStudioPlan = buildStudioPlan({
   renderDeckCount: 0
 });
 assert.equal(stackAuditionStudioPlan.nextAction.id, "render-stack", "studio plan should render stack auditions when a weak stack has no direct patch");
+const sceneStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
+  renderReview: { status: "ready", score: 94, items: [] },
+  performanceComparison: { status: "ready", score: 92, items: [] },
+  sceneSession: {
+    status: "check",
+    score: 78,
+    readyCount: 1,
+    count: 3,
+    activeBeat: { label: "Whisper Promise", nextNeed: "Covered" },
+    nextAction: {
+      id: "apply-scene-beat",
+      label: "Next Beat: Hold The Moment",
+      targetId: "scene_otome_close_scene_hold",
+      detail: "Whisper Promise is covered; continue the scene arc with Hold The Moment."
+    }
+  },
+  renderDeckCount: 2,
+  takeDecision: { status: "ready", score: 90, winner: { label: "Keeper", weakest: "Script" } }
+});
+assert.equal(sceneStudioPlan.nextAction.id, "apply-scene-beat", "studio plan should advance the scene after a beat is covered");
 
 for (const preset of FACTORY_PRESETS) {
   const processed = processVoiceBuffer(source, sampleRate, paramsForPreset(preset.id));
@@ -224,6 +253,30 @@ assert.ok(automatedWhisper.plan.frameCount >= 4, "script automation should creat
 assert.ok(automatedWhisper.plan.summary.breath.range > 0, "script automation should move breath lane over time");
 assert.ok(automationDelta > 0.0005, "script automation should change rendered audio beyond static processing");
 assert.equal(automatedSummary.frameCount, automatedWhisper.plan.frameCount, "automation summary should track frame count");
+const otomeWhisperSnapshot = createVoiceSnapshot(otomeWhisperParams, {
+  id: "scene-memory-release",
+  lineReadId: otomeWhisperBeat.id,
+  target: otomeWhisperBeat,
+  renderReview: { score: 91 },
+  createdAt: 1000
+});
+const otomeSceneSession = buildSceneSession({
+  activeLineReadId: otomeWhisperBeat.id,
+  params: otomeWhisperParams,
+  snapshots: [otomeWhisperSnapshot],
+  renderDeck: [
+    { id: "scene-take-a", target: otomeWhisperBeat.name, targetId: otomeWhisperBeat.id, review: { score: 92 }, rendered: { lineReadId: otomeWhisperBeat.id } },
+    { id: "scene-take-b", target: otomeWhisperBeat.name, targetId: otomeWhisperBeat.id, review: { score: 88 }, rendered: { lineReadId: otomeWhisperBeat.id } }
+  ],
+  hasSource: true,
+  takeDecision: { winnerId: "scene-take-a", score: 93 }
+});
+const otomeSceneSessionSummary = sceneSessionSummary(otomeSceneSession);
+assert.equal(otomeSceneSession.items.length, 3, "scene session should cover every beat in the active kit");
+assert.equal(otomeSceneSession.activeBeat.status, "ready", "scene session should mark a beat ready when design and takes are covered");
+assert.equal(otomeSceneSession.nextAction.id, "apply-scene-beat", "scene session should offer the next uncovered beat");
+assert.equal(otomeSceneSessionSummary.readyCount, 1, "scene session summary should count covered beats");
+assert.ok(otomeSceneSession.items.some((item) => item.memoryCount === 1 && item.takeCount === 2), "scene session should connect saved designs and render takes to the beat");
 const otomeReadParams = paramsForLineReadTarget(otomeRead.id);
 assert.equal(scoreLineReadTarget(otomeReadParams, otomeRead), 100, "applied line-read params should match target controls");
 const otomeBreakdown = targetMatchBreakdown(otomeReadParams, otomeRead);

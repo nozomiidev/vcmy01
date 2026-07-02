@@ -32,6 +32,9 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
 - Scene Kits that turn single reads into multi-beat acting workflows for
   otome, ikemen, kawaii, and ASMR scenes, with each beat applying real
   macro/director target changes.
+- Scene Session coverage that tracks each active Scene Kit beat across target
+  match, saved design memory, render takes, and next-beat handoff so a scene can
+  be produced as an arc rather than isolated reads.
 - Line Read target visualization with radar and per-axis gap bars for lift,
   softness, energy, distance, breath placement, confidence, and related macros.
 - Line Read coaching that turns target drift into recipe-group scores and a
@@ -60,8 +63,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   chain.
 - Studio Plan production flow that connects source loading, route choice,
   chain shaping, signal-stack balance, design memory, script planning, preview
-  audition, trace evidence, and render-deck comparison into a single next-step
-  workflow.
+  audition, trace evidence, scene coverage, and render-deck comparison into a
+  single next-step workflow.
 - Performance Trace visualization for source/render timing, F0 motion, ending
   movement, tail breath/frication, and delivery dynamics across the region.
 - Script Match scoring that compares rendered phrase motion against the planned
@@ -93,8 +96,8 @@ Known product capability gap:
   actor-style timing conversion.
 - Offline post-processing has region preview, script-driven automation, and
   audition variant batches, plus Signal Stack, Stack Audition, and Design Board
-  layers, but still needs named scene/design collections, longer uploaded-file
-  workflow, and offline-only high-quality render modes.
+  layers, but still needs persistent named scene/design collections, longer
+  uploaded-file workflow, and offline-only high-quality render modes.
 - The app still needs richer performance targets, repeatable line-read tests,
   phrase/ending behavior, distance, emotion, and delivery workflows beyond the
   first Director controls and first Line Read target set.

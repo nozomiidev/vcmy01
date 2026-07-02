@@ -209,16 +209,24 @@ signals, and lets Studio Plan recall a stronger saved design before asking the
 user to render more takes. This is still static and local, but it moves the app
 from "effect box" toward an iterative voice-design workspace.
 
+Scene Session is the multi-beat production layer above Scene Kits. A Scene Kit
+defines the acting arc, but the session answers the working question: which
+beats already have a matched target, a recoverable design, and enough audition
+takes to trust? It derives coverage from the active Line Read, Design Board
+snapshots, Render Deck takes, and Take Decision evidence, then offers the next
+beat handoff when the current beat is covered. This keeps character acting from
+collapsing back into isolated one-line presets.
+
 Studio Plan is the workflow coordinator above those panels. Source Fit, Voice
 Route, Character Chain, Signal Stack, Stack Audition, Design Board, Performance
-Script, Performance Trace, and Render Deck are useful evidence, but they can
-still leave a user asking what to do next.
+Script, Performance Trace, Scene Session, and Render Deck are useful evidence,
+but they can still leave a user asking what to do next.
 Studio Plan keeps every production step visible and chooses the next action in
 order: load or analyze a source, apply a stronger route, fix the weakest chain
 stage, balance or audition the signal stack, save or recall a design, inspect
-the acting script, render a preview, compare performance evidence, then choose
-from the deck. This makes the app feel like a voice-production session instead
-of a collection of unrelated widgets.
+the acting script, render a preview, compare performance evidence, cover or
+advance the scene beat, then choose from the deck. This makes the app feel like
+a voice-production session instead of a collection of unrelated widgets.
 
 Performance Trace is the time-axis evidence layer. It analyzes source and
 rendered regions into bounded frames for energy, frame-level F0, ending motion,

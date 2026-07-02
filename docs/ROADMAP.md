@@ -50,6 +50,8 @@ GitHub Pages.
   against acting intent, not just signal movement.
 - Add Scene Kits so character targets can be tested as multi-beat acting arcs,
   not only isolated one-line checks.
+- Add Scene Session coverage so each Scene Kit beat is tracked across target
+  match, saved design memory, render takes, and next-beat handoff.
 - Expand Line Read target visualizations so users can see macro/director drift
   before rendering or recording another take.
 - Turn Line Read target drift into coaching and one-step corrections so users
@@ -72,8 +74,8 @@ GitHub Pages.
   against the active Line Read target, and restored as meaningful
   macro/director/DSP deltas instead of being lost slider states.
 - Add Studio Plan orchestration so source, route, chain, signal stack, design
-  memory, script, preview, trace, and deck decisions are connected by a single
-  next-step production flow.
+  memory, script, preview, trace, scene coverage, and deck decisions are
+  connected by a single next-step production flow.
 - Add Performance Trace visualization so phrase lift, ending release, tail air,
   and delivery motion can be compared before and after offline rendering.
 - Add Script Match scoring so rendered motion is judged against the planned

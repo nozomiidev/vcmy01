@@ -7,6 +7,7 @@ export const STUDIO_PLAN_STEP_IDS = Object.freeze([
   "script",
   "audition",
   "trace",
+  "scene",
   "deck"
 ]);
 
@@ -26,6 +27,7 @@ export function buildStudioPlan(options = {}) {
   const script = options.performanceScript || null;
   const scriptMatch = options.scriptMatch || null;
   const scriptAutomation = options.scriptAutomation || null;
+  const sceneSession = options.sceneSession || null;
   const review = options.renderReview || null;
   const trace = options.performanceComparison || null;
   const takeDecision = options.takeDecision || null;
@@ -43,6 +45,7 @@ export function buildStudioPlan(options = {}) {
     scriptStep(script, scriptMatch, scriptAutomation),
     auditionStep(hasSource, review, renderDeckCount, auditionVariantCount),
     traceStep(hasSource, review, trace),
+    sceneStep(hasSource, sceneSession),
     deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision, keeperRefinement)
   ];
   const nextAction = steps.find((step) => step.action)?.action || null;
@@ -56,6 +59,40 @@ export function buildStudioPlan(options = {}) {
     steps,
     nextAction
   };
+}
+
+function sceneStep(hasSource, sceneSession) {
+  if (!hasSource) {
+    return waitingStep("scene", "Scene", "Waiting for source");
+  }
+  if (!sceneSession) {
+    return step({
+      id: "scene",
+      label: "Scene",
+      status: "ready",
+      score: 86,
+      summary: "Optional",
+      detail: "Scene coverage appears when a Scene Kit session is available."
+    });
+  }
+  const action = sceneSession.nextAction?.id === "apply-scene-beat"
+    ? sceneSession.nextAction
+    : null;
+  return step({
+    id: "scene",
+    label: "Scene",
+    status: sceneSession.status,
+    score: sceneSession.score,
+    summary: `${sceneSession.readyCount}/${sceneSession.count} beats`,
+    detail: action
+      ? action.detail
+      : sceneSession.activeBeat
+        ? `${sceneSession.activeBeat.label}: ${sceneSession.activeBeat.nextNeed}.`
+        : sceneSession.summary,
+    action: action
+      ? { id: "apply-scene-beat", label: action.label, targetId: action.targetId }
+      : null
+  });
 }
 
 function memoryStep(hasSource, voiceMemory, review) {

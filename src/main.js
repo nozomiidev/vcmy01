@@ -27,6 +27,7 @@ import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { buildStudioPlan } from "./audio/studio-plan.js";
 import { rankRenderDeckTakes } from "./audio/take-decision.js";
 import { buildKeeperRefinement } from "./audio/take-refinement.js";
+import { buildSceneSession, sceneSessionSummary } from "./audio/scene-session.js";
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, sanitizeVoiceSnapshots } from "./audio/voice-memory.js";
 import { TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
@@ -81,6 +82,7 @@ function init() {
   renderLineReadLibrary();
   renderSceneKitPanel();
   renderSceneKitLibrary();
+  renderSceneSession();
   renderPerformanceScript();
   renderCharacterChain();
   renderEffectStack();
@@ -141,6 +143,7 @@ function renderPresets() {
       renderLineReadLibrary();
       renderSceneKitPanel();
       renderSceneKitLibrary();
+      renderSceneSession();
       updateActivePreset();
       updateSourceFit();
       updateRoutePlanner();
@@ -312,6 +315,11 @@ function bindLineReads() {
     const button = event.target.closest("[data-scene-target]");
     if (button) applyLineReadTarget(button.dataset.sceneTarget);
   });
+  $("sceneSessionGrid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-session-target]");
+    if (button) applyLineReadTarget(button.dataset.sessionTarget);
+  });
+  $("applySceneSessionStep")?.addEventListener("click", applySceneSessionStep);
 }
 
 function applyLineReadTarget(id) {
@@ -329,6 +337,7 @@ function applyLineReadTarget(id) {
   renderLineReadLibrary();
   renderSceneKitPanel();
   renderSceneKitLibrary();
+  renderSceneSession();
   updateActivePreset();
   updateSourceFit();
   updateRoutePlanner();
@@ -352,6 +361,7 @@ function applyNextLineReadFix() {
   updateLineReadScore();
   renderSceneKitPanel();
   renderSceneKitLibrary();
+  renderSceneSession();
   updateSourceFit();
   updateRoutePlanner();
   renderCharacterChain();
@@ -732,6 +742,7 @@ function renderSceneKitPanel() {
       </button>
     `;
   }).join("");
+  renderSceneSession();
 }
 
 function renderSceneKitLibrary() {
@@ -759,6 +770,72 @@ function renderSceneKitLibrary() {
       </div>
     `;
   }).join("");
+}
+
+function currentSceneSession() {
+  return buildSceneSession({
+    activeLineReadId: state.lineReadId,
+    params: state.params,
+    snapshots: state.voiceSnapshots,
+    renderDeck: state.renderDeck,
+    hasSource: !!offline.source,
+    takeDecision: currentTakeDecision()
+  });
+}
+
+function renderSceneSession() {
+  const panel = $("sceneSessionPanel");
+  if (!panel) return;
+  const session = currentSceneSession();
+  const summary = sceneSessionSummary(session);
+  panel.className = `scene-session-panel is-${summary.status}`;
+  $("sceneSessionStatus").textContent = `${summary.readyCount}/${summary.count} beats / ${summary.score}%`;
+  $("sceneSessionGrid").innerHTML = session.items.map((item) => `
+    <button class="scene-session-card is-${item.status} ${item.active ? "is-active" : ""}" data-session-target="${item.targetId}" type="button">
+      <span>${String(item.index + 1).padStart(2, "0")} ${escapeHtml(item.nextNeed)}</span>
+      <strong>${escapeHtml(item.label)}</strong>
+      <small>${escapeHtml(item.line)}</small>
+      <div class="scene-session-bars">
+        <i style="--score:${item.targetScore}%"><b>Target</b><em>${item.targetScore}%</em></i>
+        <i style="--score:${item.memoryScore}%"><b>Design</b><em>${item.memoryCount}</em></i>
+        <i style="--score:${item.bestTakeScore}%"><b>Takes</b><em>${item.takeCount}</em></i>
+      </div>
+    </button>
+  `).join("");
+  const action = session.nextAction;
+  $("sceneSessionNext").textContent = action
+    ? action.detail
+    : `${session.kitName}: ${session.summary}.`;
+  $("applySceneSessionStep").disabled = !action;
+  $("applySceneSessionStep").textContent = action ? action.label : "Session Ready";
+}
+
+function applySceneSessionStep() {
+  const session = currentSceneSession();
+  const action = session.nextAction;
+  if (!action) {
+    toast("Scene session ready", `${session.kitName}: all visible beats are covered.`);
+    return;
+  }
+  if (action.id === "load-source") {
+    generateTargetSource();
+    return;
+  }
+  if (action.id === "apply-scene-target" || action.id === "apply-scene-beat") {
+    applyLineReadTarget(action.targetId);
+    return;
+  }
+  if (action.id === "capture-scene-design") {
+    captureVoiceMemory();
+    return;
+  }
+  if (action.id === "preview-region") {
+    renderOfflineToPreview(true);
+    return;
+  }
+  if (action.id === "render-variants") {
+    renderAuditionVariantSet();
+  }
 }
 
 function bindOffline() {
@@ -909,6 +986,7 @@ function useOfflineSource(source) {
   updateRoutePlanner();
   renderCharacterChain();
   renderPerformanceTrace();
+  renderSceneSession();
 }
 
 function renderOfflineToPreview(preview) {
@@ -953,10 +1031,18 @@ function addRenderedTakeToDeck(rendered, preview, variant = null, stackAudition 
   const auditionVariant = variant || rendered.auditionVariant || null;
   const stackLayer = stackAudition || rendered.stackAudition || null;
   const badge = auditionVariant || stackLayer;
+  const target = lineReadById(state.lineReadId);
+  const sceneBeat = sceneBeatByTargetId(target.id);
+  rendered.lineReadId = target.id;
+  rendered.sceneKitId = sceneBeat?.kit?.id || target.sceneKitId || null;
+  rendered.sceneBeatId = sceneBeat?.beat?.id || target.sceneBeatId || null;
   const item = {
     id: `render-${Date.now()}-${state.renderDeckSeq += 1}`,
     title: badge ? `${presetById(state.presetId).name} / ${badge.label}` : presetById(state.presetId).name,
-    target: lineReadById(state.lineReadId).name,
+    target: target.name,
+    targetId: target.id,
+    sceneKitId: rendered.sceneKitId,
+    sceneBeatId: rendered.sceneBeatId,
     mode: `${preview ? "Preview" : "Full"}${rendered.scriptAutomated ? " Scripted" : ""}${auditionVariant ? " Variant" : ""}${stackLayer ? " Stack" : ""}`,
     route: state.voiceRoutes.find((route) => route.presetId === state.presetId && route.targetId === state.lineReadId)?.targetName || null,
     variant: auditionVariant,
@@ -966,6 +1052,7 @@ function addRenderedTakeToDeck(rendered, preview, variant = null, stackAudition 
   };
   state.renderDeck = addRenderDeckItem(state.renderDeck, item);
   state.activeRenderId = item.id;
+  renderSceneSession();
 }
 
 function selectRenderDeckItem(id) {
@@ -1411,6 +1498,7 @@ function captureVoiceMemory() {
   state.voiceSnapshots = addVoiceSnapshot(state.voiceSnapshots, snapshot);
   persistVoiceSnapshots();
   renderVoiceMemory();
+  renderSceneSession();
   renderStudioPlan();
   toast(
     beforeCount === state.voiceSnapshots.length ? "Design updated" : "Design captured",
@@ -1442,6 +1530,7 @@ function applyVoiceMemory(snapshotId) {
   updateRoutePlanner();
   renderCharacterChain();
   renderVoiceMemory();
+  renderSceneSession();
   renderStudioPlan();
   toast("Design restored", `${item.title}: ${describePatchList(item.patch)}`);
 }
@@ -1450,6 +1539,7 @@ function clearVoiceMemory() {
   state.voiceSnapshots = [];
   persistVoiceSnapshots();
   renderVoiceMemory();
+  renderSceneSession();
   renderStudioPlan();
   toast("Design board cleared", "Saved voice designs were removed from this browser.");
 }
@@ -1638,6 +1728,14 @@ function currentStudioPlan() {
   const voiceMemory = currentVoiceMemoryBoard();
   const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
   const takeDecision = currentTakeDecision();
+  const sceneSession = buildSceneSession({
+    activeLineReadId: state.lineReadId,
+    params: state.params,
+    snapshots: state.voiceSnapshots,
+    renderDeck: state.renderDeck,
+    hasSource: !!offline.source,
+    takeDecision
+  });
   return buildStudioPlan({
     hasSource: !!offline.source,
     sourceFit,
@@ -1653,16 +1751,24 @@ function currentStudioPlan() {
     performanceScript: currentPerformanceScript(),
     scriptMatch: currentScriptMatch(),
     scriptAutomation: offline.rendered?.scriptAutomationSummary || null,
+    sceneSession,
     auditionVariantCount: currentAuditionVariants().length,
-    renderDeckCount: state.renderDeck.length,
-    renderDeckSeconds: totalDeckSeconds(state.renderDeck),
+    renderDeckCount: activeRenderDeck().length,
+    renderDeckSeconds: totalDeckSeconds(activeRenderDeck()),
     takeDecision,
     keeperRefinement: currentKeeperRefinement(takeDecision)
   });
 }
 
 function currentTakeDecision() {
-  return rankRenderDeckTakes(state.renderDeck, offline.source, lineReadById(state.lineReadId));
+  return rankRenderDeckTakes(activeRenderDeck(), offline.source, lineReadById(state.lineReadId));
+}
+
+function activeRenderDeck(targetId = state.lineReadId) {
+  const target = lineReadById(targetId);
+  return state.renderDeck.filter((item) =>
+    item.targetId ? item.targetId === target.id : item.target === target.name
+  );
 }
 
 function currentKeeperRefinement(decision = currentTakeDecision()) {
@@ -1753,6 +1859,10 @@ function applyStudioPlanStep() {
     renderAuditionVariantSet();
     return;
   }
+  if (action.id === "apply-scene-beat") {
+    applyLineReadTarget(action.targetId);
+    return;
+  }
   if (action.id === "keeper-refine") {
     applyKeeperRefinement();
     return;
@@ -1785,6 +1895,7 @@ function renderRenderDeck() {
     $("renderDeckStatus").textContent = "No renders";
     host.innerHTML = "";
     renderTakeDecision();
+    renderSceneSession();
     return;
   }
   $("renderDeckStatus").textContent = `${state.renderDeck.length} takes / ${totalDeckSeconds(state.renderDeck).toFixed(1)}s`;
@@ -1814,6 +1925,7 @@ function renderRenderDeck() {
     `;
   }).join("");
   renderTakeDecision();
+  renderSceneSession();
 }
 
 function renderTakeDecision() {
