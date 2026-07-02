@@ -26,6 +26,7 @@ import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { buildStudioPlan } from "./audio/studio-plan.js";
 import { rankRenderDeckTakes } from "./audio/take-decision.js";
 import { buildKeeperRefinement } from "./audio/take-refinement.js";
+import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, sanitizeVoiceSnapshots } from "./audio/voice-memory.js";
 import { TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
@@ -49,6 +50,7 @@ const state = {
   renderDeck: [],
   activeRenderId: null,
   renderDeckSeq: 0,
+  voiceSnapshots: sanitizeVoiceSnapshots(prefs.get("voiceSnapshots", [])),
   qualitySuite: null
 };
 
@@ -65,6 +67,10 @@ function persist() {
   prefs.set("lineReadId", state.lineReadId);
 }
 
+function persistVoiceSnapshots() {
+  prefs.set("voiceSnapshots", state.voiceSnapshots);
+}
+
 function init() {
   document.documentElement.dataset.theme = state.theme;
   renderPresets();
@@ -77,6 +83,7 @@ function init() {
   renderPerformanceScript();
   renderCharacterChain();
   renderEffectStack();
+  renderVoiceMemory();
   renderPerformanceTrace();
   renderStudioPlan();
   renderAuditionVariants();
@@ -837,6 +844,12 @@ function bindOffline() {
 
   $("applyChainFix").addEventListener("click", applyNextCharacterChainFix);
   $("applyStackFix")?.addEventListener("click", applyNextEffectStackFix);
+  $("captureVoiceMemory")?.addEventListener("click", captureVoiceMemory);
+  $("clearVoiceMemory")?.addEventListener("click", clearVoiceMemory);
+  $("voiceMemoryList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-voice-memory]");
+    if (button) applyVoiceMemory(button.dataset.voiceMemory);
+  });
   $("applyStudioPlanStep").addEventListener("click", applyStudioPlanStep);
 }
 
@@ -1107,6 +1120,7 @@ function renderCharacterChain() {
   $("applyChainFix").disabled = !hasPatch;
   $("applyChainFix").textContent = hasPatch && patchStage ? `Fix ${patchStage.label}` : "Chain Locked";
   renderEffectStack();
+  renderVoiceMemory();
   renderStudioPlan();
 }
 
@@ -1213,6 +1227,122 @@ function effectStackStatusLabel(status) {
   return "Risk";
 }
 
+function currentVoiceMemoryBoard() {
+  const target = lineReadById(state.lineReadId);
+  const sourceFit = offline.source ? offline.sourceFitReport(state.params, target) : null;
+  const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
+  return buildVoiceMemoryBoard(state.voiceSnapshots, state.params, target, {
+    sourceFit,
+    chainReport: currentCharacterChainReport(),
+    effectStack: currentEffectStackReport(),
+    renderReview: review,
+    takeDecision: currentTakeDecision(),
+    allowManualCapture: true
+  });
+}
+
+function renderVoiceMemory() {
+  const panel = $("voiceMemoryPanel");
+  if (!panel) return;
+  const board = currentVoiceMemoryBoard();
+  panel.className = `voice-memory is-${board.status}`;
+  $("voiceMemoryStatus").textContent = board.count
+    ? `${board.count} designs / ${board.score}%`
+    : "No designs";
+  $("clearVoiceMemory").disabled = !board.count;
+  $("voiceMemoryList").innerHTML = board.items.length ? board.items.map((item) => `
+    <button class="voice-memory-card is-${item.status} ${item.id === board.best?.id ? "is-best" : ""}" data-voice-memory="${item.id}" type="button">
+      <span class="voice-memory-score">${item.id === board.best?.id ? "Best" : "Saved"} ${item.score}% ${voiceMemoryStatusLabel(item.status)}</span>
+      <strong>${escapeHtml(item.title)}</strong>
+      <small>${escapeHtml(item.targetName)} - ${new Date(item.createdAt).toLocaleString()}</small>
+      <div class="voice-memory-metrics">
+        <span>Target <b>${item.targetScore}%</b></span>
+        <span>Evidence <b>${item.evidenceScore}%</b></span>
+        <span>Delta <b>${item.patch.length}</b></span>
+      </div>
+      <div class="voice-memory-deltas">
+        ${item.patch.slice(0, 4).map((patch) => `<span>${escapeHtml(paramLabel(patch.key))} <b>${formatPatchDelta(patch)}</b></span>`).join("") || "<span>Current match <b>0</b></span>"}
+      </div>
+    </button>
+  `).join("") : `<div class="empty-note">Capture a voice design before making a risky change.</div>`;
+  const best = board.best;
+  $("voiceMemoryPatches").innerHTML = best?.patch?.length
+    ? best.patch.slice(0, 8).map((patch) => `
+      <span>${escapeHtml(paramLabel(patch.key))}<b>${formatPatchDelta(patch)}</b></span>
+    `).join("")
+    : board.count
+      ? `<span>Current design saved <b>0</b></span>`
+      : `<span>No memory patch <b>0</b></span>`;
+}
+
+function captureVoiceMemory() {
+  const target = lineReadById(state.lineReadId);
+  const snapshot = createVoiceSnapshot(state.params, {
+    presetId: state.presetId,
+    presetName: presetById(state.presetId).name,
+    lineReadId: state.lineReadId,
+    target,
+    sourceName: offline.source?.name || "",
+    sourceFit: offline.source ? offline.sourceFitReport(state.params, target) : null,
+    chainReport: currentCharacterChainReport(),
+    effectStack: currentEffectStackReport(),
+    renderReview: offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null,
+    takeDecision: currentTakeDecision()
+  });
+  const beforeCount = state.voiceSnapshots.length;
+  state.voiceSnapshots = addVoiceSnapshot(state.voiceSnapshots, snapshot);
+  persistVoiceSnapshots();
+  renderVoiceMemory();
+  renderStudioPlan();
+  toast(
+    beforeCount === state.voiceSnapshots.length ? "Design updated" : "Design captured",
+    `${snapshot.title}: ${snapshot.evidence.target}% target evidence.`
+  );
+}
+
+function applyVoiceMemory(snapshotId) {
+  const board = currentVoiceMemoryBoard();
+  const item = board.items.find((candidate) => candidate.id === snapshotId) || board.best;
+  if (!item) {
+    toast("No saved design", "Capture a voice design before applying memory.");
+    return;
+  }
+  const target = lineReadById(item.lineReadId);
+  state.presetId = item.presetId || target.presetId || state.presetId;
+  state.lineReadId = target.id;
+  state.params = { ...paramsForPreset(state.presetId), ...item.params };
+  persist();
+  engine.setParams(state.params);
+  renderPresets();
+  renderControls();
+  renderLineReadPanel();
+  renderLineReadLibrary();
+  renderSceneKitPanel();
+  renderSceneKitLibrary();
+  updateActivePreset();
+  updateSourceFit();
+  updateRoutePlanner();
+  renderCharacterChain();
+  renderVoiceMemory();
+  renderStudioPlan();
+  toast("Design restored", `${item.title}: ${describePatchList(item.patch)}`);
+}
+
+function clearVoiceMemory() {
+  state.voiceSnapshots = [];
+  persistVoiceSnapshots();
+  renderVoiceMemory();
+  renderStudioPlan();
+  toast("Design board cleared", "Saved voice designs were removed from this browser.");
+}
+
+function voiceMemoryStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "empty") return "Empty";
+  if (status === "check") return "Check";
+  return "Risk";
+}
+
 function renderPerformanceTrace() {
   const panel = $("performanceTracePanel");
   if (!panel) return;
@@ -1224,6 +1354,7 @@ function renderPerformanceTrace() {
     renderScriptMatch();
     renderAutomationPanel();
     renderEffectStack();
+    renderVoiceMemory();
     renderStudioPlan();
     return;
   }
@@ -1257,6 +1388,7 @@ function renderPerformanceTrace() {
   renderScriptMatch();
   renderAutomationPanel();
   renderEffectStack();
+  renderVoiceMemory();
   renderStudioPlan();
 }
 
@@ -1385,6 +1517,7 @@ function currentStudioPlan() {
   const sourceFit = offline.source ? offline.sourceFitReport(state.params, target) : null;
   const chainReport = currentCharacterChainReport();
   const effectStack = currentEffectStackReport();
+  const voiceMemory = currentVoiceMemoryBoard();
   const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
   const takeDecision = currentTakeDecision();
   return buildStudioPlan({
@@ -1395,6 +1528,7 @@ function currentStudioPlan() {
     activeLineReadId: state.lineReadId,
     chainReport,
     effectStack,
+    voiceMemory,
     renderReview: review,
     performanceComparison: currentPerformanceComparison(),
     performanceScript: currentPerformanceScript(),
@@ -1478,6 +1612,14 @@ function applyStudioPlanStep() {
   }
   if (action.id === "stack-fix") {
     applyNextEffectStackFix();
+    return;
+  }
+  if (action.id === "capture-memory") {
+    captureVoiceMemory();
+    return;
+  }
+  if (action.id === "apply-memory") {
+    applyVoiceMemory(action.snapshotId);
     return;
   }
   if (action.id === "preview-region") {

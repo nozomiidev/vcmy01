@@ -3,6 +3,7 @@ export const STUDIO_PLAN_STEP_IDS = Object.freeze([
   "route",
   "shape",
   "stack",
+  "memory",
   "script",
   "audition",
   "trace",
@@ -20,6 +21,7 @@ export function buildStudioPlan(options = {}) {
   const topRoute = routes[0] || null;
   const chain = options.chainReport || null;
   const effectStack = options.effectStack || null;
+  const voiceMemory = options.voiceMemory || null;
   const script = options.performanceScript || null;
   const scriptMatch = options.scriptMatch || null;
   const scriptAutomation = options.scriptAutomation || null;
@@ -36,6 +38,7 @@ export function buildStudioPlan(options = {}) {
     routeStep(hasSource, topRoute, activeRoute),
     shapeStep(hasSource, chain),
     stackStep(hasSource, effectStack),
+    memoryStep(hasSource, voiceMemory, review),
     scriptStep(script, scriptMatch, scriptAutomation),
     auditionStep(hasSource, review, renderDeckCount, auditionVariantCount),
     traceStep(hasSource, review, trace),
@@ -52,6 +55,44 @@ export function buildStudioPlan(options = {}) {
     steps,
     nextAction
   };
+}
+
+function memoryStep(hasSource, voiceMemory, review) {
+  if (!hasSource) {
+    return waitingStep("memory", "Memory", "Waiting for source");
+  }
+  if (!voiceMemory) {
+    return step({
+      id: "memory",
+      label: "Memory",
+      status: "check",
+      score: 54,
+      summary: "No board",
+      detail: "Voice design memory is unavailable."
+    });
+  }
+  const action = voiceMemory.nextAction;
+  const shouldCapture = action?.id === "capture-memory" && review;
+  const shouldApply = action?.id === "apply-memory";
+  return step({
+    id: "memory",
+    label: "Memory",
+    status: voiceMemory.status === "empty" ? "check" : voiceMemory.status,
+    score: voiceMemory.score,
+    summary: voiceMemory.count
+      ? `${voiceMemory.count} designs / ${voiceMemory.score}%`
+      : "No designs",
+    detail: shouldCapture
+      ? "Current audition has not been saved as a recoverable design."
+      : shouldApply
+        ? `A saved design can improve this target: ${voiceMemory.best?.title || "Memory"}.`
+        : voiceMemory.summary || "Saved designs are available for recall.",
+    action: shouldApply
+      ? { id: "apply-memory", label: "Apply Memory", snapshotId: action.snapshotId }
+      : shouldCapture
+        ? { id: "capture-memory", label: "Capture Design" }
+        : null
+  });
 }
 
 function stackStep(hasSource, effectStack) {

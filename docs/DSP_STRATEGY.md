@@ -192,15 +192,25 @@ first non-destructive effect-stack layer: it does not replace the DSP chain,
 but it makes the chain inspectable and gives Studio Plan an operational stack
 step before auditioning.
 
+Design Board is the recoverability layer above the active chain. A character
+voice studio cannot rely on one fragile slider state: users need to capture a
+promising kawaii, otome, ikemen, or ASMR design, compare it against the current
+Line Read target, and restore the meaningful macro/director/DSP deltas later.
+The board keeps local snapshots bounded, scores them with target and evidence
+signals, and lets Studio Plan recall a stronger saved design before asking the
+user to render more takes. This is still static and local, but it moves the app
+from "effect box" toward an iterative voice-design workspace.
+
 Studio Plan is the workflow coordinator above those panels. Source Fit, Voice
-Route, Character Chain, Signal Stack, Performance Script, Performance Trace,
-and Render Deck are useful evidence, but they can still leave a user asking
-what to do next.
+Route, Character Chain, Signal Stack, Design Board, Performance Script,
+Performance Trace, and Render Deck are useful evidence, but they can still leave
+a user asking what to do next.
 Studio Plan keeps every production step visible and chooses the next action in
 order: load or analyze a source, apply a stronger route, fix the weakest chain
-stage, balance the signal stack, inspect the acting script, render a preview,
-compare performance evidence, then choose from the deck. This makes the app feel like a
-voice-production session instead of a collection of unrelated widgets.
+stage, balance the signal stack, save or recall a design, inspect the acting
+script, render a preview, compare performance evidence, then choose from the
+deck. This makes the app feel like a voice-production session instead of a
+collection of unrelated widgets.
 
 Performance Trace is the time-axis evidence layer. It analyzes source and
 rendered regions into bounded frames for energy, frame-level F0, ending motion,

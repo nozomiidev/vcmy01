@@ -303,3 +303,28 @@ Decision:
 - Treat this as the first non-destructive effect-stack design layer. Future work
   can add per-layer bypass, snapshots, plugin slots, and offline-only high
   quality processors without changing the static GitHub Pages constraint.
+
+## ADR 018 - Character Voice Work Needs Design Memory
+
+The product gap is not solved by adding more presets. Character voices are
+found through iteration: a user may discover a promising kawaii lift, otome
+close-breath balance, ikemen body/presence shape, or ASMR texture, then lose it
+while testing another route. If the app cannot capture, compare, and restore
+those voice designs, it remains a fragile effect box rather than a production
+workspace.
+
+Decision:
+
+- Add a local Design Board that stores bounded voice-design snapshots in browser
+  preferences.
+- Store the active macro/director/DSP parameter state plus evidence from Line
+  Read target fit, Source Fit, Character Chain, Signal Stack, Render Review, and
+  Take Decision where available.
+- Score saved designs against the active Line Read target, not just by recency.
+- Expose restore deltas as meaningful patch moves so users can see what would
+  change before applying a saved design.
+- Let Studio Plan surface design capture after an audition and design recall
+  when a saved same-target design is stronger than the current chain.
+- Keep the feature static, local, bounded, and compatible with later per-layer
+  bypass, named design collections, plugin workflows, or optional model-backed
+  engines.

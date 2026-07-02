@@ -51,9 +51,14 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   intensity, live/offline mode, source/render evidence, and bounded stack fixes
   for input prep, voice tract, tone, texture, performance, dynamics, space, and
   guardrails.
+- Design Board memory that captures local voice-design snapshots, scores saved
+  designs against the active Line Read target, and restores the highest-impact
+  macro/director/DSP deltas when a previous design fits better than the current
+  chain.
 - Studio Plan production flow that connects source loading, route choice,
-  chain shaping, signal-stack balance, script planning, preview audition, trace evidence, and
-  render-deck comparison into a single next-step workflow.
+  chain shaping, signal-stack balance, design memory, script planning, preview
+  audition, trace evidence, and render-deck comparison into a single next-step
+  workflow.
 - Performance Trace visualization for source/render timing, F0 motion, ending
   movement, tail breath/frication, and delivery dynamics across the region.
 - Script Match scoring that compares rendered phrase motion against the planned
@@ -84,9 +89,9 @@ Known product capability gap:
   approximations rather than real phrase understanding, emotion transfer, or
   actor-style timing conversion.
 - Offline post-processing has region preview, script-driven automation, and
-  audition variant batches, plus a first Signal Stack layer, but still needs
-  deeper non-destructive stack snapshots, per-layer bypass auditioning, and
-  longer uploaded-file workflow.
+  audition variant batches, plus Signal Stack and Design Board layers, but
+  still needs per-layer bypass auditioning, named scene/design collections,
+  longer uploaded-file workflow, and offline-only high-quality render modes.
 - The app still needs richer performance targets, repeatable line-read tests,
   phrase/ending behavior, distance, emotion, and delivery workflows beyond the
   first Director controls and first Line Read target set.

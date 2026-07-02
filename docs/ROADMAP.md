@@ -65,9 +65,12 @@ GitHub Pages.
 - Add Signal Stack staging so input prep, core shift, voice tract, tone,
   texture, performance motion, dynamics, space, and guardrails expose actual
   signal-path activity, overload risk, and bounded stack fixes.
-- Add Studio Plan orchestration so source, route, chain, signal stack, script,
-  preview, trace, and deck decisions are connected by a single next-step
-  production flow.
+- Add Design Board memory so promising voice designs can be captured, scored
+  against the active Line Read target, and restored as meaningful
+  macro/director/DSP deltas instead of being lost slider states.
+- Add Studio Plan orchestration so source, route, chain, signal stack, design
+  memory, script, preview, trace, and deck decisions are connected by a single
+  next-step production flow.
 - Add Performance Trace visualization so phrase lift, ending release, tail air,
   and delivery motion can be compared before and after offline rendering.
 - Add Script Match scoring so rendered motion is judged against the planned

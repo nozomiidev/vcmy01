@@ -25,6 +25,7 @@ import { bestEffectStackPatch, buildEffectStack, EFFECT_STACK_STAGE_IDS } from "
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
 import { automationSummary, buildPerformanceScript, compareScriptToPerformance, renderScriptAutomation, SCRIPT_LANES } from "../src/audio/performance-script.js";
 import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.js";
+import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, snapshotParamPatch } from "../src/audio/voice-memory.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -49,7 +50,7 @@ assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performanc
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
 assert.deepEqual(EFFECT_STACK_STAGE_IDS, ["input", "core", "tract", "tone", "texture", "performance", "dynamics", "space", "guard"], "effect stack should expose ordered signal-path layers");
 assert.equal(AUDITION_VARIANT_IDS.length >= 5, true, "audition variants should cover multiple nearby character directions");
-assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "stack", "script", "audition", "trace", "deck"], "studio plan should expose the full production flow");
+assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "stack", "memory", "script", "audition", "trace", "deck"], "studio plan should expose the full production flow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.ok(SCENE_KITS.length >= 4, "scene kits should expand single reads into multi-beat acting workflows");
 assert.ok(ALL_LINE_READ_TARGETS.length > LINE_READ_TARGETS.length, "scene beats should be usable as line-read targets");
@@ -73,6 +74,7 @@ assert.equal(emptyStudioPlan.steps.length, STUDIO_PLAN_STEP_IDS.length, "studio 
 
 const mockReadySourceFit = { status: "ready", score: 96, patches: [] };
 const mockReadyStack = { status: "ready", score: 94, activeCount: 5, nextPatch: {}, summary: "Stack locked", stages: [] };
+const mockReadyMemory = { status: "ready", score: 94, count: 1, summary: "Design memory locked", nextAction: null, items: [], best: null };
 const mockRoute = {
   id: "route-otome",
   presetId: "otome",
@@ -269,6 +271,32 @@ const lowKawaiiStack = buildEffectStack(kawaii, {
   sourceFit: lowToKawaiiFit,
   performanceScript: buildPerformanceScript(kawaiiSpark, kawaii)
 });
+const kawaiiMemoryParams = paramsForLineReadTarget(kawaiiSpark.id);
+const kawaiiSnapshot = createVoiceSnapshot(kawaiiMemoryParams, {
+  id: "snap-kawaii",
+  createdAt: 1,
+  presetId: "kawaii",
+  presetName: "Kawaii Bright",
+  lineReadId: kawaiiSpark.id,
+  target: kawaiiSpark,
+  sourceName: "Low Warm",
+  sourceFit: lowToKawaiiFit,
+  chainReport: lowKawaiiChain,
+  effectStack: lowKawaiiStack
+});
+const kawaiiMemory = addVoiceSnapshot([], kawaiiSnapshot, { maxItems: 4, maxPatchItems: 8 });
+const duplicateKawaiiMemory = addVoiceSnapshot(kawaiiMemory, kawaiiSnapshot, { maxItems: 4, maxPatchItems: 8 });
+const memoryBoard = buildVoiceMemoryBoard(kawaiiMemory, paramsForPreset("clean"), kawaiiSpark, {
+  chainReport: { status: "ready", score: 88 },
+  effectStack: { status: "ready", score: 90 },
+  allowManualCapture: true
+});
+assert.equal(kawaiiMemory.length, 1, "voice memory should retain captured snapshots");
+assert.equal(duplicateKawaiiMemory.length, 1, "voice memory should deduplicate identical designs");
+assert.equal(memoryBoard.count, 1, "voice memory board should score saved designs");
+assert.ok(memoryBoard.items[0].patch.length > 0, "voice memory board should expose restore deltas");
+assert.equal(memoryBoard.nextAction.id, "apply-memory", "voice memory should recall a stronger saved design for the same target");
+assert.ok(snapshotParamPatch(paramsForPreset("clean"), kawaiiSnapshot.params).some((patch) => ["cuteness", "anime", "phraseLift"].includes(patch.key)), "voice memory patch should include core voice-design deltas");
 assert.equal(lowToKawaiiFit.status, "risk", "low source should be risky for a bright kawaii target before tuning");
 assert.ok(lowToKawaiiFit.score < 70, "source fit should score mismatched source and target conservatively");
 assert.ok(lowToKawaiiFit.items.some((item) => item.id === "range" && item.status === "risk"), "source fit should flag range mismatch");
@@ -289,6 +317,19 @@ assert.ok(tunedLowToKawaiiFit.score > lowToKawaiiFit.score, "source fit should i
 const autoReview = renderReview(offline.source, autoRendered);
 assert.ok(autoReview.score >= 70, "render review should score usable offline renders");
 assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.includes("+")), "render review should expose apparent F0 movement");
+const memoryStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
+  voiceMemory: { status: "check", score: 82, count: 0, nextAction: { id: "capture-memory", label: "Capture Design" }, summary: "No saved designs", items: [] },
+  renderReview: autoReview,
+  renderDeckCount: 1
+});
+assert.equal(memoryStudioPlan.nextAction.id, "capture-memory", "studio plan should capture auditioned designs before more rendering");
 const hotStack = buildEffectStack(paramsForPreset("streamer", { outputGain: 3, saturation: 62, compression: 80 }), {
   target: LINE_READ_TARGETS.find((target) => target.id === "streamer_hook"),
   renderReview: { status: "risk", score: 48, items: [] },
@@ -354,6 +395,7 @@ const variantStudioPlan = buildStudioPlan({
   activeLineReadId: "otome_promise",
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
   effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
   renderReview: renderReview(offline.source, previewRendered),
   auditionVariantCount: kawaiiVariants.length,
   renderDeckCount: 1
@@ -375,6 +417,7 @@ const deckStudioPlan = buildStudioPlan({
   activeLineReadId: "otome_promise",
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
   effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
   renderReview: autoReview,
   performanceComparison: { status: "ready", score: 92, items: [{ label: "Tail Air", value: "+800/s" }] },
   performanceScript: otomeWhisperScript,
@@ -397,6 +440,7 @@ const refineStudioPlan = buildStudioPlan({
   activeLineReadId: "otome_promise",
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
   effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
   renderReview: autoReview,
   performanceComparison: { status: "ready", score: 92, items: [{ label: "Tail Air", value: "+800/s" }] },
   performanceScript: otomeWhisperScript,
