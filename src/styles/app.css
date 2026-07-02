@@ -148,7 +148,7 @@ button { color: inherit; }
   50% { opacity: 0.35; transform: scale(0.72); }
 }
 
-.icon-action, .text-action, .command, .file-command {
+.icon-action, .text-action, .command, .file-command, .select-command {
   border: 1px solid var(--line);
   background: var(--panel-2);
   border-radius: var(--radius);
@@ -190,7 +190,16 @@ button { color: inherit; }
   cursor: not-allowed;
 }
 
-.icon-action:hover, .text-action:hover, .command:hover, .file-command:hover {
+.select-command {
+  min-height: 38px;
+  padding: 8px 34px 8px 12px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+  max-width: 210px;
+}
+
+.icon-action:hover, .text-action:hover, .command:hover, .file-command:hover, .select-command:hover {
   transform: translateY(-1px);
   border-color: var(--line-strong);
 }
@@ -559,7 +568,7 @@ audio {
 
 .quality-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 860px;
   border-collapse: collapse;
   font-size: 12px;
 }

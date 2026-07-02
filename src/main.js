@@ -1,5 +1,5 @@
 import { FACTORY_PRESETS, MACRO_DEFS, PARAM_DEFS, paramsForPreset, presetById } from "./audio/presets.js";
-import { encodeWavMono, runPresetQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
+import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
 import { TakeStore, prefs } from "./storage.js";
@@ -34,6 +34,7 @@ function persist() {
 function init() {
   document.documentElement.dataset.theme = state.theme;
   renderPresets();
+  renderReferenceSelectors();
   renderControls();
   renderVoiceMap();
   bindTabs();
@@ -47,6 +48,16 @@ function init() {
   });
   updateDiagnostics();
   requestAnimationFrame(drawLoop);
+}
+
+function renderReferenceSelectors() {
+  $("sampleProfile").innerHTML = REFERENCE_VOICE_PROFILES.map((profile) => (
+    `<option value="${profile.id}">${profile.name}</option>`
+  )).join("");
+  $("qualityProfile").innerHTML = [
+    `<option value="all">All Sources</option>`,
+    ...REFERENCE_VOICE_PROFILES.map((profile) => `<option value="${profile.id}">${profile.name}</option>`)
+  ].join("");
 }
 
 function renderPresets() {
@@ -205,7 +216,7 @@ function toggleMonitor(on) {
 
 function bindOffline() {
   $("loadSample").addEventListener("click", () => {
-    const source = offline.generateSample();
+    const source = offline.generateSample(48000, $("sampleProfile").value);
     setAudioPreview("sourceAudio", "source", source.blob, source.samples, source.sampleRate);
     clearOfflineRenderPreview();
     $("sourceStatus").textContent = `${source.name} - ${source.analysis.range} source`;
@@ -360,7 +371,10 @@ function bindDiagnostics() {
   $("runQualityMatrix").addEventListener("click", async () => {
     $("selfTestLog").textContent = "Running preset quality matrix...";
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    const suite = runPresetQualitySuite({ duration: 0.9 });
+    const profileId = $("qualityProfile").value;
+    const suite = profileId === "all"
+      ? runReferenceQualitySuite({ duration: 0.52 })
+      : runPresetQualitySuite({ duration: 0.9, sourceProfileId: profileId });
     state.qualitySuite = suite;
     renderQualityMatrix(suite);
     updateDiagnostics();
@@ -436,11 +450,13 @@ function updateDiagnostics() {
 }
 
 function renderQualityMatrix(suite) {
+  const rows = suite.results || [];
   $("qualityMatrix").innerHTML = `
     <table class="quality-table">
       <thead>
         <tr>
           <th>Status</th>
+          <th>Source</th>
           <th>Preset</th>
           <th class="numeric">RTx</th>
           <th class="numeric">RMS</th>
@@ -452,9 +468,12 @@ function renderQualityMatrix(suite) {
         </tr>
       </thead>
       <tbody>
-        ${suite.results.map((item) => `
+        ${rows.map((item) => {
+          const sourceName = item.sourceProfile?.name || suite.sourceProfile?.name || "Reference";
+          return `
           <tr>
             <td><span class="quality-pill ${item.status}">${item.status}</span></td>
+            <td>${escapeHtml(sourceName)}</td>
             <td>${escapeHtml(item.name)}</td>
             <td class="numeric">${item.realtimeFactor.toFixed(2)}</td>
             <td class="numeric">${item.analysis.rmsDb.toFixed(1)} dB</td>
@@ -464,7 +483,8 @@ function renderQualityMatrix(suite) {
             <td class="numeric">${signed(Math.round(item.deltas.brightness * 100))}%</td>
             <td>${escapeHtml(item.issues.map((issue) => issue.text).join(", ") || "stable")}</td>
           </tr>
-        `).join("")}
+        `;
+        }).join("")}
       </tbody>
     </table>
   `;

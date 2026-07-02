@@ -119,7 +119,8 @@ than the live path.
 
 DSP changes need repeatable evidence, not only subjective listening notes.
 
-Maintain a generated reference voice and a preset quality matrix that checks:
+Maintain generated reference source voices and a preset quality matrix that
+checks:
 
 - output length stability
 - clipping and limiter behavior
@@ -133,6 +134,10 @@ This matrix cannot prove that a voice is emotionally convincing, but it catches
 regressions where a character preset stops moving the signal, clips, becomes too
 quiet, or loses basic F0 tracking. Browser Diagnostics and `npm run quality`
 should stay aligned.
+
+The reference set should include at least low, medium, high/bright, and breathy
+source profiles so source-voice calibration and preset behavior are not judged
+from a single comfortable test voice.
 
 ## AI Escalation Criteria
 

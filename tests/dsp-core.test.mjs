@@ -5,10 +5,13 @@ import {
   buildCalibrationProfile,
   calibrateParamsForVoice,
   encodeWavMono,
+  generateReferenceVoice,
   generateTestVoice,
   granularShift,
   processVoiceBuffer,
+  REFERENCE_VOICE_PROFILES,
   runPresetQualitySuite,
+  runReferenceQualitySuite,
   selfTestDspCore
 } from "../src/audio/dsp-core.js";
 
@@ -16,6 +19,7 @@ const sampleRate = 48000;
 const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
+assert.ok(REFERENCE_VOICE_PROFILES.length >= 4, "reference profiles should cover varied source voices");
 assert.equal(source.length, Math.round(sampleRate * 1.25), "generated sample length");
 const sourceAnalysis = analyzeBuffer(source, sampleRate);
 assert.ok(sourceAnalysis.rms > 0.02, "generated sample should contain audible energy");
@@ -43,6 +47,14 @@ assert.equal(lowProfile.range, "low", "low reference voice should calibrate as l
 assert.ok(tunedKawaii.pitch > kawaii.pitch, "low voice kawaii calibration should lift pitch");
 assert.ok(tunedKawaii.formant > kawaii.formant, "low voice kawaii calibration should lift formant-like shift");
 
+for (const profile of REFERENCE_VOICE_PROFILES) {
+  const reference = generateReferenceVoice(profile.id, { sampleRate, duration: 0.65 });
+  const profileAnalysis = buildCalibrationProfile(reference.samples, sampleRate);
+  assert.equal(reference.samples.length, Math.round(sampleRate * 0.65), `${profile.id} reference length`);
+  assert.ok(profileAnalysis.rms > 0.01, `${profile.id} reference should have energy`);
+  assert.ok(profileAnalysis.pitchMedianHz > 60, `${profile.id} reference should expose pitch`);
+}
+
 const wav = encodeWavMono(source, sampleRate);
 assert.equal(wav.type, "audio/wav");
 assert.ok(wav.size > 44, "wav has payload");
@@ -59,5 +71,10 @@ assert.equal(quality.counts.fail, 0, "quality suite should not fail any preset")
 assert.ok(quality.results.some((item) => item.id === "kawaii" && item.deltas.brightness > 0.03), "kawaii should brighten the source");
 assert.ok(quality.results.some((item) => item.id === "kawaii" && item.deltas.pitchHz > 20), "kawaii should lift the apparent F0");
 assert.ok(quality.results.some((item) => item.id === "ikemen" && item.deltas.pitchHz < -10), "ikemen should lower the apparent F0");
+
+const referenceQuality = runReferenceQualitySuite({ sampleRate, duration: 0.42 });
+assert.equal(referenceQuality.ok, true, "multi-source quality suite should pass");
+assert.equal(referenceQuality.suites.length, REFERENCE_VOICE_PROFILES.length, "multi-source suite should cover all reference profiles");
+assert.equal(referenceQuality.results.length, FACTORY_PRESETS.length * REFERENCE_VOICE_PROFILES.length, "multi-source suite should cover every preset/profile pair");
 
 console.log("dsp-core.test.mjs passed");

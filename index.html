@@ -118,6 +118,7 @@
                 <span id="sourceStatus">No source</span>
               </div>
               <div class="source-actions">
+                <select class="select-command" id="sampleProfile" aria-label="Generated source profile"></select>
                 <button class="command primary" id="loadSample" type="button">Generate Test Voice</button>
                 <button class="command" id="analyzeSource" type="button">Analyze</button>
                 <button class="command" id="applyCalibration" type="button">Tune to Source</button>
@@ -159,12 +160,13 @@
 
         <section class="view" id="view-diagnostics" aria-label="Diagnostics">
           <section class="panel">
-            <div class="panel-head">
-              <h2>Runtime</h2>
-              <div class="panel-actions">
-                <button class="text-action" id="runQualityMatrix" type="button">Quality Matrix</button>
-                <button class="text-action" id="runSelfTest" type="button">Run Self-Test</button>
-              </div>
+              <div class="panel-head">
+                <h2>Runtime</h2>
+                <div class="panel-actions">
+                  <select class="select-command" id="qualityProfile" aria-label="Quality matrix source profile"></select>
+                  <button class="text-action" id="runQualityMatrix" type="button">Quality Matrix</button>
+                  <button class="text-action" id="runSelfTest" type="button">Run Self-Test</button>
+                </div>
             </div>
             <div class="diag-grid" id="diagGrid"></div>
             <div class="quality-matrix" id="qualityMatrix"></div>

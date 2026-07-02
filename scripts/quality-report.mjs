@@ -1,9 +1,10 @@
-import { runPresetQualitySuite } from "../src/audio/dsp-core.js";
+import { runReferenceQualitySuite } from "../src/audio/dsp-core.js";
 
-const suite = runPresetQualitySuite({ duration: 0.9 });
+const suite = runReferenceQualitySuite({ duration: 0.52 });
 
 const rows = suite.results.map((item) => ({
   status: item.status,
+  source: item.sourceProfile?.name || "Reference",
   preset: item.name,
   rtx: item.realtimeFactor.toFixed(2),
   rms: `${item.analysis.rmsDb.toFixed(1)} dB`,

@@ -3,7 +3,7 @@ import {
   buildCalibrationProfile,
   calibrateParamsForVoice,
   encodeWavMono,
-  generateTestVoice,
+  generateReferenceVoice,
   processVoiceBuffer
 } from "./dsp-core.js";
 
@@ -14,12 +14,14 @@ export class OfflineRenderer {
     this.profile = null;
   }
 
-  generateSample(sampleRate = 48000) {
-    const samples = generateTestVoice({ sampleRate, duration: 2.8, f0: 138 });
+  generateSample(sampleRate = 48000, profileId = "neutral_medium") {
+    const reference = generateReferenceVoice(profileId, { sampleRate, duration: 2.8 });
+    const samples = reference.samples;
     const blob = encodeWavMono(samples, sampleRate);
     this.profile = buildCalibrationProfile(samples, sampleRate);
     this.source = {
-      name: "Generated reference voice",
+      name: `Generated ${reference.profile.name}`,
+      sourceProfileId: reference.profile.id,
       sampleRate,
       samples,
       blob,

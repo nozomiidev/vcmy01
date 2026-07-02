@@ -2,6 +2,53 @@ import { DEFAULT_PARAMS, FACTORY_PRESETS, paramsForPreset } from "./presets.js";
 
 export const TAU = Math.PI * 2;
 
+export const REFERENCE_VOICE_PROFILES = Object.freeze([
+  {
+    id: "neutral_medium",
+    name: "Neutral Medium",
+    target: "Balanced mid-range reference voice.",
+    f0: 145,
+    formantScale: 1,
+    brightness: 0,
+    breath: 0.04,
+    roughness: 0,
+    level: 1
+  },
+  {
+    id: "low_warm",
+    name: "Low Warm",
+    target: "Lower source voice with darker harmonics and body.",
+    f0: 96,
+    formantScale: 0.9,
+    brightness: -0.36,
+    breath: 0.03,
+    roughness: 0.04,
+    level: 0.98
+  },
+  {
+    id: "high_bright",
+    name: "High Bright",
+    target: "Higher source voice with more upper harmonic energy.",
+    f0: 218,
+    formantScale: 1.12,
+    brightness: 0.42,
+    breath: 0.05,
+    roughness: 0.02,
+    level: 0.92
+  },
+  {
+    id: "breathy_close",
+    name: "Breathy Close",
+    target: "Near-mic breathy source with more frication.",
+    f0: 165,
+    formantScale: 1.03,
+    brightness: 0.16,
+    breath: 0.46,
+    roughness: 0.12,
+    level: 0.86
+  }
+]);
+
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -220,7 +267,33 @@ export function normalizeParams(params = {}) {
   return p;
 }
 
-export function generateTestVoice({ sampleRate = 48000, duration = 2.4, f0 = 145 } = {}) {
+export function referenceVoiceProfileById(id) {
+  return REFERENCE_VOICE_PROFILES.find((profile) => profile.id === id) || REFERENCE_VOICE_PROFILES[0];
+}
+
+export function generateReferenceVoice(profileId = "neutral_medium", options = {}) {
+  const profile = referenceVoiceProfileById(profileId);
+  const sampleRate = options.sampleRate || 48000;
+  const duration = options.duration || 2.4;
+  const samples = generateTestVoice({ ...profile, ...options, sampleRate, duration });
+  return {
+    profile,
+    sampleRate,
+    samples,
+    analysis: analyzeBuffer(samples, sampleRate)
+  };
+}
+
+export function generateTestVoice({
+  sampleRate = 48000,
+  duration = 2.4,
+  f0 = 145,
+  formantScale = 1,
+  brightness = 0,
+  breath = 0.04,
+  roughness = 0,
+  level = 1
+} = {}) {
   const n = Math.round(sampleRate * duration);
   const out = new Float32Array(n);
   const vowels = [
@@ -228,25 +301,44 @@ export function generateTestVoice({ sampleRate = 48000, duration = 2.4, f0 = 145
     { f: [390, 2050, 2850], a: [0.8, 0.65, 0.26] },
     { f: [520, 1450, 2500], a: [0.9, 0.58, 0.24] }
   ];
+  let seed = 1777;
+  let lastNoise = 0;
+  let breathHp = 0;
+  let phase = 0;
   for (let i = 0; i < n; i++) {
     const t = i / sampleRate;
     const seg = Math.floor((t / duration) * vowels.length) % vowels.length;
     const vowel = vowels[seg];
-    const vibrato = Math.sin(TAU * 5.1 * t) * 0.012;
-    const phrase = 1 + 0.1 * Math.sin(TAU * 0.72 * t);
+    const vibrato = Math.sin(TAU * 5.1 * t) * (0.012 + roughness * 0.01);
+    const phrase = 1 + 0.1 * Math.sin(TAU * 0.72 * t) + roughness * 0.018 * Math.sin(TAU * 9.2 * t);
     const base = f0 * phrase * (1 + vibrato);
+    phase += TAU * base / sampleRate;
+    if (phase > TAU) phase -= TAU;
     let glottal = 0;
-    for (let h = 1; h <= 20; h++) {
-      glottal += Math.sin(TAU * base * h * t) / (h * (h < 8 ? 1 : h * 0.18));
-    }
-    let formants = 0;
-    for (let k = 0; k < vowel.f.length; k++) {
-      formants += vowel.a[k] * Math.sin(TAU * vowel.f[k] * t + Math.sin(TAU * 2.7 * t) * 0.12);
+    for (let h = 1; h <= 28; h++) {
+      const partialHz = base * h;
+      const tilt = clamp(1 + brightness * (h / 13 - 0.35), 0.28, 2.4);
+      let envelope = 0.24;
+      for (let k = 0; k < vowel.f.length; k++) {
+        const center = vowel.f[k] * formantScale;
+        const bandwidth = 95 + center * (0.11 + k * 0.035);
+        const distance = (partialHz - center) / bandwidth;
+        const brightnessBias = clamp(1 + brightness * (k * 0.26 - 0.04), 0.42, 1.8);
+        envelope += vowel.a[k] * brightnessBias * Math.exp(-0.5 * distance * distance);
+      }
+      const rolloff = h < 8 ? h : h * (1 + h * 0.16);
+      glottal += Math.sin(phase * h) * tilt * envelope / rolloff;
     }
     const syllable = 0.62 + 0.38 * Math.max(0, Math.sin(TAU * 3.1 * t));
     const fadeIn = clamp(t / 0.05, 0, 1);
     const fadeOut = clamp((duration - t) / 0.08, 0, 1);
-    out[i] = Math.tanh((glottal * 0.18 + formants * 0.085) * syllable) * fadeIn * fadeOut * 0.78;
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const noise = (seed / 0xffffffff) * 2 - 1;
+    breathHp = noise - lastNoise + breathHp * 0.986;
+    lastNoise = noise;
+    const breathNoise = breathHp * breath * 0.09 * clamp(syllable * 1.2, 0, 1);
+    const source = Math.tanh(glottal * 0.3 * syllable) + breathNoise;
+    out[i] = source * fadeIn * fadeOut * 0.78 * level;
   }
   return out;
 }
@@ -315,9 +407,13 @@ export function runPresetQualitySuite({
   sampleRate = 48000,
   duration = 1.25,
   f0 = 145,
+  sourceProfileId = "neutral_medium",
   presets = FACTORY_PRESETS
 } = {}) {
-  const source = generateTestVoice({ sampleRate, duration, f0 });
+  const sourceRef = sourceProfileId
+    ? generateReferenceVoice(sourceProfileId, { sampleRate, duration })
+    : { profile: null, samples: generateTestVoice({ sampleRate, duration, f0 }) };
+  const source = sourceRef.samples;
   const sourceAnalysis = analyzeBuffer(source, sampleRate);
   const started = nowMs();
   const results = presets.map((preset) => evaluatePresetQuality(source, sampleRate, sourceAnalysis, preset));
@@ -331,10 +427,47 @@ export function runPresetQualitySuite({
     counts,
     sampleRate,
     duration,
+    sourceProfile: sourceRef.profile,
     elapsedMs,
     realtimeFactor: elapsedMs / Math.max(1, duration * 1000),
     source: sourceAnalysis,
     results
+  };
+}
+
+export function runReferenceQualitySuite({
+  sampleRate = 48000,
+  duration = 0.65,
+  profiles = REFERENCE_VOICE_PROFILES,
+  presets = FACTORY_PRESETS
+} = {}) {
+  const started = nowMs();
+  const suites = profiles.map((profile) => runPresetQualitySuite({
+    sampleRate,
+    duration,
+    sourceProfileId: profile.id,
+    presets
+  }));
+  const counts = suites.reduce((acc, suite) => {
+    acc.pass += suite.counts.pass || 0;
+    acc.warn += suite.counts.warn || 0;
+    acc.fail += suite.counts.fail || 0;
+    return acc;
+  }, { pass: 0, warn: 0, fail: 0 });
+  const elapsedMs = nowMs() - started;
+  return {
+    ok: counts.fail === 0,
+    counts,
+    sampleRate,
+    duration,
+    sourceProfile: null,
+    elapsedMs,
+    realtimeFactor: elapsedMs / Math.max(1, duration * 1000 * profiles.length),
+    suites,
+    results: suites.flatMap((suite) => suite.results.map((result) => ({
+      ...result,
+      sourceProfile: suite.sourceProfile
+    })))
   };
 }
 
@@ -352,7 +485,7 @@ export function evaluatePresetQuality(source, sampleRate, sourceAnalysis, preset
     zcr: analysis.zeroCrossingsPerSecond - sourceAnalysis.zeroCrossingsPerSecond
   };
   const realtimeFactor = elapsedMs / Math.max(1, duration * 1000);
-  const issues = qualityIssues(preset, source.length, rendered, analysis, deltas, realtimeFactor);
+  const issues = qualityIssues(preset, sourceAnalysis, source.length, rendered, analysis, deltas, realtimeFactor);
   const status = issues.some((item) => item.level === "fail") ? "fail" :
     issues.some((item) => item.level === "warn") ? "warn" : "pass";
   return {
@@ -368,7 +501,7 @@ export function evaluatePresetQuality(source, sampleRate, sourceAnalysis, preset
   };
 }
 
-function qualityIssues(preset, sourceLength, rendered, analysis, deltas, realtimeFactor) {
+function qualityIssues(preset, sourceAnalysis, sourceLength, rendered, analysis, deltas, realtimeFactor) {
   const issues = [];
   if (rendered.length !== sourceLength) issues.push({ level: "fail", text: "length drift" });
   if (!Number.isFinite(analysis.rms) || analysis.rms <= 0) issues.push({ level: "fail", text: "invalid rms" });
@@ -379,10 +512,10 @@ function qualityIssues(preset, sourceLength, rendered, analysis, deltas, realtim
   if (realtimeFactor > 0.8) issues.push({ level: "warn", text: "slow render" });
   if (analysis.pitchMedianHz <= 0 && !/robot|creature/i.test(preset.id)) issues.push({ level: "warn", text: "weak F0 lock" });
 
-  if (/kawaii|anime|otome|asmr/.test(preset.id) && deltas.brightness < 0.035) {
+  if (/kawaii|anime|otome|asmr/.test(preset.id) && sourceAnalysis.brightnessRatio < 0.16 && deltas.brightness < 0.035) {
     issues.push({ level: "warn", text: "weak brightening" });
   }
-  if (/ikemen|narrator|creature/.test(preset.id) && deltas.pitchHz > -10) {
+  if (/ikemen|narrator/.test(preset.id) && deltas.pitchHz > -10) {
     issues.push({ level: "warn", text: "weak pitch/body shift" });
   }
   if (/radio|streamer/.test(preset.id) && analysis.rmsDb < -24) {

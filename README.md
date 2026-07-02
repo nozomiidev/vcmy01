@@ -65,7 +65,7 @@ When browser GUI testing requires Chrome, use only the Google account window for
 ## Local Checks
 
 - `npm test` runs the DSP unit and quality assertions.
-- `npm run quality` renders every factory preset against generated reference
-  speech and reports clipping, loudness, F0 movement, brightness movement, and
-  render speed.
+- `npm run quality` renders every factory preset against multiple generated
+  reference source voices and reports clipping, loudness, F0 movement,
+  brightness movement, and render speed.
 - `npm run serve` starts a no-build static server for browser verification.
