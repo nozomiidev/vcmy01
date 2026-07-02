@@ -1,9 +1,15 @@
 import { linToDb } from "../audio/dsp-core.js";
 
-export function drawWaveform(canvas, samples, color = "#69e3b5") {
+export function drawWaveform(canvas, samples, color = "#69e3b5", options = {}) {
   const ctx = setupCanvas(canvas);
   const { width, height } = canvas;
   ctx.clearRect(0, 0, width, height);
+  if (samples && options.region && !options.region.isFull) {
+    const startX = clamp01(options.region.startSample / samples.length) * width;
+    const endX = clamp01(options.region.endSample / samples.length) * width;
+    ctx.fillStyle = "rgba(143, 167, 255, 0.16)";
+    ctx.fillRect(startX, 0, Math.max(1, endX - startX), height);
+  }
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -47,6 +53,8 @@ export function drawAnalysisCards(host, source, rendered) {
     entries.push(["Brightness", formatPct(source.analysis.brightnessRatio)]);
   }
   if (rendered) {
+    entries.push(["Render Mode", rendered.region?.isFull ? "Full" : "Preview"]);
+    if (rendered.region && !rendered.region.isFull) entries.push(["Region", `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)} s`]);
     entries.push(["Render RMS", `${rendered.analysis.rmsDb.toFixed(1)} dB`]);
     entries.push(["Render Peak", `${rendered.analysis.peakDb.toFixed(1)} dB`]);
     entries.push(["Render F0", formatHz(rendered.analysis.pitchMedianHz)]);
@@ -91,6 +99,10 @@ function tuneName(key) {
 
 export function formatDb(value) {
   return value < 1e-5 ? "-inf dB" : `${linToDb(value).toFixed(1)} dB`;
+}
+
+function clamp01(value) {
+  return Math.min(1, Math.max(0, value || 0));
 }
 
 function setupCanvas(canvas) {

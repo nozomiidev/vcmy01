@@ -66,14 +66,21 @@ export class OfflineRenderer {
     if (!this.source) throw new Error("No source audio loaded.");
     const baseParams = { ...params };
     const appliedParams = options.autoCalibrate ? this.calibratedParams(baseParams) : baseParams;
-    const samples = processVoiceBuffer(this.source.samples, this.source.sampleRate, appliedParams);
+    const region = normalizeRenderRegion(this.source.samples.length, this.source.sampleRate, options.region);
+    const sourceSamples = region.isFull
+      ? this.source.samples
+      : this.source.samples.slice(region.startSample, region.endSample);
+    const samples = processVoiceBuffer(sourceSamples, this.source.sampleRate, appliedParams);
     const blob = encodeWavMono(samples, this.source.sampleRate);
+    const mode = options.mode || (region.isFull ? "full" : "preview");
     this.rendered = {
-      name: `${this.source.name} - VoiceForge render.wav`,
+      name: `${this.source.name} - VoiceForge ${mode}.wav`,
       sampleRate: this.source.sampleRate,
       samples,
       blob,
       analysis: analyzeBuffer(samples, this.source.sampleRate),
+      region,
+      mode,
       autoCalibrated: !!options.autoCalibrate,
       baseParams,
       appliedParams,
@@ -81,6 +88,42 @@ export class OfflineRenderer {
     };
     return this.rendered;
   }
+}
+
+export function normalizeRenderRegion(sampleCount, sampleRate, region = null) {
+  const totalSamples = Math.max(0, Math.floor(sampleCount || 0));
+  const totalSec = totalSamples / Math.max(1, sampleRate || 1);
+  if (!region || !Number.isFinite(region.durationSec)) {
+    return {
+      startSample: 0,
+      endSample: totalSamples,
+      startSec: 0,
+      endSec: totalSec,
+      durationSec: totalSec,
+      isFull: true
+    };
+  }
+
+  const minSec = Math.min(totalSec, Math.max(0.08, region.minDurationSec || 0.35));
+  const requestedDuration = clampNumber(region.durationSec, minSec, Math.max(minSec, totalSec));
+  const maxStart = Math.max(0, totalSec - requestedDuration);
+  const startSec = clampNumber(Number(region.startSec || 0), 0, maxStart);
+  const startSample = Math.min(totalSamples, Math.round(startSec * sampleRate));
+  const endSample = Math.min(totalSamples, Math.max(startSample + 1, startSample + Math.round(requestedDuration * sampleRate)));
+  const endSec = endSample / sampleRate;
+  return {
+    startSample,
+    endSample,
+    startSec: startSample / sampleRate,
+    endSec,
+    durationSec: Math.max(0, endSec - startSample / sampleRate),
+    isFull: startSample === 0 && endSample === totalSamples
+  };
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
 }
 
 export function paramDeltas(before = {}, after = {}, keys = [

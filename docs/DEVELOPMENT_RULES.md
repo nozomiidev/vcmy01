@@ -28,7 +28,12 @@ Not allowed for the core product:
 
 Demo quality is forbidden. Do not ship work that feels like an MVP, template,
 sample page, thin wrapper, or feature checklist. The target is product-level
-craft.
+capability and craft.
+
+Do not interpret "quality" narrowly as visual polish, clean code, passing tests,
+or less clipping. The core issue is often that the product design and feature
+set are insufficient. A change is only aligned when it makes the character voice
+studio more capable, not merely cleaner.
 
 Required posture:
 
@@ -42,6 +47,8 @@ Required posture:
 - extensible architecture
 - clear future paths for plugins, workflows, offline render steps, and new
   effects
+- concrete user-facing capabilities for live voice, recorded takes, uploaded
+  audio, character direction, preview, comparison, render, and export
 
 Do not let visible guide text, onboarding, docs, or demo presets stand in for
 real functionality. Explanations can support the workflow, but the capability

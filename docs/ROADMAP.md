@@ -28,18 +28,25 @@ GitHub Pages.
 - Improve limiter and loudness behavior.
 - Add diagnostics that show when features are active or unavailable.
 
-## Stage 3 - Recorded/Uploaded Audio Post-Processing
+## Stage 3 - Recorded/Uploaded Audio Production Workflow
 
 - Add a take-processing view.
 - Reuse the same preset/effect schema for offline rendering.
-- Support preview, A/B, render, and export.
+- Support region preview, A/B, render, and export.
+- Add non-destructive render history and take-to-offline routing.
+- Make long uploaded files workable without rendering the whole file for every
+  parameter change.
 - Allow offline-only high-quality modes that are too expensive for live use.
 
-## Stage 4 - Character Preset System
+## Stage 4 - Character Preset And Director System
 
 - Redesign presets around character targets, not only effects.
 - Add macro controls such as cuteness, intimacy, breath, body, and anime amount.
 - Add source-voice calibration.
+- Add performance/director controls such as phrase lift, emotional distance,
+  ending softness, confidence, and romantic breath placement.
+- Add repeatable line-read targets so presets can be judged against acting
+  intent, not just signal movement.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic

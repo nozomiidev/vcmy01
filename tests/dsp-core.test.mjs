@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { FACTORY_PRESETS, paramsForPreset } from "../src/audio/presets.js";
-import { OfflineRenderer } from "../src/audio/offline-renderer.js";
+import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -52,9 +52,19 @@ const offline = new OfflineRenderer();
 offline.generateSample(sampleRate, "low_warm");
 const autoRendered = offline.render(kawaii, { autoCalibrate: true });
 assert.equal(autoRendered.autoCalibrated, true, "offline render should preserve auto calibration metadata");
+assert.equal(autoRendered.region.isFull, true, "default offline render should cover the full source");
 assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "pitch" && item.delta > 0), "auto render should lift low-source pitch for kawaii");
 assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "formant" && item.delta > 0), "auto render should lift low-source formant for kawaii");
 assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "body" && item.delta < 0), "auto render should reduce low-source body for kawaii");
+const previewRendered = offline.render(kawaii, { autoCalibrate: true, region: { startSec: 0.5, durationSec: 0.75 }, mode: "preview" });
+assert.equal(previewRendered.mode, "preview", "offline preview should preserve render mode");
+assert.equal(previewRendered.region.isFull, false, "offline preview should be marked as a region render");
+assert.equal(previewRendered.samples.length, Math.round(sampleRate * 0.75), "offline preview should render only the requested region");
+assert.equal(previewRendered.region.startSample, Math.round(sampleRate * 0.5), "offline preview should preserve region start");
+
+const clampedRegion = normalizeRenderRegion(sampleRate * 3, sampleRate, { startSec: 2.8, durationSec: 1 });
+assert.equal(clampedRegion.endSample, sampleRate * 3, "region should clamp to source end");
+assert.ok(clampedRegion.durationSec <= 1 && clampedRegion.durationSec > 0.9, "clamped region should preserve requested duration where possible");
 
 for (const profile of REFERENCE_VOICE_PROFILES) {
   const reference = generateReferenceVoice(profile.id, { sampleRate, duration: 0.65 });

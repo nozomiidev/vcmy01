@@ -25,19 +25,23 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
 - Character macros for cuteness, anime lift, intimacy, breath, body, and
   consonant softness.
 - Offline generated/uploaded source processing with analysis, A/B compare,
-  source-aware Auto Tune, and WAV export.
+  preview-region rendering, source-aware Auto Tune, and WAV export.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
   local take storage, and diagnostics.
 
-Known product gap:
+Known product capability gap:
 
 - It sounds like a conventional DSP voice changer, not a convincing character
   voice studio.
 - Pitch/formant changes are not enough for kawaii/anime/ikemen/otome voices.
 - Prosody, breath, whisper, and mouth/voice-tract character need further
   refinement to feel like performed character voices.
-- Offline post-processing still needs faster region preview and richer workflow
-  controls for long uploaded files.
+- Offline post-processing has region preview, but still needs a fuller
+  production workflow for takes, batches, non-destructive effect stacks, and
+  longer uploaded files.
+- The app still needs a Character Director layer: performance targets,
+  phrase/ending behavior, distance, emotion, and delivery macros that are more
+  than technical effect sliders.
 
 ## Documentation Map
 

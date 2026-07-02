@@ -90,3 +90,20 @@ Decision:
   external OSS/CDN assets where they materially improve quality.
 - Optimize ambitious features instead of avoiding them by default.
 - Keep the app inspectable and testable without a backend.
+
+## ADR 007 - Product Capability Is More Than Signal Quality
+
+The project gap is not only that the current DSP needs to sound cleaner. The
+larger gap is that the prototype still lacks production workflow and
+performance-direction features expected from a character voice studio.
+
+Decision:
+
+- Treat offline region preview, A/B comparison, take routing, render history,
+  and export as core product workflow, not auxiliary utilities.
+- Treat Character Director controls such as phrase lift, distance, confidence,
+  softness, and breath placement as first-class features.
+- Keep objective signal tests for regression safety, but do not confuse passing
+  signal metrics with completing the product vision.
+- When adding DSP controls, connect them back to user-facing character intent
+  instead of only exposing more technical knobs.

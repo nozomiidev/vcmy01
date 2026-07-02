@@ -128,6 +128,24 @@
                 </label>
               </div>
               <canvas id="sourceWave" class="scope" height="120" aria-label="Source waveform"></canvas>
+              <div class="region-controls" aria-label="Offline preview region">
+                <div class="region-head">
+                  <span>Preview Region</span>
+                  <strong id="regionReadout">No source</strong>
+                </div>
+                <div class="region-grid">
+                  <label>
+                    <span>Start</span>
+                    <output id="regionStartOut">0.0s</output>
+                    <input id="regionStart" type="range" min="0" max="0" step="0.1" value="0" disabled>
+                  </label>
+                  <label>
+                    <span>Length</span>
+                    <output id="regionLengthOut">0.0s</output>
+                    <input id="regionLength" type="range" min="0" max="0" step="0.1" value="0" disabled>
+                  </label>
+                </div>
+              </div>
               <audio id="sourceAudio" controls></audio>
             </section>
 
@@ -137,7 +155,8 @@
                 <span id="renderStatus">Idle</span>
               </div>
               <div class="source-actions">
-                <button class="command primary" id="renderOffline" type="button">Render Character Voice</button>
+                <button class="command primary" id="previewOffline" type="button">Preview Region</button>
+                <button class="command" id="renderOffline" type="button">Render Full Voice</button>
                 <label class="toggle-command">
                   <input id="autoTuneRender" type="checkbox" checked>
                   <span>Auto Tune</span>

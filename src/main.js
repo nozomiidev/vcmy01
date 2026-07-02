@@ -17,6 +17,7 @@ const state = {
   takes: [],
   renderUrl: null,
   sourceUrl: null,
+  offlineRegion: { startSec: 0, durationSec: 0 },
   qualitySuite: null
 };
 
@@ -215,14 +216,12 @@ function toggleMonitor(on) {
 }
 
 function bindOffline() {
+  $("regionStart").addEventListener("input", syncRegionFromInputs);
+  $("regionLength").addEventListener("input", syncRegionFromInputs);
+
   $("loadSample").addEventListener("click", () => {
     const source = offline.generateSample(48000, $("sampleProfile").value);
-    setAudioPreview("sourceAudio", "source", source.blob, source.samples, source.sampleRate);
-    clearOfflineRenderPreview();
-    $("sourceStatus").textContent = `${source.name} - ${source.analysis.range} source`;
-    $("renderStatus").textContent = "Ready";
-    drawWaveform($("sourceWave"), source.samples);
-    drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
+    useOfflineSource(source);
   });
 
   $("audioUpload").addEventListener("change", async (event) => {
@@ -230,12 +229,7 @@ function bindOffline() {
     if (!file) return;
     try {
       const source = await offline.loadFile(file);
-      setAudioPreview("sourceAudio", "source", source.blob, source.samples, source.sampleRate);
-      clearOfflineRenderPreview();
-      $("sourceStatus").textContent = `${source.name} - ${source.analysis.range} source`;
-      $("renderStatus").textContent = "Ready";
-      drawWaveform($("sourceWave"), source.samples);
-      drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
+      useOfflineSource(source);
     } catch (error) {
       toast("Could not decode audio", error.message || "Try a WAV, MP3, M4A, or WebM file.");
     }
@@ -245,6 +239,7 @@ function bindOffline() {
     try {
       const profile = offline.analyze();
       $("sourceStatus").textContent = `${offline.source.name} - ${profile.range} source`;
+      drawSourceWaveform();
       drawAnalysisCards($("offlineAnalysis"), offline.source, offline.rendered);
       toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
     } catch (error) {
@@ -265,21 +260,9 @@ function bindOffline() {
     }
   });
 
-  $("renderOffline").addEventListener("click", () => {
-    try {
-      const autoTune = $("autoTuneRender").checked;
-      const rendered = offline.render(state.params, { autoCalibrate: autoTune });
-      setAudioPreview("renderAudio", "render", rendered.blob, rendered.samples, rendered.sampleRate);
-      drawWaveform($("renderWave"), rendered.samples, "#8fa7ff");
-      drawAnalysisCards($("offlineAnalysis"), offline.source, rendered);
-      $("renderStatus").textContent = autoTune ? "Rendered - tuned" : "Rendered";
-      $("downloadRender").disabled = false;
-      $("playCompare").disabled = false;
-      toast("Offline render complete", autoTune ? `Auto tuned: ${describeCalibrationDelta(rendered.baseParams, rendered.appliedParams)}` : "Manual chain rendered.");
-    } catch (error) {
-      toast("Render needs a source", error.message || "Generate or upload audio first.");
-    }
-  });
+  $("previewOffline").addEventListener("click", () => renderOfflineToPreview(true));
+
+  $("renderOffline").addEventListener("click", () => renderOfflineToPreview(false));
 
   $("downloadRender").addEventListener("click", () => {
     if (!offline.rendered) return;
@@ -293,15 +276,125 @@ function bindOffline() {
   $("playCompare").addEventListener("click", async () => {
     if (!offline.source || !offline.rendered) return;
     try {
+      const sourceStart = offline.rendered.region?.isFull ? 0 : offline.rendered.region?.startSec || 0;
+      const seconds = Math.min(1.25, offline.rendered.region?.durationSec || 1.25);
       $("renderStatus").textContent = "A/B";
-      await playSnippet($("sourceAudio"), 1.25);
+      await playSnippet($("sourceAudio"), seconds, sourceStart);
       await new Promise((resolve) => setTimeout(resolve, 160));
-      await playSnippet($("renderAudio"), 1.25);
-      $("renderStatus").textContent = "Rendered";
+      await playSnippet($("renderAudio"), seconds, 0);
+      $("renderStatus").textContent = offline.rendered.mode === "preview" ? "Preview ready" : "Rendered";
     } catch (error) {
-      $("renderStatus").textContent = "Rendered";
+      $("renderStatus").textContent = offline.rendered?.mode === "preview" ? "Preview ready" : "Rendered";
       toast("A/B playback failed", error.message || "Use the audio controls to play both versions.");
     }
+  });
+}
+
+function useOfflineSource(source) {
+  setAudioPreview("sourceAudio", "source", source.blob, source.samples, source.sampleRate);
+  clearOfflineRenderPreview();
+  setDefaultRegion(source);
+  $("sourceStatus").textContent = `${source.name} - ${source.analysis.range} source`;
+  $("renderStatus").textContent = "Ready";
+  updateRegionControls();
+  drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
+}
+
+function renderOfflineToPreview(preview) {
+  try {
+    const autoTune = $("autoTuneRender").checked;
+    const rendered = offline.render(state.params, {
+      autoCalibrate: autoTune,
+      region: preview ? currentRegion() : null,
+      mode: preview ? "preview" : "full"
+    });
+    setAudioPreview("renderAudio", "render", rendered.blob, rendered.samples, rendered.sampleRate);
+    drawWaveform($("renderWave"), rendered.samples, "#8fa7ff");
+    drawAnalysisCards($("offlineAnalysis"), offline.source, rendered);
+    $("renderStatus").textContent = preview
+      ? autoTune ? "Preview - tuned" : "Preview ready"
+      : autoTune ? "Rendered - tuned" : "Rendered";
+    $("downloadRender").disabled = false;
+    $("playCompare").disabled = false;
+    const scope = preview ? `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)}s` : "full source";
+    toast(preview ? "Preview rendered" : "Offline render complete", autoTune ? `${scope}; ${describeCalibrationDelta(rendered.baseParams, rendered.appliedParams)}` : `${scope}; manual chain rendered.`);
+  } catch (error) {
+    toast(preview ? "Preview needs a source" : "Render needs a source", error.message || "Generate or upload audio first.");
+  }
+}
+
+function setDefaultRegion(source) {
+  const duration = source.samples.length / source.sampleRate;
+  state.offlineRegion = {
+    startSec: 0,
+    durationSec: Math.min(duration, 2)
+  };
+}
+
+function syncRegionFromInputs() {
+  if (!offline.source) return;
+  const total = sourceDurationSec();
+  const minLength = Math.min(total, 0.35);
+  const durationSec = Math.min(Number($("regionLength").value) || minLength, total);
+  const startSec = Math.min(Number($("regionStart").value) || 0, Math.max(0, total - durationSec));
+  state.offlineRegion = { startSec, durationSec };
+  updateRegionControls();
+}
+
+function updateRegionControls() {
+  const hasSource = !!offline.source;
+  const start = $("regionStart");
+  const length = $("regionLength");
+  start.disabled = !hasSource;
+  length.disabled = !hasSource;
+  if (!hasSource) {
+    $("regionStartOut").textContent = "0.0s";
+    $("regionLengthOut").textContent = "0.0s";
+    $("regionReadout").textContent = "No source";
+    drawSourceWaveform();
+    return;
+  }
+
+  const total = sourceDurationSec();
+  const minLength = Math.min(total, 0.35);
+  const maxLength = Math.min(total, 12);
+  state.offlineRegion.durationSec = Math.min(Math.max(state.offlineRegion.durationSec || minLength, minLength), maxLength);
+  state.offlineRegion.startSec = Math.min(Math.max(state.offlineRegion.startSec || 0, 0), Math.max(0, total - state.offlineRegion.durationSec));
+
+  start.min = "0";
+  start.max = Math.max(0, total - minLength).toFixed(1);
+  start.step = total > 30 ? "0.5" : "0.1";
+  start.value = state.offlineRegion.startSec.toFixed(1);
+  length.min = minLength.toFixed(1);
+  length.max = maxLength.toFixed(1);
+  length.step = total > 30 ? "0.5" : "0.1";
+  length.value = state.offlineRegion.durationSec.toFixed(1);
+  $("regionStartOut").textContent = `${state.offlineRegion.startSec.toFixed(1)}s`;
+  $("regionLengthOut").textContent = `${state.offlineRegion.durationSec.toFixed(1)}s`;
+  $("regionReadout").textContent = `${state.offlineRegion.startSec.toFixed(1)}-${(state.offlineRegion.startSec + state.offlineRegion.durationSec).toFixed(1)}s / ${total.toFixed(1)}s`;
+  drawSourceWaveform();
+}
+
+function currentRegion() {
+  if (!offline.source) return null;
+  return {
+    startSec: state.offlineRegion.startSec,
+    durationSec: state.offlineRegion.durationSec,
+    minDurationSec: 0.35
+  };
+}
+
+function sourceDurationSec() {
+  return offline.source ? offline.source.samples.length / offline.source.sampleRate : 0;
+}
+
+function drawSourceWaveform() {
+  drawWaveform($("sourceWave"), offline.source?.samples || null, "#69e3b5", {
+    region: offline.source ? {
+      startSample: Math.round(state.offlineRegion.startSec * offline.source.sampleRate),
+      endSample: Math.round((state.offlineRegion.startSec + state.offlineRegion.durationSec) * offline.source.sampleRate),
+      isFull: false
+    } : null
   });
 }
 
@@ -327,7 +420,7 @@ function describeCalibrationDelta(before, after) {
   return changes.length ? changes.join(", ") : "Profile already fits this voice.";
 }
 
-function playSnippet(audio, seconds) {
+function playSnippet(audio, seconds, startSec = 0) {
   return new Promise((resolve, reject) => {
     let done = false;
     let timer = 0;
@@ -340,7 +433,8 @@ function playSnippet(audio, seconds) {
       resolve();
     };
     audio.pause();
-    audio.currentTime = 0;
+    const maxStart = Number.isFinite(audio.duration) ? Math.max(0, audio.duration - 0.05) : Math.max(0, startSec);
+    audio.currentTime = Math.min(Math.max(0, startSec), maxStart);
     audio.addEventListener("ended", finish, { once: true });
     audio.play()
       .then(() => {

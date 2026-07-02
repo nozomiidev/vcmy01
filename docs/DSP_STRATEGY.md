@@ -6,13 +6,17 @@ Build the strongest possible browser DSP voice changer first. Add AI only after
 the DSP route has a clear measured gap.
 
 The near-term aim is not perfect speaker identity conversion. The near-term aim
-is a high-quality character effect engine that can create believable "voice
+is a browser character voice production system that can create believable "voice
 direction" for common targets.
 
 This means the project should not accept "pitch, EQ, reverb, and labels" as a
 complete character voice system. Kawaii, anime, otome, and ikemen targets need
 coordinated treatment of F0, spectral envelope, breath, consonants, proximity,
 dynamics, and performance cues.
+
+This is primarily a capability and architecture gap, not just an audio polish
+gap. The app needs production workflows and a character-director layer, not only
+better values for existing sliders.
 
 ## Audio Architecture Targets
 
@@ -68,6 +72,26 @@ parameters together:
 
 These macros should map to real parameters and should be calibratable per user.
 
+## Character Director Layer
+
+Character voices need controls that describe performance intent, not only signal
+processing blocks. The director layer should eventually turn human concepts into
+coordinated DSP, offline rendering, and future AI-style controls:
+
+- phrase lift / falling endings
+- delivery energy
+- shyness / confidence
+- close-mic distance
+- romantic breath placement
+- consonant softness vs crispness
+- line-read presets for testing repeatable acting targets
+- per-target guardrails that prevent "pitch only" presets
+
+In the DSP-first phase this layer can only approximate performance through
+envelope tracking, pitch motion, breath shaping, dynamics, and UI workflow. It
+is still a first-class product feature because it defines what AI escalation
+would need to preserve later.
+
 ## Calibration
 
 Presets should eventually ask for or infer:
@@ -115,6 +139,7 @@ Recorded and uploaded audio needs a dedicated workflow:
 - pick a character preset
 - preview short regions quickly
 - A/B original vs processed
+- adjust the region and character macros without committing a full render
 - optionally apply render-time source calibration
 - render full processed output
 - export WAV/WebM
