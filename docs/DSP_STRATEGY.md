@@ -87,6 +87,11 @@ starts from a low source voice and a "sultry ikemen" preset that starts from a
 high source voice need different pitch, formant-like, body, de-esser, and air
 offsets.
 
+Offline rendering should support render-time Auto Tune. This applies calibration
+to the rendered output without permanently moving the user's live sliders, while
+the explicit Tune to Source command remains available when the user wants to
+commit those offsets to the current voice chain.
+
 ## Prosody And Performance
 
 Real prosody transformation requires knowing phrase structure, syllable timing,
@@ -110,6 +115,7 @@ Recorded and uploaded audio needs a dedicated workflow:
 - pick a character preset
 - preview short regions quickly
 - A/B original vs processed
+- optionally apply render-time source calibration
 - render full processed output
 - export WAV/WebM
 - keep processing local

@@ -267,14 +267,15 @@ function bindOffline() {
 
   $("renderOffline").addEventListener("click", () => {
     try {
-      const rendered = offline.render(state.params);
+      const autoTune = $("autoTuneRender").checked;
+      const rendered = offline.render(state.params, { autoCalibrate: autoTune });
       setAudioPreview("renderAudio", "render", rendered.blob, rendered.samples, rendered.sampleRate);
       drawWaveform($("renderWave"), rendered.samples, "#8fa7ff");
       drawAnalysisCards($("offlineAnalysis"), offline.source, rendered);
-      $("renderStatus").textContent = "Rendered";
+      $("renderStatus").textContent = autoTune ? "Rendered - tuned" : "Rendered";
       $("downloadRender").disabled = false;
       $("playCompare").disabled = false;
-      toast("Offline render complete", "The same character chain was applied to the source.");
+      toast("Offline render complete", autoTune ? `Auto tuned: ${describeCalibrationDelta(rendered.baseParams, rendered.appliedParams)}` : "Manual chain rendered.");
     } catch (error) {
       toast("Render needs a source", error.message || "Generate or upload audio first.");
     }

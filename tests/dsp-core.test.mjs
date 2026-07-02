@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { FACTORY_PRESETS, paramsForPreset } from "../src/audio/presets.js";
+import { OfflineRenderer } from "../src/audio/offline-renderer.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -46,6 +47,14 @@ const tunedKawaii = calibrateParamsForVoice(kawaii, lowProfile);
 assert.equal(lowProfile.range, "low", "low reference voice should calibrate as low range");
 assert.ok(tunedKawaii.pitch > kawaii.pitch, "low voice kawaii calibration should lift pitch");
 assert.ok(tunedKawaii.formant > kawaii.formant, "low voice kawaii calibration should lift formant-like shift");
+
+const offline = new OfflineRenderer();
+offline.generateSample(sampleRate, "low_warm");
+const autoRendered = offline.render(kawaii, { autoCalibrate: true });
+assert.equal(autoRendered.autoCalibrated, true, "offline render should preserve auto calibration metadata");
+assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "pitch" && item.delta > 0), "auto render should lift low-source pitch for kawaii");
+assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "formant" && item.delta > 0), "auto render should lift low-source formant for kawaii");
+assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "body" && item.delta < 0), "auto render should reduce low-source body for kawaii");
 
 for (const profile of REFERENCE_VOICE_PROFILES) {
   const reference = generateReferenceVoice(profile.id, { sampleRate, duration: 0.65 });

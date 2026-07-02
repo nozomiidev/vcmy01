@@ -22,20 +22,22 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
 
 - Web Audio / AudioWorklet based real-time voice effects.
 - Pitch and "formant-like" controls.
-- EQ, dynamics, reverb, delay, chorus, robot, crush, monitoring, and meters.
-- Processed-output recording with local take storage and WAV/WebM export.
-- Preset save/import/export in browser storage.
+- Character macros for cuteness, anime lift, intimacy, breath, body, and
+  consonant softness.
+- Offline generated/uploaded source processing with analysis, A/B compare,
+  source-aware Auto Tune, and WAV export.
+- EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
+  local take storage, and diagnostics.
 
 Known product gap:
 
 - It sounds like a conventional DSP voice changer, not a convincing character
   voice studio.
 - Pitch/formant changes are not enough for kawaii/anime/ikemen/otome voices.
-- Prosody, breath, whisper, mouth/voice-tract character, and performance macros
-  are not yet first-class features.
-- Applying a full effect chain to already-recorded or uploaded audio needs to be
-  designed as a separate offline workflow, even though live processed recording
-  already exists.
+- Prosody, breath, whisper, and mouth/voice-tract character need further
+  refinement to feel like performed character voices.
+- Offline post-processing still needs faster region preview and richer workflow
+  controls for long uploaded files.
 
 ## Documentation Map
 

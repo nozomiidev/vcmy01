@@ -148,7 +148,7 @@ button { color: inherit; }
   50% { opacity: 0.35; transform: scale(0.72); }
 }
 
-.icon-action, .text-action, .command, .file-command, .select-command {
+.icon-action, .text-action, .command, .file-command, .select-command, .toggle-command {
   border: 1px solid var(--line);
   background: var(--panel-2);
   border-radius: var(--radius);
@@ -169,7 +169,7 @@ button { color: inherit; }
   color: var(--muted);
 }
 
-.command, .file-command {
+.command, .file-command, .toggle-command {
   min-height: 38px;
   padding: 9px 14px;
   display: inline-flex;
@@ -177,6 +177,24 @@ button { color: inherit; }
   justify-content: center;
   gap: 8px;
   font-weight: 700;
+}
+
+.toggle-command {
+  padding-inline: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.toggle-command input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.toggle-command:has(input:checked) {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
 }
 
 .command.primary {
@@ -199,7 +217,7 @@ button { color: inherit; }
   max-width: 210px;
 }
 
-.icon-action:hover, .text-action:hover, .command:hover, .file-command:hover, .select-command:hover {
+.icon-action:hover, .text-action:hover, .command:hover, .file-command:hover, .select-command:hover, .toggle-command:hover {
   transform: translateY(-1px);
   border-color: var(--line-strong);
 }

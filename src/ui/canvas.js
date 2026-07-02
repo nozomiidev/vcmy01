@@ -52,6 +52,7 @@ export function drawAnalysisCards(host, source, rendered) {
     entries.push(["Render F0", formatHz(rendered.analysis.pitchMedianHz)]);
     entries.push(["Render ZCR", `${Math.round(rendered.analysis.zeroCrossingsPerSecond)}/s`]);
     entries.push(["Duration", `${rendered.analysis.duration.toFixed(2)} s`]);
+    entries.push(["Auto Tune", rendered.autoCalibrated ? formatTune(rendered.calibrationDelta) : "Off"]);
   }
   host.innerHTML = entries.map(([k, v]) => `<div class="metric"><span>${k}</span><strong>${v}</strong></div>`).join("");
 }
@@ -62,6 +63,30 @@ function formatHz(value) {
 
 function formatPct(value) {
   return Number.isFinite(value) ? `${Math.round(value * 100)}%` : "0%";
+}
+
+function formatTune(delta = []) {
+  return delta.length
+    ? delta.slice(0, 3).map((item) => `${tuneName(item.key)} ${signed(item.delta)}`).join(" / ")
+    : "Fit";
+}
+
+function signed(value) {
+  return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+}
+
+function tuneName(key) {
+  return ({
+    inputGain: "Gain",
+    pitch: "Pitch",
+    formant: "Mouth",
+    body: "Body",
+    brightness: "Bright",
+    air: "Air",
+    deEss: "De-ess",
+    breath: "Breath",
+    whisper: "Whisper"
+  })[key] || key;
 }
 
 export function formatDb(value) {
