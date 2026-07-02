@@ -254,6 +254,7 @@
               </div>
               <div class="source-actions">
                 <button class="command primary" id="previewOffline" type="button">Preview Region</button>
+                <button class="command" id="renderVariantSet" type="button" disabled>Render Variants</button>
                 <button class="command" id="renderOffline" type="button">Render Full Voice</button>
                 <label class="toggle-command">
                   <input id="autoTuneRender" type="checkbox" checked>
@@ -269,6 +270,13 @@
               <canvas id="renderWave" class="scope" height="120" aria-label="Rendered waveform"></canvas>
               <audio id="renderAudio" controls></audio>
               <div class="analysis-grid" id="offlineAnalysis"></div>
+              <div class="variant-lab" id="variantLabPanel">
+                <div class="variant-lab-head">
+                  <span>Variant Lab</span>
+                  <strong id="variantLabStatus">No source</strong>
+                </div>
+                <div class="variant-lab-grid" id="variantLabGrid"></div>
+              </div>
               <div class="performance-trace" id="performanceTracePanel">
                 <div class="performance-trace-head">
                   <span>Performance Trace</span>

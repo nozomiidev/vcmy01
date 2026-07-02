@@ -15,6 +15,7 @@ import {
   validateLineReadTargets
 } from "../src/audio/performance-targets.js";
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
+import { AUDITION_VARIANT_IDS, auditionVariantSummary, buildAuditionVariants } from "../src/audio/audition-variants.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
@@ -43,6 +44,7 @@ const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
+assert.equal(AUDITION_VARIANT_IDS.length >= 5, true, "audition variants should cover multiple nearby character directions");
 assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "script", "audition", "trace", "deck"], "studio plan should expose the full production flow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.ok(SCENE_KITS.length >= 4, "scene kits should expand single reads into multi-beat acting workflows");
@@ -223,6 +225,13 @@ assert.ok(lowIkemenRoute.score > lowKawaiiRoute.score, "low warm sources should 
 assert.ok(lowIkemenRoute.tunedParams._sourceCalibration, "applied route params should carry source calibration idempotency");
 const kawaiiSpark = LINE_READ_TARGETS.find((target) => target.id === "kawaii_spark");
 const lowToKawaiiFit = offline.sourceFitReport(kawaii, kawaiiSpark);
+const kawaiiVariants = buildAuditionVariants(kawaii, kawaiiSpark, { sourceFit: lowToKawaiiFit });
+const kawaiiVariantSummary = auditionVariantSummary(kawaiiVariants);
+assert.equal(kawaiiVariants.length, AUDITION_VARIANT_IDS.length, "audition variants should build a full candidate set");
+assert.equal(kawaiiVariants[0].id, "sweet-lift", "bright kawaii targets should prioritize the sweet lift variant");
+assert.ok(kawaiiVariants.every((variant) => variant.patch.length > 0), "each audition variant should carry real parameter moves");
+assert.ok(kawaiiVariants.some((variant) => variant.id === "broadcast-guard" && variant.sourceRepair.length > 0), "variant lab should carry source repair into the cleanup candidate");
+assert.ok(kawaiiVariantSummary.patchCount > kawaiiVariants.length, "variant summary should count useful patch evidence");
 const lowKawaiiChain = characterChainReport(kawaii, kawaiiSpark, {
   sourceFit: lowToKawaiiFit,
   sourceTunedParams: offline.calibratedParams(kawaii)
@@ -260,6 +269,27 @@ const scriptedPreview = offline.render(kawaii, {
 assert.equal(scriptedPreview.scriptAutomated, true, "offline preview should preserve acting automation metadata");
 assert.ok(scriptedPreview.scriptAutomation.frameCount > 0, "offline preview should expose automation frame count");
 assert.equal(scriptedPreview.scriptAutomationSummary.lanes.length, SCRIPT_LANES.length, "offline preview should summarize every script lane");
+const variantPreview = offline.render(kawaiiVariants[0].params, {
+  autoCalibrate: true,
+  automatePerformance: true,
+  performanceScript: buildPerformanceScript(kawaiiSpark, kawaiiVariants[0].params),
+  region: { startSec: 0.5, durationSec: 0.75 },
+  mode: "preview"
+});
+assert.equal(variantPreview.performanceScriptPlan.targetId, kawaiiSpark.id, "variant render should preserve its script plan for later scoring");
+assert.equal(variantPreview.scriptAutomated, true, "variant render should support script automation");
+const variantStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  renderReview: renderReview(offline.source, previewRendered),
+  auditionVariantCount: kawaiiVariants.length,
+  renderDeckCount: 1
+});
+assert.equal(variantStudioPlan.nextAction.id, "render-variants", "studio plan should suggest variants after the first audition take");
 const deck = [
   { id: "full", rendered: autoRendered, review: autoReview },
   { id: "preview", rendered: previewRendered, review: renderReview(offline.source, previewRendered) }

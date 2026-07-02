@@ -90,12 +90,13 @@ export class OfflineRenderer {
       mode,
       autoCalibrated: !!options.autoCalibrate,
       scriptAutomated: !!automation,
-      performanceScript: automation ? {
+      performanceScript: options.performanceScript ? {
         targetId: options.performanceScript.targetId,
         targetName: options.performanceScript.targetName,
         status: options.performanceScript.status,
         score: options.performanceScript.score
       } : null,
+      performanceScriptPlan: options.performanceScript || null,
       scriptAutomation: automation?.plan || null,
       scriptAutomationSummary: automationSummary(automation?.plan),
       baseParams,

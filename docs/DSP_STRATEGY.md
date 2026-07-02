@@ -211,6 +211,13 @@ Director/Macro/DSP parameters, and overlap-adds the processed chunks back into a
 single take. This is still non-AI approximation, but it makes the script an
 active render control rather than a passive note card.
 
+Variant Lab is the subjective-audition layer above that renderer. Character
+voices are rarely found by a single perfect slider move, so the app should
+generate nearby candidate directions: sweet lift, close breath, body gloss,
+broadcast cleanup, and script focus. Each candidate is still a real parameter
+chain, not a label. Rendering the set into the same deck turns taste and acting
+judgment into a repeatable A/B workflow instead of isolated guessing.
+
 Render Deck is the audition layer after rendering. Every offline preview or full
 render can be kept as a bounded in-memory take with F0 movement, level delta,
 tone delta, texture delta, and a review score. The deck is intentionally capped
@@ -246,6 +253,7 @@ Recorded and uploaded audio needs a dedicated workflow:
 - optionally apply render-time source calibration
 - optionally apply Performance Script / Acting Automation to time-vary the
   offline DSP chain
+- generate audition variants for nearby macro/director directions
 - render full processed output
 - export WAV/WebM
 - keep processing local

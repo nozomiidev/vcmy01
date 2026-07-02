@@ -16,6 +16,7 @@ import {
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
+import { auditionVariantSummary, buildAuditionVariants } from "./audio/audition-variants.js";
 import { bestCharacterChainPatch, characterChainReport } from "./audio/character-chain.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "./audio/performance-trace.js";
 import { buildPerformanceScript, compareScriptToPerformance } from "./audio/performance-script.js";
@@ -74,6 +75,7 @@ function init() {
   renderCharacterChain();
   renderPerformanceTrace();
   renderStudioPlan();
+  renderAuditionVariants();
   renderVoiceMap();
   bindTabs();
   bindTransport();
@@ -523,7 +525,7 @@ function scriptLaneColor(id) {
 function renderScriptMatch() {
   const panel = $("scriptMatchPanel");
   if (!panel) return;
-  const script = currentPerformanceScript();
+  const script = offline.rendered?.performanceScriptPlan || currentPerformanceScript();
   const match = compareScriptToPerformance(script, currentPerformanceComparison());
   panel.className = `script-match is-${match?.status || "empty"}`;
   $("scriptMatchStatus").textContent = match
@@ -579,7 +581,7 @@ function renderAutomationPanel() {
 function currentScriptMatch() {
   const comparison = currentPerformanceComparison();
   if (!comparison) return null;
-  return compareScriptToPerformance(currentPerformanceScript(), comparison);
+  return compareScriptToPerformance(offline.rendered?.performanceScriptPlan || currentPerformanceScript(), comparison);
 }
 
 function scriptStatusLabel(status) {
@@ -767,8 +769,16 @@ function bindOffline() {
 
   $("renderOffline").addEventListener("click", () => renderOfflineToPreview(false));
 
+  $("renderVariantSet")?.addEventListener("click", () => renderAuditionVariantSet());
+
+  $("variantLabGrid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-variant-render]");
+    if (button) renderAuditionVariantSet(button.dataset.variantRender);
+  });
+
   $("scriptAutomationRender")?.addEventListener("change", () => {
     renderAutomationPanel();
+    renderAuditionVariants();
     renderStudioPlan();
   });
 
@@ -897,14 +907,16 @@ function renderOfflineToPreview(preview) {
   }
 }
 
-function addRenderedTakeToDeck(rendered, preview) {
+function addRenderedTakeToDeck(rendered, preview, variant = null) {
   const review = renderReview(offline.source, rendered);
+  const auditionVariant = variant || rendered.auditionVariant || null;
   const item = {
     id: `render-${Date.now()}-${state.renderDeckSeq += 1}`,
-    title: presetById(state.presetId).name,
+    title: auditionVariant ? `${presetById(state.presetId).name} / ${auditionVariant.label}` : presetById(state.presetId).name,
     target: lineReadById(state.lineReadId).name,
-    mode: `${preview ? "Preview" : "Full"}${rendered.scriptAutomated ? " Scripted" : ""}`,
+    mode: `${preview ? "Preview" : "Full"}${rendered.scriptAutomated ? " Scripted" : ""}${auditionVariant ? " Variant" : ""}`,
     route: state.voiceRoutes.find((route) => route.presetId === state.presetId && route.targetId === state.lineReadId)?.targetName || null,
+    variant: auditionVariant,
     rendered,
     review
   };
@@ -926,6 +938,108 @@ function selectRenderDeckItem(id) {
   renderCharacterChain();
   renderPerformanceTrace();
   renderRenderDeck();
+}
+
+function currentAuditionVariants() {
+  if (!offline.source) return [];
+  const target = lineReadById(state.lineReadId);
+  const sourceFit = offline.sourceFitReport(state.params, target);
+  return buildAuditionVariants(state.params, target, { sourceFit, limit: 5 });
+}
+
+function renderAuditionVariants() {
+  const panel = $("variantLabPanel");
+  if (!panel) return;
+  const button = $("renderVariantSet");
+  if (!offline.source) {
+    panel.className = "variant-lab";
+    $("variantLabStatus").textContent = "No source";
+    $("variantLabGrid").innerHTML = "";
+    if (button) button.disabled = true;
+    return;
+  }
+  const variants = currentAuditionVariants();
+  const summary = auditionVariantSummary(variants);
+  panel.className = `variant-lab ${summary.ready ? "is-ready" : "is-check"}`;
+  $("variantLabStatus").textContent = `${summary.count} variants`;
+  if (button) button.disabled = !variants.length;
+  $("variantLabGrid").innerHTML = variants.map((variant) => `
+    <button class="variant-card is-${variant.status}" data-variant-render="${variant.id}" type="button">
+      <span class="variant-score">${variant.score}% ${renderReviewStatusLabel(variant.status)}</span>
+      <strong>${escapeHtml(variant.label)}</strong>
+      <small>${escapeHtml(variant.intent)}</small>
+      <div class="variant-axis-list">
+        ${variant.axes.map((axis) => `
+          <span style="--value:${axis.value}%">
+            <b>${escapeHtml(axis.label)}</b>
+            <i></i>
+            <em>${axis.value}%</em>
+          </span>
+        `).join("")}
+      </div>
+      <div class="variant-patches">
+        ${variant.patch.slice(0, 4).map((patch) => `<span>${escapeHtml(paramLabel(patch.key))} <b>${formatPatchDelta(patch)}</b></span>`).join("")}
+      </div>
+    </button>
+  `).join("");
+}
+
+function renderAuditionVariantSet(variantId = null) {
+  if (!offline.source) {
+    toast("Variant Lab needs a source", "Generate or upload audio before rendering audition variants.");
+    return;
+  }
+  const variants = currentAuditionVariants().filter((variant) => !variantId || variant.id === variantId);
+  if (!variants.length) {
+    toast("No variant available", "The current target has no renderable audition variant.");
+    return;
+  }
+
+  const autoTune = $("autoTuneRender").checked;
+  const scriptAuto = $("scriptAutomationRender")?.checked ?? true;
+  const region = currentRegion();
+  let lastRendered = null;
+  $("renderStatus").textContent = variantId ? "Rendering variant" : "Rendering variants";
+  for (const variant of variants) {
+    const variantScript = buildPerformanceScript(lineReadById(state.lineReadId), variant.params);
+    const rendered = offline.render(variant.params, {
+      autoCalibrate: autoTune,
+      automatePerformance: scriptAuto,
+      performanceScript: variantScript,
+      automationOptions: { intensity: variant.automationIntensity },
+      region,
+      mode: "preview"
+    });
+    rendered.auditionVariant = {
+      id: variant.id,
+      label: variant.label,
+      intent: variant.intent,
+      score: variant.score,
+      status: variant.status,
+      automationIntensity: variant.automationIntensity,
+      patch: variant.patch
+    };
+    addRenderedTakeToDeck(rendered, true, rendered.auditionVariant);
+    lastRendered = rendered;
+  }
+
+  if (!lastRendered) return;
+  setAudioPreview("renderAudio", "render", lastRendered.blob, lastRendered.samples, lastRendered.sampleRate);
+  drawWaveform($("renderWave"), lastRendered.samples, "#8fa7ff");
+  drawAnalysisCards($("offlineAnalysis"), offline.source, lastRendered);
+  updateSourceFit();
+  updateRoutePlanner();
+  renderCharacterChain();
+  renderPerformanceTrace();
+  renderRenderDeck();
+  renderAuditionVariants();
+  $("downloadRender").disabled = false;
+  $("playCompare").disabled = false;
+  $("renderStatus").textContent = variantId ? "Variant ready" : "Variants ready";
+  toast(
+    variantId ? "Variant rendered" : "Variant set rendered",
+    `${variants.length} preview ${variants.length === 1 ? "take" : "takes"} added to the deck.`
+  );
 }
 
 function currentCharacterChainReport() {
@@ -1184,6 +1298,7 @@ function currentStudioPlan() {
     performanceScript: currentPerformanceScript(),
     scriptMatch: currentScriptMatch(),
     scriptAutomation: offline.rendered?.scriptAutomationSummary || null,
+    auditionVariantCount: currentAuditionVariants().length,
     renderDeckCount: state.renderDeck.length,
     renderDeckSeconds: totalDeckSeconds(state.renderDeck)
   });
@@ -1218,6 +1333,7 @@ function renderStudioPlan() {
   $("studioPlanNext").textContent = action && nextStep
     ? `${nextStep.label}: ${nextStep.detail}`
     : "Plan ready. Choose a take from the render deck.";
+  renderAuditionVariants();
 }
 
 function applyStudioPlanStep() {
@@ -1249,6 +1365,10 @@ function applyStudioPlanStep() {
   }
   if (action.id === "preview-region") {
     renderOfflineToPreview(true);
+    return;
+  }
+  if (action.id === "render-variants") {
+    renderAuditionVariantSet();
     return;
   }
   if (action.id === "compare-deck") {
@@ -1290,6 +1410,7 @@ function renderRenderDeck() {
         <span class="render-card-score">${review ? `${review.score}% ${renderReviewStatusLabel(review.status)}` : "No review"}</span>
         <strong>${escapeHtml(item.title)}</strong>
         <small>${escapeHtml(item.target)} - ${escapeHtml(item.mode)} ${index === 0 ? "latest" : `#${index + 1}`}</small>
+        ${item.variant ? `<span class="render-card-variant">${escapeHtml(item.variant.label)}</span>` : ""}
         <div class="render-card-metrics">
           ${metrics.map((metric) => `
             <span>
@@ -1298,7 +1419,7 @@ function renderRenderDeck() {
             </span>
           `).join("")}
         </div>
-        <p>${escapeHtml(renderReviewSummary(review))}</p>
+        <p>${escapeHtml(item.variant ? `${item.variant.intent} ${renderReviewSummary(review)}` : renderReviewSummary(review))}</p>
       </button>
     `;
   }).join("");

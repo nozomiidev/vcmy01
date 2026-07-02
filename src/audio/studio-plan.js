@@ -23,6 +23,7 @@ export function buildStudioPlan(options = {}) {
   const scriptAutomation = options.scriptAutomation || null;
   const review = options.renderReview || null;
   const trace = options.performanceComparison || null;
+  const auditionVariantCount = Math.max(0, Number(options.auditionVariantCount || 0));
   const renderDeckCount = Math.max(0, Number(options.renderDeckCount || 0));
   const renderDeckSeconds = Math.max(0, Number(options.renderDeckSeconds || 0));
 
@@ -31,7 +32,7 @@ export function buildStudioPlan(options = {}) {
     routeStep(hasSource, topRoute, activeRoute),
     shapeStep(hasSource, chain),
     scriptStep(script, scriptMatch, scriptAutomation),
-    auditionStep(hasSource, review, renderDeckCount),
+    auditionStep(hasSource, review, renderDeckCount, auditionVariantCount),
     traceStep(hasSource, review, trace),
     deckStep(hasSource, renderDeckCount, renderDeckSeconds)
   ];
@@ -197,7 +198,7 @@ function shapeStep(hasSource, chain) {
   });
 }
 
-function auditionStep(hasSource, review, renderDeckCount) {
+function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount) {
   if (!hasSource) {
     return waitingStep("audition", "Audition", "Waiting for source");
   }
@@ -218,9 +219,15 @@ function auditionStep(hasSource, review, renderDeckCount) {
     status: review.status,
     score: review.score,
     summary: `${review.score}% ${labelForStatus(review.status)}`,
-    detail: renderDeckCount > 1 ? "Multiple takes are ready for comparison." : "One take is ready; another take improves choice.",
+    detail: renderDeckCount > 1
+      ? "Multiple takes are ready for comparison."
+      : auditionVariantCount
+        ? `${auditionVariantCount} audition variants can test nearby character directions.`
+        : "One take is ready; another take improves choice.",
     action: review.status !== "ready" || renderDeckCount < 2
-      ? { id: "preview-region", label: renderDeckCount ? "Add Another Take" : "Preview Region" }
+      ? auditionVariantCount && renderDeckCount
+        ? { id: "render-variants", label: "Render Variants" }
+        : { id: "preview-region", label: renderDeckCount ? "Add Another Take" : "Preview Region" }
       : null
   });
 }

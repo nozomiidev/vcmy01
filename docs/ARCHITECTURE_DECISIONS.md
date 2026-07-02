@@ -225,3 +225,22 @@ Decision:
 - Keep this layer deterministic and local-first. It is a non-AI prosody
   approximation and should remain replaceable by stronger DSP or future browser
   VC later.
+
+## ADR 014 - Character Voices Need Variant Auditioning
+
+Character voice design is partly subjective. A single "best" DSP chain is often
+less useful than several nearby candidates that explore sweetness, intimacy,
+body, mix safety, and script motion. Without variant auditioning, users must
+guess one slider move at a time and cannot quickly compare plausible character
+directions.
+
+Decision:
+
+- Add a Variant Lab that builds deterministic parameter candidates from the
+  active preset, Line Read, Source Fit, and Director/Macro state.
+- Make every variant a real renderable chain with patch evidence, axis
+  visualization, and optional script automation intensity.
+- Render single variants or a bounded set into the same Render Deck so A/B
+  comparison, review metrics, and Studio Plan can treat them as normal takes.
+- Keep variants local and static. They are a DSP/product workflow layer, not AI
+  generation and not a substitute for future high-quality VC.
