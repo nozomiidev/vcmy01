@@ -12,6 +12,7 @@ import {
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
+import { bestCharacterChainPatch, characterChainReport } from "./audio/character-chain.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
 import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { TakeStore, prefs } from "./storage.js";
@@ -60,6 +61,7 @@ function init() {
   renderControls();
   renderLineReadPanel();
   renderLineReadLibrary();
+  renderCharacterChain();
   renderVoiceMap();
   bindTabs();
   bindTransport();
@@ -108,6 +110,7 @@ function renderPresets() {
       updateActivePreset();
       updateSourceFit();
       updateRoutePlanner();
+      renderCharacterChain();
       toast(presetById(state.presetId).name, presetById(state.presetId).target);
     });
   });
@@ -138,6 +141,7 @@ function renderControlGroup(host, defs) {
       updateLineReadScore();
       updateSourceFit();
       updateRoutePlanner();
+      renderCharacterChain();
     });
   });
 }
@@ -238,6 +242,7 @@ function bindTransport() {
     updateLineReadScore();
     updateSourceFit();
     updateRoutePlanner();
+    renderCharacterChain();
   });
 
   $("clearTakes").addEventListener("click", async () => {
@@ -280,6 +285,7 @@ function applyLineReadTarget(id) {
   updateActivePreset();
   updateSourceFit();
   updateRoutePlanner();
+  renderCharacterChain();
   toast(target.name, target.direction);
 }
 
@@ -298,6 +304,7 @@ function applyNextLineReadFix() {
   updateLineReadScore();
   updateSourceFit();
   updateRoutePlanner();
+  renderCharacterChain();
   toast("Next fix applied", `${coach.cues[0].label} ${signed(Math.round(coach.cues[0].delta))}`);
 }
 
@@ -511,6 +518,7 @@ function bindOffline() {
       drawAnalysisCards($("offlineAnalysis"), offline.source, offline.rendered);
       updateSourceFit();
       updateRoutePlanner();
+      renderCharacterChain();
       toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
     } catch (error) {
       toast("Analysis needs a source", error.message || "Generate or upload audio first.");
@@ -527,6 +535,7 @@ function bindOffline() {
       updateLineReadScore();
       updateSourceFit();
       updateRoutePlanner();
+      renderCharacterChain();
       toast("Tuned to source", describeCalibrationDelta(before, state.params));
     } catch (error) {
       toast("Tuning needs a source", error.message || "Generate or upload audio first.");
@@ -571,6 +580,8 @@ function bindOffline() {
     const button = event.target.closest("[data-render-deck]");
     if (button) selectRenderDeckItem(button.dataset.renderDeck);
   });
+
+  $("applyChainFix").addEventListener("click", applyNextCharacterChainFix);
 }
 
 function useOfflineSource(source) {
@@ -584,6 +595,7 @@ function useOfflineSource(source) {
   drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
   updateSourceFit();
   updateRoutePlanner();
+  renderCharacterChain();
 }
 
 function renderOfflineToPreview(preview) {
@@ -600,6 +612,7 @@ function renderOfflineToPreview(preview) {
     addRenderedTakeToDeck(rendered, preview);
     updateSourceFit();
     updateRoutePlanner();
+    renderCharacterChain();
     renderRenderDeck();
     $("renderStatus").textContent = preview
       ? autoTune ? "Preview - tuned" : "Preview ready"
@@ -639,7 +652,81 @@ function selectRenderDeckItem(id) {
   $("renderStatus").textContent = item.rendered.mode === "preview" ? "Preview ready" : "Rendered";
   $("downloadRender").disabled = false;
   $("playCompare").disabled = false;
+  renderCharacterChain();
   renderRenderDeck();
+}
+
+function currentCharacterChainReport() {
+  const target = lineReadById(state.lineReadId);
+  let sourceFit = null;
+  let sourceTunedParams = null;
+  let review = null;
+  if (offline.source) {
+    sourceFit = offline.sourceFitReport(state.params, target);
+    sourceTunedParams = offline.calibratedParams(state.params);
+    if (offline.rendered) review = renderReview(offline.source, offline.rendered);
+  }
+  return characterChainReport(state.params, target, {
+    sourceFit,
+    sourceTunedParams,
+    renderReview: review
+  });
+}
+
+function renderCharacterChain() {
+  const panel = $("characterChainPanel");
+  if (!panel) return;
+  const report = currentCharacterChainReport();
+  panel.className = `character-chain is-${report.status}`;
+  $("characterChainScore").textContent = `${report.score}% ${characterChainStatusLabel(report.status)}`;
+  $("characterChainFlow").innerHTML = report.stages.map((stage, index) => `
+    <div class="chain-stage is-${stage.status} ${stage.id === report.nextStageId ? "is-next" : ""}" data-chain-stage="${stage.id}">
+      <span>${String(index + 1).padStart(2, "0")} ${escapeHtml(stage.label)}</span>
+      <strong>${stage.score}%</strong>
+      <small>${escapeHtml(stage.role)}${stage.notes.length ? ` - ${escapeHtml(stage.notes.join(" / "))}` : ""}</small>
+      <div class="chain-stage-bars">
+        ${stage.members.slice(0, 4).map((member) => `
+          <i style="--current:${Math.round(member.currentRatio * 100)}%; --target:${Math.round(member.targetRatio * 100)}%">
+            <b></b>
+          </i>
+        `).join("")}
+      </div>
+    </div>
+  `).join("");
+  const patchStage = report.stages.find((stage) => stage.id === report.nextStageId);
+  const patchItems = (patchStage?.patch || []).filter((patch) => !patch.key.startsWith("_")).slice(0, 5);
+  $("characterChainPatches").innerHTML = patchItems.length ? patchItems.map((patch) => `
+    <span>${escapeHtml(paramLabel(patch.key))} <b>${formatPatchDelta(patch)}</b></span>
+  `).join("") : `<span>Chain locked <b>0</b></span>`;
+  const hasPatch = Object.keys(report.nextPatch).some((key) => !key.startsWith("_"));
+  $("applyChainFix").disabled = !hasPatch;
+  $("applyChainFix").textContent = hasPatch && patchStage ? `Fix ${patchStage.label}` : "Chain Locked";
+}
+
+function applyNextCharacterChainFix() {
+  const report = currentCharacterChainReport();
+  const patch = bestCharacterChainPatch(report);
+  const publicKeys = Object.keys(patch).filter((key) => !key.startsWith("_"));
+  if (!publicKeys.length) {
+    toast("Character chain locked", "Current voice chain already matches the active target.");
+    return;
+  }
+  const stage = report.stages.find((item) => item.id === report.nextStageId);
+  state.params = { ...state.params, ...patch };
+  persist();
+  engine.setParams(state.params);
+  renderControls();
+  updateLineReadScore();
+  updateSourceFit();
+  updateRoutePlanner();
+  renderCharacterChain();
+  toast("Chain fix applied", `${stage?.label || "Character Chain"}: ${describePatchObject(patch)}`);
+}
+
+function characterChainStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "shape") return "Shape";
+  return "Risk";
 }
 
 function renderRenderDeck() {
@@ -777,6 +864,7 @@ function applyVoiceRoute(routeId) {
   updateActivePreset();
   updateSourceFit();
   updateRoutePlanner();
+  renderCharacterChain();
   toast("Route applied", `${route.presetName} - ${route.targetName}; ${route.patchCount ? `${route.patchCount} source patches` : "source aligned"}.`);
 }
 
@@ -887,6 +975,21 @@ function describeCalibrationDelta(before, after) {
     .slice(0, 4)
     .map((item) => `${names.get(item.key) || item.key} ${item.delta > 0 ? "+" : ""}${item.delta.toFixed(item.key === "pitch" || item.key === "formant" ? 1 : 0)}`);
   return changes.length ? changes.join(", ") : "Profile already fits this voice.";
+}
+
+function describePatchObject(patch = {}) {
+  const entries = Object.entries(patch)
+    .filter(([key]) => !key.startsWith("_"))
+    .slice(0, 4)
+    .map(([key, value]) => `${paramLabel(key)} -> ${formatPatchValue(key, value)}`);
+  return entries.length ? entries.join(", ") : "No public parameter change.";
+}
+
+function formatPatchValue(key, value) {
+  const def = [...MACRO_DEFS, ...DIRECTOR_DEFS, ...PARAM_DEFS].find((item) => item.key === key);
+  const unit = key === "inputGain" ? " dB" : def?.unit || "";
+  const fixed = key === "pitch" || key === "formant" || key === "inputGain" ? 1 : 0;
+  return `${Number(value).toFixed(fixed)}${unit}`;
 }
 
 function paramLabel(key) {

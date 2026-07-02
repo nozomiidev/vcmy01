@@ -13,6 +13,7 @@ import {
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
+import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -34,6 +35,7 @@ const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
+assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.equal(validateLineReadTargets().every((target) => target.ok), true, "line-read targets should reference real presets and copy");
 assert.equal(new Set(voiceRouteTargets().map((target) => target.presetId)).size, FACTORY_PRESETS.length, "route planner should cover every factory voice target");
@@ -89,6 +91,12 @@ assert.equal(otomeCoach.cues[0].key, "breath", "coach should prioritize the larg
 assert.deepEqual(otomeCoach.nextPatch, { breath: 58 }, "coach should expose a one-step patch for the next fix");
 const otomeRecipe = lineReadRecipe(paramsForPreset("otome"), otomeRead);
 assert.ok(otomeRecipe.some((group) => group.id === "distance" && group.gap.key === "breath"), "recipe should map target drift into workflow groups");
+const otomeChain = characterChainReport(paramsForPreset("otome"), otomeRead);
+const otomeChainPatch = bestCharacterChainPatch(otomeChain);
+const improvedOtomeChain = characterChainReport({ ...paramsForPreset("otome"), ...otomeChainPatch }, otomeRead);
+assert.ok(otomeChain.stages.some((stage) => stage.id === "texture" && stage.patch.some((patch) => patch.key === "breath")), "character chain should expose texture-stage drift");
+assert.ok(Object.keys(otomeChainPatch).length > 0, "character chain should expose a next-stage patch");
+assert.ok(improvedOtomeChain.score >= otomeChain.score, "applying the chain patch should not reduce the chain score");
 assert.ok(otomeReadParams.endingSoftness > paramsForPreset("otome").endingSoftness, "otome line read should push soft endings beyond the base preset");
 assert.ok(otomeReadParams.romanticBreath > paramsForPreset("otome").romanticBreath, "otome line read should push breath placement beyond the base preset");
 const otomeReadRendered = processVoiceBuffer(source, sampleRate, otomeReadParams);
@@ -116,10 +124,16 @@ assert.ok(lowIkemenRoute.score > lowKawaiiRoute.score, "low warm sources should 
 assert.ok(lowIkemenRoute.tunedParams._sourceCalibration, "applied route params should carry source calibration idempotency");
 const kawaiiSpark = LINE_READ_TARGETS.find((target) => target.id === "kawaii_spark");
 const lowToKawaiiFit = offline.sourceFitReport(kawaii, kawaiiSpark);
+const lowKawaiiChain = characterChainReport(kawaii, kawaiiSpark, {
+  sourceFit: lowToKawaiiFit,
+  sourceTunedParams: offline.calibratedParams(kawaii)
+});
 assert.equal(lowToKawaiiFit.status, "risk", "low source should be risky for a bright kawaii target before tuning");
 assert.ok(lowToKawaiiFit.score < 70, "source fit should score mismatched source and target conservatively");
 assert.ok(lowToKawaiiFit.items.some((item) => item.id === "range" && item.status === "risk"), "source fit should flag range mismatch");
 assert.ok(lowToKawaiiFit.patches.some((item) => item.key === "pitch" && item.delta > 0), "source fit should expose calibration patches");
+assert.equal(lowKawaiiChain.nextStageId, "guardrail", "source mismatch should prioritize the guardrail chain stage");
+assert.ok(bestCharacterChainPatch(lowKawaiiChain)._sourceCalibration, "guardrail chain patch should carry calibration idempotency");
 const autoRendered = offline.render(kawaii, { autoCalibrate: true });
 assert.equal(autoRendered.autoCalibrated, true, "offline render should preserve auto calibration metadata");
 assert.equal(autoRendered.region.isFull, true, "default offline render should cover the full source");

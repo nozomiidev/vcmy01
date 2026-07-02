@@ -112,3 +112,21 @@ Decision:
   signal metrics with completing the product vision.
 - When adding DSP controls, connect them back to user-facing character intent
   instead of only exposing more technical knobs.
+
+## ADR 008 - Voice Design Needs Stage Diagnostics
+
+A character preset cannot be treated as a flat bag of values. If an otome,
+kawaii, anime, or ikemen target misses, the user needs to know whether the gap
+is in range/mouth, tone, breath texture, performance, dynamics, space, or source
+guardrails.
+
+Decision:
+
+- Maintain a Character Chain report that groups the active parameters into
+  Voice Core, Tone, Texture, Performance, Dynamics, Space, and Guardrail stages.
+- Compare every stage against the active Line Read target rather than only
+  against a generic preset name.
+- Expose one-step patches from the weakest stage so tuning becomes a workflow,
+  not slider guessing.
+- Keep the Guardrail stage aware of source calibration and render review so
+  source-fit and post-render evidence can affect the next correction.

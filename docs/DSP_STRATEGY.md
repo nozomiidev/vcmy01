@@ -158,6 +158,13 @@ match, patch load, and explicit source-profile hints, then lets the user apply
 the route as preset + Line Read + source-tuned parameters. This turns
 calibration from a corrective button into a route-selection workflow.
 
+Character Chain is the stage view of the active voice design. It breaks the
+current chain into Voice Core, Tone, Texture, Performance, Dynamics, Space, and
+Guardrail stages, compares each stage against the active Line Read target, and
+exposes the next meaningful patch. This is intentionally a production workflow
+layer: users should be able to see which part of the character voice is missing
+instead of guessing from a flat preset name or a wall of sliders.
+
 Render Deck is the audition layer after rendering. Every offline preview or full
 render can be kept as a bounded in-memory take with F0 movement, level delta,
 tone delta, texture delta, and a review score. The deck is intentionally capped
