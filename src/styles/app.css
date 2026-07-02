@@ -1640,6 +1640,130 @@ input[type="range"] {
     linear-gradient(90deg, color-mix(in srgb, var(--bad) 78%, transparent) var(--score), rgba(255,255,255,0.08) var(--score));
 }
 
+.take-refinement {
+  display: grid;
+  gap: 9px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.take-refinement-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.take-refinement-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.take-refinement-head > div {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.take-refinement-head strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.take-refinement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.take-refinement-grid:empty,
+.take-refinement-patches:empty {
+  display: none;
+}
+
+.take-refinement-card {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+}
+
+.take-refinement-card.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--line));
+}
+
+.take-refinement-card.is-check {
+  border-color: color-mix(in srgb, var(--warn) 32%, var(--line));
+}
+
+.take-refinement-card.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 34%, var(--line));
+}
+
+.take-refinement-card span,
+.take-refinement-card strong,
+.take-refinement-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.take-refinement-card span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.take-refinement-card strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.take-refinement-card small {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.take-refinement-patches {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.take-refinement-patches span {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.take-refinement-patches b {
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+
 .meter-grid {
   display: grid;
   gap: 8px;
@@ -2582,6 +2706,9 @@ audio {
   .variant-lab-grid { grid-template-columns: 1fr; }
   .render-deck-list { grid-template-columns: 1fr; }
   .take-decision-list { grid-template-columns: 1fr; }
+  .take-refinement-grid { grid-template-columns: 1fr; }
+  .take-refinement-head { align-items: flex-start; flex-direction: column; }
+  .take-refinement-head > div { justify-content: flex-start; }
   .region-grid { grid-template-columns: 1fr; }
   .transport-main { align-items: flex-start; flex-direction: column; }
   .transport-actions { margin-left: 0; }

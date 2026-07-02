@@ -262,3 +262,22 @@ Decision:
   use the same evidence model.
 - Treat the result as an evidence-backed keeper recommendation, not an
   objective judgment of acting beauty or speaker identity.
+
+## ADR 016 - Keeper Decisions Need A Refinement Loop
+
+Choosing a keeper is still incomplete if the app cannot turn weak evidence into
+the next render move. A product-level character voice workflow needs an audition
+loop: render candidates, choose the best one, identify the weakest evidence, and
+apply a focused patch before rendering again.
+
+Decision:
+
+- Add Keeper Refinement after Take Decision.
+- Start refinement from the selected take's own base parameters so variant
+  winners do not lose their actual voice design.
+- Convert target drift, Script Match misses, and render-safety weaknesses into
+  bounded parameter patch moves.
+- Let Studio Plan surface refinement before final deck comparison when the
+  keeper is not ready.
+- Keep the loop deterministic, static, local, and replaceable by stronger DSP
+  or future browser VC later.

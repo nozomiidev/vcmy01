@@ -24,6 +24,7 @@ import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/rende
 import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { buildStudioPlan } from "./audio/studio-plan.js";
 import { rankRenderDeckTakes } from "./audio/take-decision.js";
+import { buildKeeperRefinement } from "./audio/take-refinement.js";
 import { TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
@@ -825,6 +826,8 @@ function bindOffline() {
     if (button) selectRenderDeckItem(button.dataset.takeDecision);
   });
 
+  $("applyKeeperRefinement")?.addEventListener("click", applyKeeperRefinement);
+
   $("applyChainFix").addEventListener("click", applyNextCharacterChainFix);
   $("applyStudioPlanStep").addEventListener("click", applyStudioPlanStep);
 }
@@ -1294,6 +1297,7 @@ function currentStudioPlan() {
   const sourceFit = offline.source ? offline.sourceFitReport(state.params, target) : null;
   const chainReport = currentCharacterChainReport();
   const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
+  const takeDecision = currentTakeDecision();
   return buildStudioPlan({
     hasSource: !!offline.source,
     sourceFit,
@@ -1309,12 +1313,17 @@ function currentStudioPlan() {
     auditionVariantCount: currentAuditionVariants().length,
     renderDeckCount: state.renderDeck.length,
     renderDeckSeconds: totalDeckSeconds(state.renderDeck),
-    takeDecision: currentTakeDecision()
+    takeDecision,
+    keeperRefinement: currentKeeperRefinement(takeDecision)
   });
 }
 
 function currentTakeDecision() {
   return rankRenderDeckTakes(state.renderDeck, offline.source, lineReadById(state.lineReadId));
+}
+
+function currentKeeperRefinement(decision = currentTakeDecision()) {
+  return buildKeeperRefinement(decision, state.params, lineReadById(state.lineReadId));
 }
 
 function currentPerformanceComparison() {
@@ -1385,6 +1394,10 @@ function applyStudioPlanStep() {
     renderAuditionVariantSet();
     return;
   }
+  if (action.id === "keeper-refine") {
+    applyKeeperRefinement();
+    return;
+  }
   if (action.id === "compare-deck") {
     if (!$("playCompare").disabled) $("playCompare").click();
     else toast("Comparison needs a render", "Preview a region before A/B playback.");
@@ -1450,6 +1463,7 @@ function renderTakeDecision() {
     panel.className = "take-decision";
     $("takeDecisionStatus").textContent = offline.source ? "No takes" : "No source";
     host.innerHTML = "";
+    renderKeeperRefinement(decision);
     return;
   }
   panel.className = `take-decision is-${decision.status}`;
@@ -1475,6 +1489,59 @@ function renderTakeDecision() {
       </button>
     `;
   }).join("");
+  renderKeeperRefinement(decision);
+}
+
+function renderKeeperRefinement(decision = currentTakeDecision()) {
+  const panel = $("takeRefinementPanel");
+  if (!panel) return;
+  const refinement = currentKeeperRefinement(decision);
+  if (!decision.items.length) {
+    panel.className = "take-refinement";
+    $("takeRefinementStatus").textContent = offline.source ? "No keeper" : "No source";
+    $("takeRefinementGrid").innerHTML = "";
+    $("takeRefinementPatches").innerHTML = "";
+    $("applyKeeperRefinement").disabled = true;
+    return;
+  }
+  panel.className = `take-refinement is-${refinement.status}`;
+  $("takeRefinementStatus").textContent = `${refinement.summary}`;
+  $("applyKeeperRefinement").disabled = !refinement.patch.length;
+  $("applyKeeperRefinement").textContent = refinement.patch.length ? "Apply Patch" : "Patch Locked";
+  $("takeRefinementGrid").innerHTML = refinement.cards.map((card) => `
+    <div class="take-refinement-card is-${card.status}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${card.score}%</strong>
+      <small>${escapeHtml(card.summary)}</small>
+    </div>
+  `).join("");
+  $("takeRefinementPatches").innerHTML = refinement.patch.length
+    ? refinement.patch.slice(0, 8).map((patch) => `
+      <span title="${escapeHtml(patch.reason)}">
+        ${escapeHtml(paramLabel(patch.key))}
+        <b>${formatPatchDelta(patch)}</b>
+      </span>
+    `).join("")
+    : `<span>Keeper locked <b>0</b></span>`;
+}
+
+function applyKeeperRefinement() {
+  const refinement = currentKeeperRefinement();
+  if (!refinement.patch.length) {
+    toast("Keeper locked", "No keeper patch is needed for the current decision.");
+    return;
+  }
+  state.params = { ...refinement.params };
+  persist();
+  engine.setParams(state.params);
+  renderControls();
+  updateLineReadScore();
+  updateSourceFit();
+  updateRoutePlanner();
+  renderCharacterChain();
+  renderAuditionVariants();
+  renderTakeDecision();
+  toast("Keeper patch applied", `${refinement.winnerLabel}: ${describePatchList(refinement.patch)}`);
 }
 
 function clearRenderDeck() {
@@ -1713,6 +1780,14 @@ function describePatchObject(patch = {}) {
     .filter(([key]) => !key.startsWith("_"))
     .slice(0, 4)
     .map(([key, value]) => `${paramLabel(key)} -> ${formatPatchValue(key, value)}`);
+  return entries.length ? entries.join(", ") : "No public parameter change.";
+}
+
+function describePatchList(patches = []) {
+  const entries = patches
+    .filter((patch) => !patch.key.startsWith("_"))
+    .slice(0, 4)
+    .map((patch) => `${paramLabel(patch.key)} ${formatPatchDelta(patch)}`);
   return entries.length ? entries.join(", ") : "No public parameter change.";
 }
 

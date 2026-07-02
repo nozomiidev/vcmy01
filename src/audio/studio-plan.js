@@ -24,6 +24,7 @@ export function buildStudioPlan(options = {}) {
   const review = options.renderReview || null;
   const trace = options.performanceComparison || null;
   const takeDecision = options.takeDecision || null;
+  const keeperRefinement = options.keeperRefinement || null;
   const auditionVariantCount = Math.max(0, Number(options.auditionVariantCount || 0));
   const renderDeckCount = Math.max(0, Number(options.renderDeckCount || 0));
   const renderDeckSeconds = Math.max(0, Number(options.renderDeckSeconds || 0));
@@ -35,7 +36,7 @@ export function buildStudioPlan(options = {}) {
     scriptStep(script, scriptMatch, scriptAutomation),
     auditionStep(hasSource, review, renderDeckCount, auditionVariantCount),
     traceStep(hasSource, review, trace),
-    deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision)
+    deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision, keeperRefinement)
   ];
   const nextAction = steps.find((step) => step.action)?.action || null;
   const scored = steps.filter((step) => Number.isFinite(step.score));
@@ -260,7 +261,7 @@ function traceStep(hasSource, review, trace) {
   });
 }
 
-function deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision) {
+function deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision, keeperRefinement) {
   if (!hasSource) {
     return waitingStep("deck", "Deck", "Waiting for source");
   }
@@ -282,16 +283,22 @@ function deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision) {
     ? takeDecision.score
     : Math.min(100, 72 + renderDeckCount * 6);
   const winner = takeDecision?.winner || null;
+  const patchCount = keeperRefinement?.patch?.length || 0;
+  const needsRefinement = patchCount > 0 && takeDecision?.status !== "ready";
   return step({
     id: "deck",
     label: "Deck",
     status: takeDecision?.status || "ready",
     score,
     summary: winner ? `${renderDeckCount} takes / ${score}%` : `${renderDeckCount} takes`,
-    detail: winner
-      ? `Keeper: ${winner.label}; weakest evidence is ${winner.weakest}.`
-      : `${renderDeckSeconds.toFixed(1)}s retained for A/B decisions.`,
-    action: { id: "compare-deck", label: "A/B Compare" }
+    detail: needsRefinement
+      ? `Keeper: ${winner?.label || "Take"}; ${patchCount} keeper patch moves are ready.`
+      : winner
+        ? `Keeper: ${winner.label}; weakest evidence is ${winner.weakest}.`
+        : `${renderDeckSeconds.toFixed(1)}s retained for A/B decisions.`,
+    action: needsRefinement
+      ? { id: "keeper-refine", label: "Refine Keeper" }
+      : { id: "compare-deck", label: "A/B Compare" }
   });
 }
 

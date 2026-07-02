@@ -64,6 +64,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   texture, and review-score deltas for comparing multiple takes.
 - Take Decision ranking that recommends a keeper from the deck using target
   fit, script-match evidence, render safety, and variant intent.
+- Keeper Refinement that converts the selected take's weakest evidence into a
+  concrete next-render patch for target axes, acting motion, and mix safety.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
   local take storage, and diagnostics.
 

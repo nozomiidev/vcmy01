@@ -74,6 +74,8 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
     score,
     status,
     weakest,
+    params: { ...params },
+    baseParams: { ...(rendered.baseParams || params) },
     review,
     comparison,
     scriptMatch,

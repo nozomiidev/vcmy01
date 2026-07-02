@@ -76,6 +76,8 @@ GitHub Pages.
   compared by audible output and measured deltas without leaking memory.
 - Add Take Decision ranking so the deck can recommend a keeper from target fit,
   script-match evidence, render safety, and variant intent.
+- Add Keeper Refinement so the chosen take can produce a concrete next-render
+  patch instead of leaving weak evidence as a passive score.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic

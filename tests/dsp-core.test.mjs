@@ -18,6 +18,7 @@ import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-ren
 import { AUDITION_VARIANT_IDS, auditionVariantSummary, buildAuditionVariants } from "../src/audio/audition-variants.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
 import { rankRenderDeckTakes, sourceSamplesForRenderedRegion } from "../src/audio/take-decision.js";
+import { buildKeeperRefinement } from "../src/audio/take-refinement.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
@@ -298,7 +299,13 @@ assert.ok(takeDecision.items[0].items.some((item) => item.id === "target"), "tak
 assert.ok(takeDecision.items[0].items.some((item) => item.id === "script"), "take decision should include script-match evidence");
 assert.ok(takeDecision.items[0].items.some((item) => item.id === "safety"), "take decision should include render-safety evidence");
 assert.ok(takeDecision.score >= 0 && takeDecision.score <= 100, "take decision score should be bounded");
+assert.ok(takeDecision.items[0].baseParams, "take decision should preserve the render base params for refinement");
 assert.equal(sourceSamplesForRenderedRegion(offline.source, previewRendered).length, previewRendered.samples.length, "take decision should compare matching source/render regions");
+const keeperRefinement = buildKeeperRefinement(takeDecision, kawaii, kawaiiSpark);
+assert.ok(keeperRefinement.patch.length > 0, "keeper refinement should turn weak decision evidence into patch moves");
+assert.ok(keeperRefinement.cards.some((card) => card.id === "script"), "keeper refinement should expose script refinement evidence");
+assert.notDeepEqual(keeperRefinement.params, takeDecision.items[0].baseParams, "keeper refinement should produce next-render params");
+assert.equal(buildKeeperRefinement(takeDecision, keeperRefinement.params, kawaiiSpark).patch.length, 0, "keeper refinement should lock once its patch has been applied");
 const variantStudioPlan = buildStudioPlan({
   hasSource: true,
   sourceFit: mockReadySourceFit,
@@ -333,12 +340,32 @@ const deckStudioPlan = buildStudioPlan({
   scriptMatch: { status: "ready", score: 88, items: [{ label: "Breath", value: "+900 / +850" }] },
   renderDeckCount: 2,
   renderDeckSeconds: totalDeckSeconds(deck),
-  takeDecision: { score: 90, status: "ready", winner: { label: "Sweet Lift", weakest: "Script" } }
+  takeDecision: { score: 90, status: "ready", winner: { label: "Sweet Lift", weakest: "Script" } },
+  keeperRefinement: { patch: [] }
 });
 assert.equal(deckStudioPlan.nextAction.id, "compare-deck", "studio plan should end in deck comparison once multiple takes exist");
 assert.equal(deckStudioPlan.status, "ready", "studio plan should mark a fully evidenced deck as ready");
 assert.ok(deckStudioPlan.steps.find((step) => step.id === "script").detail.includes("acting-automation frames"), "studio plan should preserve scripted automation evidence");
 assert.ok(deckStudioPlan.steps.find((step) => step.id === "deck").detail.includes("Keeper: Sweet Lift"), "studio plan should preserve take-decision evidence");
+const refineStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  renderReview: autoReview,
+  performanceComparison: { status: "ready", score: 92, items: [{ label: "Tail Air", value: "+800/s" }] },
+  performanceScript: otomeWhisperScript,
+  scriptAutomation: scriptedPreview.scriptAutomationSummary,
+  scriptMatch: { status: "ready", score: 88, items: [{ label: "Breath", value: "+900 / +850" }] },
+  renderDeckCount: 2,
+  renderDeckSeconds: totalDeckSeconds(deck),
+  takeDecision: { score: 81, status: "check", winner: { label: "Sweet Lift", weakest: "Script" } },
+  keeperRefinement: { patch: [{ key: "phraseLift", delta: 5 }] }
+});
+assert.equal(refineStudioPlan.nextAction.id, "keeper-refine", "studio plan should refine a weak keeper before final comparison");
+assert.ok(refineStudioPlan.steps.find((step) => step.id === "deck").detail.includes("keeper patch"), "studio plan should expose keeper patch evidence");
 
 offline.generateSample(sampleRate, "high_bright");
 const highRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });

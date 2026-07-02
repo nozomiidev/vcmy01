@@ -230,6 +230,12 @@ variant intent. This still does not claim to judge taste or acting beauty, but
 it turns "which one should I keep?" into an evidence-backed workflow instead of
 forcing the user to infer everything from isolated cards.
 
+Keeper Refinement closes that loop. After a keeper is selected, the app should
+convert the weakest evidence into a next-render patch: target axis corrections
+when the character recipe drifted, performance moves when Script Match missed
+lift/release/breath/energy, and mix guards when safety evidence is weak. This
+keeps auditioning from becoming a dead-end score display.
+
 ## Prosody And Performance
 
 Real prosody transformation requires knowing phrase structure, syllable timing,
