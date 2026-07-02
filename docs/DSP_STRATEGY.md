@@ -122,6 +122,16 @@ action that moves only the highest-priority missing axis. This keeps the full
 Apply Target path for fast setup while also supporting iterative shaping, which
 is closer to how a user would tune an acted character read.
 
+Scene Kits extend the repeatable-read concept from a single target line into a
+short acting arc. Each kit contains multiple beats for one character direction,
+such as otome hold/confess/release or ikemen invite/tease/protect. A beat is
+not just script copy: it becomes a real Line Read target with preset, source
+profile, and macro/director parameter goals, so Source Fit, Voice Route,
+Character Chain, Studio Plan, Performance Trace, and Render Deck can all judge
+it the same way they judge the base targets. This is the non-AI bridge toward
+"otome-game voice" and "ikemen scene" workflows: the app gives the user a
+performable scene structure while DSP handles the measurable voice shaping.
+
 ## Calibration
 
 Presets should eventually ask for or infer:

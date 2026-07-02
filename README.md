@@ -29,6 +29,9 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
 - Repeatable Line Read targets that apply character-specific performance
   settings for otome, kawaii, anime, ikemen, ASMR, streamer, narrator, and
   calibration reads.
+- Scene Kits that turn single reads into multi-beat acting workflows for
+  otome, ikemen, kawaii, and ASMR scenes, with each beat applying real
+  macro/director target changes.
 - Line Read target visualization with radar and per-axis gap bars for lift,
   softness, energy, distance, breath placement, confidence, and related macros.
 - Line Read coaching that turns target drift into recipe-group scores and a

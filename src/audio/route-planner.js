@@ -1,7 +1,7 @@
 import { calibrateParamsForVoice } from "./dsp-core.js";
 import { sourceFitReport } from "./offline-renderer.js";
 import { FACTORY_PRESETS, paramsForPreset, presetById } from "./presets.js";
-import { LINE_READ_TARGETS, scoreLineReadTarget } from "./performance-targets.js";
+import { ALL_LINE_READ_TARGETS, scoreLineReadTarget } from "./performance-targets.js";
 
 const PRESET_SOURCE_HINTS = Object.freeze({
   clean: "neutral_medium",
@@ -18,7 +18,7 @@ const PRESET_SOURCE_HINTS = Object.freeze({
 });
 
 export function voiceRouteTargets() {
-  const lineReadPresetIds = new Set(LINE_READ_TARGETS.map((target) => target.presetId));
+  const lineReadPresetIds = new Set(ALL_LINE_READ_TARGETS.map((target) => target.presetId));
   const syntheticTargets = FACTORY_PRESETS
     .filter((preset) => !lineReadPresetIds.has(preset.id))
     .map((preset) => ({
@@ -31,7 +31,7 @@ export function voiceRouteTargets() {
       sourceProfileId: PRESET_SOURCE_HINTS[preset.id] || "neutral_medium",
       params: {}
     }));
-  return [...LINE_READ_TARGETS, ...syntheticTargets];
+  return [...ALL_LINE_READ_TARGETS, ...syntheticTargets];
 }
 
 export function rankVoiceRoutes(profile = {}, source = {}, options = {}) {
@@ -44,7 +44,7 @@ export function rankVoiceRoutes(profile = {}, source = {}, options = {}) {
 
 export function voiceRouteForTarget(profile = {}, source = {}, target) {
   const preset = presetById(target.presetId);
-  const hasLineRead = LINE_READ_TARGETS.some((lineRead) => lineRead.id === target.id);
+  const hasLineRead = ALL_LINE_READ_TARGETS.some((lineRead) => lineRead.id === target.id);
   const baseParams = paramsForPreset(target.presetId, target.params);
   const tunedParams = calibrateParamsForVoice(baseParams, profile);
   const fitBefore = sourceFitReport(baseParams, profile, target, source);

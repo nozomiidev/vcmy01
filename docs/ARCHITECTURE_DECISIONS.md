@@ -163,3 +163,22 @@ Decision:
   hard-coded button shortcuts.
 - Treat the plan as orchestration only: it should call existing source, route,
   chain, preview, trace, and deck workflows rather than replacing them.
+
+## ADR 011 - Character Acting Needs Scene Beats
+
+Single Line Read targets are useful for calibration, but otome-game, kawaii,
+ikemen, and ASMR delivery depend on context across several lines: invitation,
+confession, tease, reassurance, release, and similar acting beats. A single
+slider state cannot communicate that arc well enough.
+
+Decision:
+
+- Add Scene Kits as grouped acting beats above Line Reads.
+- Represent every beat as a real target with script, direction, source profile,
+  and macro/director goals so existing diagnostics and render workflows can
+  evaluate it.
+- Keep Scene Kits local and static so they work on GitHub Pages and can grow
+  into larger reference phrase packs without requiring AI or a backend.
+- Use Scene Kits as the bridge between subjective acting direction and the
+  measurable DSP workflow: Source Fit, Voice Route, Character Chain, Studio
+  Plan, Performance Trace, and Render Deck should all understand them.

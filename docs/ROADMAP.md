@@ -48,6 +48,8 @@ GitHub Pages.
   placement.
 - Expand the first repeatable Line Read targets so presets can be judged
   against acting intent, not just signal movement.
+- Add Scene Kits so character targets can be tested as multi-beat acting arcs,
+  not only isolated one-line checks.
 - Expand Line Read target visualizations so users can see macro/director drift
   before rendering or recording another take.
 - Turn Line Read target drift into coaching and one-step corrections so users

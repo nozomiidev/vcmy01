@@ -1572,6 +1572,102 @@ input[type="range"] {
   color: var(--ok);
 }
 
+.scene-kit-panel {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+
+.scene-kit-head,
+.scene-kit-card-head {
+  display: grid;
+  gap: 4px;
+}
+
+.scene-kit-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.scene-kit-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scene-kit-head strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.scene-beat-list,
+.scene-kit-beats {
+  display: grid;
+  gap: 8px;
+}
+
+.scene-beat,
+.scene-beat-mini {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.scene-beat {
+  padding: 10px;
+}
+
+.scene-beat-mini {
+  padding: 8px;
+}
+
+.scene-beat:hover,
+.scene-beat.is-active,
+.scene-beat-mini:hover,
+.scene-beat-mini.is-active {
+  border-color: color-mix(in srgb, var(--accent-2) 52%, var(--line));
+}
+
+.scene-beat span,
+.scene-beat strong,
+.scene-beat small,
+.scene-beat-mini span,
+.scene-beat-mini small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-beat span,
+.scene-beat-mini span {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.scene-beat strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.scene-beat small,
+.scene-beat-mini small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .meter-line {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 76px;
@@ -1715,7 +1811,7 @@ audio {
   margin: 0 14px 14px;
 }
 
-.analysis-grid, .diag-grid, .voice-map, .line-read-grid {
+.analysis-grid, .diag-grid, .voice-map, .line-read-grid, .scene-kit-grid {
   padding: 14px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -1724,6 +1820,10 @@ audio {
 
 .line-read-grid {
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.scene-kit-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .metric, .voice-target, .line-read-card {
@@ -1770,6 +1870,42 @@ audio {
 
 .line-read-card small {
   color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.scene-kit-card {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.scene-kit-card.is-active {
+  border-color: color-mix(in srgb, var(--accent-2) 58%, var(--line));
+}
+
+.scene-kit-card-head span,
+.scene-kit-card-head small {
+  color: var(--muted);
+}
+
+.scene-kit-card-head span {
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.scene-kit-card-head strong {
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.scene-kit-card-head small {
   font-size: 11.5px;
   line-height: 1.35;
 }

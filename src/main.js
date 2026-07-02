@@ -1,10 +1,14 @@
 import { DIRECTOR_DEFS, FACTORY_PRESETS, MACRO_DEFS, PARAM_DEFS, paramsForPreset, presetById } from "./audio/presets.js";
 import {
+  ALL_LINE_READ_TARGETS,
   coachLineReadTarget,
   firstLineReadForPreset,
   LINE_READ_TARGETS,
   lineReadById,
   paramsForLineReadTarget,
+  SCENE_KITS,
+  sceneBeatByTargetId,
+  sceneBeatTargetsForKit,
   scoreLineReadTarget,
   targetMatchBreakdown,
   topTargetGaps
@@ -63,6 +67,8 @@ function init() {
   renderControls();
   renderLineReadPanel();
   renderLineReadLibrary();
+  renderSceneKitPanel();
+  renderSceneKitLibrary();
   renderCharacterChain();
   renderPerformanceTrace();
   renderStudioPlan();
@@ -111,6 +117,8 @@ function renderPresets() {
       renderControls();
       renderLineReadPanel();
       renderLineReadLibrary();
+      renderSceneKitPanel();
+      renderSceneKitLibrary();
       updateActivePreset();
       updateSourceFit();
       updateRoutePlanner();
@@ -267,9 +275,17 @@ function bindLineReads() {
   $("applyActiveLineRead").addEventListener("click", () => applyLineReadTarget(state.lineReadId));
   $("applyNextLineReadFix").addEventListener("click", applyNextLineReadFix);
   $("nextLineRead").addEventListener("click", () => {
-    const index = LINE_READ_TARGETS.findIndex((target) => target.id === state.lineReadId);
-    const next = LINE_READ_TARGETS[(index + 1 + LINE_READ_TARGETS.length) % LINE_READ_TARGETS.length];
+    const index = ALL_LINE_READ_TARGETS.findIndex((target) => target.id === state.lineReadId);
+    const next = ALL_LINE_READ_TARGETS[(index + 1 + ALL_LINE_READ_TARGETS.length) % ALL_LINE_READ_TARGETS.length];
     applyLineReadTarget(next.id);
+  });
+  $("sceneBeatList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-scene-target]");
+    if (button) applyLineReadTarget(button.dataset.sceneTarget);
+  });
+  $("sceneKitLibrary").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-scene-target]");
+    if (button) applyLineReadTarget(button.dataset.sceneTarget);
   });
 }
 
@@ -286,6 +302,8 @@ function applyLineReadTarget(id) {
   renderControls();
   renderLineReadPanel();
   renderLineReadLibrary();
+  renderSceneKitPanel();
+  renderSceneKitLibrary();
   updateActivePreset();
   updateSourceFit();
   updateRoutePlanner();
@@ -306,6 +324,8 @@ function applyNextLineReadFix() {
   engine.setParams(state.params);
   renderControls();
   updateLineReadScore();
+  renderSceneKitPanel();
+  renderSceneKitLibrary();
   updateSourceFit();
   updateRoutePlanner();
   renderCharacterChain();
@@ -320,6 +340,7 @@ function renderLineReadPanel() {
   $("activeLineReadDirection").textContent = target.direction;
   $("activeLineReadTags").innerHTML = target.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
   updateLineReadScore();
+  renderSceneKitPanel();
 }
 
 function updateLineReadScore() {
@@ -492,6 +513,55 @@ function renderLineReadLibrary() {
   $("lineReadLibrary").querySelectorAll("[data-line-read]").forEach((button) => {
     button.addEventListener("click", () => applyLineReadTarget(button.dataset.lineRead));
   });
+}
+
+function renderSceneKitPanel() {
+  const host = $("sceneBeatList");
+  if (!host) return;
+  const activeTarget = lineReadById(state.lineReadId);
+  const activeScene = sceneBeatByTargetId(state.lineReadId);
+  const kit = activeScene?.kit
+    || SCENE_KITS.find((candidate) => candidate.presetId === activeTarget.presetId)
+    || SCENE_KITS[0];
+  const sceneTargets = sceneBeatTargetsForKit(kit.id);
+  $("activeSceneKitName").textContent = kit.name;
+  host.innerHTML = sceneTargets.map((target, index) => {
+    const active = target.id === state.lineReadId;
+    return `
+      <button class="scene-beat ${active ? "is-active" : ""}" data-scene-target="${target.id}" type="button">
+        <span>${String(index + 1).padStart(2, "0")} ${escapeHtml(target.name)}</span>
+        <strong>${escapeHtml(target.line)}</strong>
+        <small>${escapeHtml(target.direction)}</small>
+      </button>
+    `;
+  }).join("");
+}
+
+function renderSceneKitLibrary() {
+  const host = $("sceneKitLibrary");
+  if (!host) return;
+  host.innerHTML = SCENE_KITS.map((kit) => {
+    const targets = sceneBeatTargetsForKit(kit.id);
+    const active = targets.some((target) => target.id === state.lineReadId);
+    return `
+      <div class="scene-kit-card ${active ? "is-active" : ""}" data-scene-kit="${kit.id}">
+        <div class="scene-kit-card-head">
+          <span>${escapeHtml(presetById(kit.presetId).name)}</span>
+          <strong>${escapeHtml(kit.name)}</strong>
+          <small>${escapeHtml(kit.description)}</small>
+        </div>
+        <div class="tag-list">${kit.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>
+        <div class="scene-kit-beats">
+          ${targets.map((target) => `
+            <button class="scene-beat-mini ${target.id === state.lineReadId ? "is-active" : ""}" data-scene-target="${target.id}" type="button">
+              <span>${escapeHtml(target.name)}</span>
+              <small>${escapeHtml(target.line)}</small>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
 function bindOffline() {
@@ -1139,6 +1209,8 @@ function applyVoiceRoute(routeId) {
   renderControls();
   renderLineReadPanel();
   renderLineReadLibrary();
+  renderSceneKitPanel();
+  renderSceneKitLibrary();
   updateActivePreset();
   updateSourceFit();
   updateRoutePlanner();

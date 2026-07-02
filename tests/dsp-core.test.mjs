@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { DIRECTOR_DEFS, FACTORY_PRESETS, paramsForPreset } from "../src/audio/presets.js";
 import {
+  ALL_LINE_READ_TARGETS,
   coachLineReadTarget,
   LINE_READ_TARGETS,
   lineReadRecipe,
   paramsForLineReadTarget,
+  SCENE_KITS,
+  sceneBeatTargetsForKit,
+  sceneKitForTargetId,
   scoreLineReadTarget,
   targetMatchBreakdown,
   topTargetGaps,
@@ -40,6 +44,9 @@ assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performanc
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
 assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "audition", "trace", "deck"], "studio plan should expose the full production flow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
+assert.ok(SCENE_KITS.length >= 4, "scene kits should expand single reads into multi-beat acting workflows");
+assert.ok(ALL_LINE_READ_TARGETS.length > LINE_READ_TARGETS.length, "scene beats should be usable as line-read targets");
+assert.equal(SCENE_KITS.every((kit) => kit.beats.length >= 3), true, "each scene kit should include multiple acting beats");
 assert.equal(validateLineReadTargets().every((target) => target.ok), true, "line-read targets should reference real presets and copy");
 assert.equal(new Set(voiceRouteTargets().map((target) => target.presetId)).size, FACTORY_PRESETS.length, "route planner should cover every factory voice target");
 assert.ok(REFERENCE_VOICE_PROFILES.length >= 4, "reference profiles should cover varied source voices");
@@ -139,6 +146,15 @@ assert.ok(directedAnalysis.zeroCrossingsPerSecond > sourceAnalysis.zeroCrossings
 
 const otomeRead = LINE_READ_TARGETS.find((target) => target.id === "otome_promise");
 assert.ok(otomeRead, "otome line-read target should exist");
+const otomeSceneTargets = sceneBeatTargetsForKit("otome_close_scene");
+const otomeWhisperBeat = otomeSceneTargets.find((target) => target.id.endsWith("_release"));
+assert.ok(otomeWhisperBeat, "otome scene should expose a whisper promise beat");
+assert.equal(sceneKitForTargetId(otomeWhisperBeat.id).id, "otome_close_scene", "scene beat target should resolve back to its kit");
+assert.ok(voiceRouteTargets().some((target) => target.id === otomeWhisperBeat.id), "route planner should include scene beats as targets");
+const otomeWhisperParams = paramsForLineReadTarget(otomeWhisperBeat.id);
+assert.equal(scoreLineReadTarget(otomeWhisperParams, otomeWhisperBeat), 100, "scene beat params should score as a complete acting target");
+assert.ok(otomeWhisperParams.closeMic > paramsForLineReadTarget(otomeRead.id).closeMic, "scene beat should push distance beyond the base line read");
+assert.ok(otomeWhisperParams.whisper > paramsForLineReadTarget(otomeRead.id).whisper, "scene beat should carry stronger whisper color");
 const otomeReadParams = paramsForLineReadTarget(otomeRead.id);
 assert.equal(scoreLineReadTarget(otomeReadParams, otomeRead), 100, "applied line-read params should match target controls");
 const otomeBreakdown = targetMatchBreakdown(otomeReadParams, otomeRead);
@@ -180,7 +196,7 @@ assert.equal(tunedKawaiiAgain.pitch, tunedKawaii.pitch, "calibration should not 
 
 const offline = new OfflineRenderer();
 offline.generateSample(sampleRate, "low_warm");
-const lowRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 12 });
+const lowRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: voiceRouteTargets().length });
 const lowIkemenRoute = lowRoutes.find((route) => route.presetId === "ikemen");
 const lowKawaiiRoute = lowRoutes.find((route) => route.presetId === "kawaii");
 assert.ok(lowRoutes.length >= FACTORY_PRESETS.length, "route planner should rank line-read and synthetic preset routes");
