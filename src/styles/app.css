@@ -889,6 +889,108 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
 }
 
+.performance-trace {
+  display: grid;
+  gap: 10px;
+  margin: 12px 14px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, rgba(143,167,255,0.045), rgba(105,227,181,0.03)),
+    var(--panel-2);
+}
+
+.performance-trace.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 34%, var(--line));
+}
+
+.performance-trace.is-check {
+  border-color: color-mix(in srgb, var(--warn) 38%, var(--line));
+}
+
+.performance-trace.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
+}
+
+.performance-trace-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.performance-trace-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.performance-trace-head strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.performance-trace-canvas {
+  width: 100%;
+  height: 150px;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+}
+
+.performance-trace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.performance-trace-grid:empty {
+  display: none;
+}
+
+.performance-trace-card {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+}
+
+.performance-trace-card span,
+.performance-trace-card strong,
+.performance-trace-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.performance-trace-card span {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.performance-trace-card strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.performance-trace-card small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .render-deck {
   display: grid;
   gap: 10px;
@@ -1680,6 +1782,7 @@ audio {
   .source-fit-grid { grid-template-columns: 1fr; }
   .voice-route-list { grid-template-columns: 1fr; }
   .character-chain-flow { grid-template-columns: 1fr; }
+  .performance-trace-grid { grid-template-columns: 1fr; }
   .render-deck-list { grid-template-columns: 1fr; }
   .region-grid { grid-template-columns: 1fr; }
   .transport-main { align-items: flex-start; flex-direction: column; }

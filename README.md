@@ -42,6 +42,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
 - Character Chain staging that breaks the active voice into Core, Tone,
   Texture, Performance, Dynamics, Space, and Guardrail layers with measured
   drift and one-step chain fixes.
+- Performance Trace visualization for source/render timing, F0 motion, ending
+  movement, tail breath/frication, and delivery dynamics across the region.
 - Render Deck auditions for offline previews/full renders with F0, level, tone,
   texture, and review-score deltas for comparing multiple takes.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,

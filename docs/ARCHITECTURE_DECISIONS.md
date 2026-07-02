@@ -130,3 +130,20 @@ Decision:
   not slider guessing.
 - Keep the Guardrail stage aware of source calibration and render review so
   source-fit and post-render evidence can affect the next correction.
+
+## ADR 009 - Performance Needs Time-Axis Evidence
+
+Average F0, RMS, brightness, and ZCR can pass while the read still feels flat,
+stiff, or unlike a character performance. Otome, kawaii, anime, ASMR, and ikemen
+targets depend on phrase lift, ending release, breath placement, and changing
+delivery over time.
+
+Decision:
+
+- Maintain a Performance Trace report for offline source/render regions.
+- Bound the frame count so long uploaded files do not make tracing slow or
+  memory-heavy.
+- Overlay source and rendered traces for frame-level pitch and energy rather
+  than only showing aggregate analysis cards.
+- Surface deltas for phrase lift, ending motion, tail air, delivery motion, and
+  active coverage so subjective listening has repeatable time-axis evidence.

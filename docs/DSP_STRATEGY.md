@@ -165,6 +165,13 @@ exposes the next meaningful patch. This is intentionally a production workflow
 layer: users should be able to see which part of the character voice is missing
 instead of guessing from a flat preset name or a wall of sliders.
 
+Performance Trace is the time-axis evidence layer. It analyzes source and
+rendered regions into bounded frames for energy, frame-level F0, ending motion,
+tail breath/frication, and delivery range, then overlays source/render curves.
+This cannot prove emotional acting quality, but it makes phrase lift, tail
+release, breath placement, and over-flattened delivery visible instead of hidden
+inside average F0 or loudness metrics.
+
 Render Deck is the audition layer after rendering. Every offline preview or full
 render can be kept as a bounded in-memory take with F0 movement, level delta,
 tone delta, texture delta, and a review score. The deck is intentionally capped

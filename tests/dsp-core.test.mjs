@@ -14,6 +14,7 @@ import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-ren
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
+import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -45,6 +46,10 @@ const sourceAnalysis = analyzeBuffer(source, sampleRate);
 assert.ok(sourceAnalysis.rms > 0.02, "generated sample should contain audible energy");
 assert.ok(sourceAnalysis.pitchMedianHz > 90 && sourceAnalysis.pitchMedianHz < 240, "generated sample exposes a plausible F0");
 assert.ok(Number.isFinite(sourceAnalysis.brightnessRatio), "generated sample exposes brightness analysis");
+const sourceTrace = analyzePerformanceTrace(source, sampleRate);
+assert.ok(sourceTrace.frames.length > 10, "performance trace should create time frames");
+assert.ok(sourceTrace.summary.pitchMedianHz > 90 && sourceTrace.summary.pitchMedianHz < 240, "performance trace should expose frame-level F0");
+assert.ok(Number.isFinite(sourceTrace.summary.endingDropCents), "performance trace should expose ending movement");
 
 for (const preset of FACTORY_PRESETS) {
   const processed = processVoiceBuffer(source, sampleRate, paramsForPreset(preset.id));
@@ -101,8 +106,12 @@ assert.ok(otomeReadParams.endingSoftness > paramsForPreset("otome").endingSoftne
 assert.ok(otomeReadParams.romanticBreath > paramsForPreset("otome").romanticBreath, "otome line read should push breath placement beyond the base preset");
 const otomeReadRendered = processVoiceBuffer(source, sampleRate, otomeReadParams);
 const otomeReadAnalysis = analyzeBuffer(otomeReadRendered, sampleRate);
+const otomeTrace = analyzePerformanceTrace(otomeReadRendered, sampleRate);
+const otomeTraceCompare = comparePerformanceTraces(sourceTrace, otomeTrace);
 assert.equal(otomeReadRendered.length, source.length, "line-read target processing preserves source length");
 assert.ok(otomeReadAnalysis.zeroCrossingsPerSecond > sourceAnalysis.zeroCrossingsPerSecond + 600, "otome line read should add measurable close breath texture");
+assert.ok(otomeTraceCompare.items.some((item) => item.id === "tail-air"), "trace compare should expose tail air movement");
+assert.ok(otomeTraceCompare.deltas.tailTexture > 0, "otome line read should increase tail breath/frication in the performance trace");
 
 const lowSource = generateTestVoice({ sampleRate, duration: 1.0, f0: 95 });
 const lowProfile = buildCalibrationProfile(lowSource, sampleRate);

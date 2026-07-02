@@ -13,6 +13,7 @@ import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runRefe
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
 import { bestCharacterChainPatch, characterChainReport } from "./audio/character-chain.js";
+import { analyzePerformanceTrace, comparePerformanceTraces } from "./audio/performance-trace.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
 import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { TakeStore, prefs } from "./storage.js";
@@ -62,6 +63,7 @@ function init() {
   renderLineReadPanel();
   renderLineReadLibrary();
   renderCharacterChain();
+  renderPerformanceTrace();
   renderVoiceMap();
   bindTabs();
   bindTransport();
@@ -519,6 +521,7 @@ function bindOffline() {
       updateSourceFit();
       updateRoutePlanner();
       renderCharacterChain();
+      renderPerformanceTrace();
       toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
     } catch (error) {
       toast("Analysis needs a source", error.message || "Generate or upload audio first.");
@@ -596,6 +599,7 @@ function useOfflineSource(source) {
   updateSourceFit();
   updateRoutePlanner();
   renderCharacterChain();
+  renderPerformanceTrace();
 }
 
 function renderOfflineToPreview(preview) {
@@ -613,6 +617,7 @@ function renderOfflineToPreview(preview) {
     updateSourceFit();
     updateRoutePlanner();
     renderCharacterChain();
+    renderPerformanceTrace();
     renderRenderDeck();
     $("renderStatus").textContent = preview
       ? autoTune ? "Preview - tuned" : "Preview ready"
@@ -653,6 +658,7 @@ function selectRenderDeckItem(id) {
   $("downloadRender").disabled = false;
   $("playCompare").disabled = false;
   renderCharacterChain();
+  renderPerformanceTrace();
   renderRenderDeck();
 }
 
@@ -727,6 +733,165 @@ function characterChainStatusLabel(status) {
   if (status === "ready") return "Ready";
   if (status === "shape") return "Shape";
   return "Risk";
+}
+
+function renderPerformanceTrace() {
+  const panel = $("performanceTracePanel");
+  if (!panel) return;
+  if (!offline.source) {
+    panel.className = "performance-trace";
+    $("performanceTraceStatus").textContent = "No source";
+    $("performanceTraceMetrics").innerHTML = "";
+    drawPerformanceTraceCanvas($("performanceTraceCanvas"), null, null);
+    return;
+  }
+
+  const sourceSamples = sourceSamplesForPerformanceTrace();
+  const sourceTrace = analyzePerformanceTrace(sourceSamples, offline.source.sampleRate);
+  const renderedTrace = offline.rendered
+    ? analyzePerformanceTrace(offline.rendered.samples, offline.rendered.sampleRate)
+    : null;
+  const comparison = comparePerformanceTraces(sourceTrace, renderedTrace);
+  panel.className = `performance-trace is-${comparison?.status || "source"}`;
+  $("performanceTraceStatus").textContent = comparison
+    ? `${comparison.score}% ${performanceTraceStatusLabel(comparison.status)}`
+    : `${sourceTrace.summary.frameCount} frames`;
+  drawPerformanceTraceCanvas($("performanceTraceCanvas"), sourceTrace, renderedTrace);
+  $("performanceTraceMetrics").innerHTML = comparison
+    ? comparison.items.map((item) => `
+      <div class="performance-trace-card is-${item.id}">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value)}</strong>
+        <small>${escapeHtml(item.detail)}</small>
+      </div>
+    `).join("")
+    : sourcePerformanceTraceCards(sourceTrace).map((item) => `
+      <div class="performance-trace-card">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>${escapeHtml(item.value)}</strong>
+        <small>${escapeHtml(item.detail)}</small>
+      </div>
+    `).join("");
+}
+
+function sourceSamplesForPerformanceTrace() {
+  if (!offline.source) return new Float32Array(0);
+  const region = offline.rendered?.region || currentRegion();
+  if (!region || region.isFull) return offline.source.samples;
+  const start = Math.max(0, Math.min(offline.source.samples.length, Math.round(region.startSec * offline.source.sampleRate)));
+  const end = Math.max(start + 1, Math.min(offline.source.samples.length, Math.round(region.endSec ? region.endSec * offline.source.sampleRate : start + region.durationSec * offline.source.sampleRate)));
+  return offline.source.samples.slice(start, end);
+}
+
+function sourcePerformanceTraceCards(trace) {
+  const summary = trace.summary;
+  return [
+    { label: "Median F0", value: formatTraceHz(summary.pitchMedianHz), detail: "Source phrase center." },
+    { label: "Phrase Lift", value: formatTraceCents(summary.phraseLiftCents), detail: "Upward motion inside the region." },
+    { label: "Ending", value: formatTraceCents(summary.endingDropCents), detail: "Tail pitch against phrase body." },
+    { label: "Tail Air", value: formatTraceNumber(summary.tailTexture, "/s"), detail: "Tail frication against phrase body." },
+    { label: "Motion", value: formatTraceDb(summary.energyRangeDb), detail: "Delivery level movement." }
+  ];
+}
+
+function drawPerformanceTraceCanvas(canvas, sourceTrace, renderedTrace) {
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  const w = width / dpr;
+  const h = height / dpr;
+  const pad = 14;
+  const mid = Math.round(h * 0.52);
+  ctx.fillStyle = "rgba(255,255,255,0.025)";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(255,255,255,0.09)";
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) {
+    const x = pad + (w - pad * 2) * i / 4;
+    ctx.beginPath();
+    ctx.moveTo(x, pad);
+    ctx.lineTo(x, h - pad);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.moveTo(pad, mid);
+  ctx.lineTo(w - pad, mid);
+  ctx.stroke();
+  if (!sourceTrace) {
+    ctx.fillStyle = "rgba(247,247,251,0.58)";
+    ctx.font = "12px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Load a source", w / 2, h / 2);
+    ctx.restore();
+    return;
+  }
+
+  const traces = [sourceTrace, renderedTrace].filter(Boolean);
+  const maxDuration = Math.max(0.001, ...traces.map((trace) => trace.duration || 0));
+  const pitchValues = traces.flatMap((trace) => trace.frames.map((frame) => frame.pitchHz).filter((value) => value > 0));
+  const pitchMin = Math.max(50, Math.min(...pitchValues, sourceTrace.summary.pitchMedianHz || 120) * 0.82);
+  const pitchMax = Math.max(pitchMin + 10, Math.max(...pitchValues, sourceTrace.summary.pitchMedianHz || 160) * 1.12);
+  drawTraceLine(ctx, sourceTrace, maxDuration, pitchMin, pitchMax, pad, 18, w - pad, mid - 16, "pitchHz", "#69e3b5", 1.8);
+  drawTraceLine(ctx, sourceTrace, maxDuration, 0, 1, pad, mid + 14, w - pad, h - pad, "energy", "rgba(105,227,181,0.9)", 1.6);
+  if (renderedTrace) {
+    drawTraceLine(ctx, renderedTrace, maxDuration, pitchMin, pitchMax, pad, 18, w - pad, mid - 16, "pitchHz", "#ff6d9e", 1.8);
+    drawTraceLine(ctx, renderedTrace, maxDuration, 0, 1, pad, mid + 14, w - pad, h - pad, "energy", "rgba(255,109,158,0.9)", 1.6);
+  }
+  ctx.fillStyle = "rgba(247,247,251,0.64)";
+  ctx.font = "10px Inter, system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("Pitch", pad, 12);
+  ctx.fillText("Energy", pad, mid + 10);
+  ctx.textAlign = "right";
+  ctx.fillText(renderedTrace ? "Source / Render" : "Source", w - pad, 12);
+  ctx.restore();
+}
+
+function drawTraceLine(ctx, trace, maxDuration, minValue, maxValue, x0, y0, x1, y1, key, color, lineWidth) {
+  const frames = trace.frames.filter((frame) => Number.isFinite(frame[key]) && (key !== "pitchHz" || frame[key] > 0));
+  if (frames.length < 2) return;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.beginPath();
+  frames.forEach((frame, index) => {
+    const x = x0 + (x1 - x0) * (frame.time / maxDuration);
+    const ratio = Math.max(0, Math.min(1, (frame[key] - minValue) / Math.max(1e-9, maxValue - minValue)));
+    const y = y1 - (y1 - y0) * ratio;
+    index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function performanceTraceStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "check") return "Check";
+  return "Risk";
+}
+
+function formatTraceHz(value) {
+  return Number.isFinite(value) && value > 0 ? `${Math.round(value)} Hz` : "0 Hz";
+}
+
+function formatTraceCents(value) {
+  return Number.isFinite(value) ? `${value > 0 ? "+" : ""}${Math.round(value)} ct` : "0 ct";
+}
+
+function formatTraceDb(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)} dB` : "0.0 dB";
+}
+
+function formatTraceNumber(value, unit = "") {
+  return Number.isFinite(value) ? `${value > 0 ? "+" : ""}${Math.round(value)}${unit}` : `0${unit}`;
 }
 
 function renderRenderDeck() {
@@ -930,6 +1095,7 @@ function updateRegionControls() {
   $("regionLengthOut").textContent = `${state.offlineRegion.durationSec.toFixed(1)}s`;
   $("regionReadout").textContent = `${state.offlineRegion.startSec.toFixed(1)}-${(state.offlineRegion.startSec + state.offlineRegion.durationSec).toFixed(1)}s / ${total.toFixed(1)}s`;
   drawSourceWaveform();
+  renderPerformanceTrace();
 }
 
 function currentRegion() {

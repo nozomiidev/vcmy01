@@ -238,6 +238,14 @@
               <canvas id="renderWave" class="scope" height="120" aria-label="Rendered waveform"></canvas>
               <audio id="renderAudio" controls></audio>
               <div class="analysis-grid" id="offlineAnalysis"></div>
+              <div class="performance-trace" id="performanceTracePanel">
+                <div class="performance-trace-head">
+                  <span>Performance Trace</span>
+                  <strong id="performanceTraceStatus">No source</strong>
+                </div>
+                <canvas id="performanceTraceCanvas" class="performance-trace-canvas" height="150" aria-label="Performance trace"></canvas>
+                <div class="performance-trace-grid" id="performanceTraceMetrics"></div>
+              </div>
               <div class="render-deck" id="renderDeckPanel">
                 <div class="render-deck-head">
                   <span>Render Deck</span>
