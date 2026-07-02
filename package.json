@@ -1,0 +1,10 @@
+{
+  "name": "voiceforge-vcmy01",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/dsp-core.test.mjs",
+    "serve": "node scripts/static-server.mjs 4174"
+  }
+}
