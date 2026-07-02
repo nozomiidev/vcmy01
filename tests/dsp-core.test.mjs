@@ -19,6 +19,7 @@ import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
+import { buildPerformanceScript, compareScriptToPerformance, SCRIPT_LANES } from "../src/audio/performance-script.js";
 import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.js";
 import {
   analyzeBuffer,
@@ -42,11 +43,12 @@ const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
-assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "audition", "trace", "deck"], "studio plan should expose the full production flow");
+assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["source", "route", "shape", "script", "audition", "trace", "deck"], "studio plan should expose the full production flow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.ok(SCENE_KITS.length >= 4, "scene kits should expand single reads into multi-beat acting workflows");
 assert.ok(ALL_LINE_READ_TARGETS.length > LINE_READ_TARGETS.length, "scene beats should be usable as line-read targets");
 assert.equal(SCENE_KITS.every((kit) => kit.beats.length >= 3), true, "each scene kit should include multiple acting beats");
+assert.equal(SCRIPT_LANES.length >= 5, true, "performance script should expose multiple temporal acting lanes");
 assert.equal(validateLineReadTargets().every((target) => target.ok), true, "line-read targets should reference real presets and copy");
 assert.equal(new Set(voiceRouteTargets().map((target) => target.presetId)).size, FACTORY_PRESETS.length, "route planner should cover every factory voice target");
 assert.ok(REFERENCE_VOICE_PROFILES.length >= 4, "reference profiles should cover varied source voices");
@@ -155,6 +157,11 @@ const otomeWhisperParams = paramsForLineReadTarget(otomeWhisperBeat.id);
 assert.equal(scoreLineReadTarget(otomeWhisperParams, otomeWhisperBeat), 100, "scene beat params should score as a complete acting target");
 assert.ok(otomeWhisperParams.closeMic > paramsForLineReadTarget(otomeRead.id).closeMic, "scene beat should push distance beyond the base line read");
 assert.ok(otomeWhisperParams.whisper > paramsForLineReadTarget(otomeRead.id).whisper, "scene beat should carry stronger whisper color");
+const otomeWhisperScript = buildPerformanceScript(otomeWhisperBeat, otomeWhisperParams);
+assert.equal(otomeWhisperScript.lanes.length, SCRIPT_LANES.length, "scene beat should become a multi-lane performance script");
+assert.equal(otomeWhisperScript.sceneKitId, "otome_close_scene", "performance script should preserve scene context");
+assert.ok(otomeWhisperScript.durationSec >= 1.4, "performance script should estimate a usable read duration");
+assert.ok(otomeWhisperScript.cues.some((cue) => /breath|close/i.test(cue)), "performance script should produce actionable acting cues");
 const otomeReadParams = paramsForLineReadTarget(otomeRead.id);
 assert.equal(scoreLineReadTarget(otomeReadParams, otomeRead), 100, "applied line-read params should match target controls");
 const otomeBreakdown = targetMatchBreakdown(otomeReadParams, otomeRead);
@@ -179,10 +186,13 @@ const otomeReadRendered = processVoiceBuffer(source, sampleRate, otomeReadParams
 const otomeReadAnalysis = analyzeBuffer(otomeReadRendered, sampleRate);
 const otomeTrace = analyzePerformanceTrace(otomeReadRendered, sampleRate);
 const otomeTraceCompare = comparePerformanceTraces(sourceTrace, otomeTrace);
+const otomeScriptMatch = compareScriptToPerformance(buildPerformanceScript(otomeRead, otomeReadParams), otomeTraceCompare);
 assert.equal(otomeReadRendered.length, source.length, "line-read target processing preserves source length");
 assert.ok(otomeReadAnalysis.zeroCrossingsPerSecond > sourceAnalysis.zeroCrossingsPerSecond + 600, "otome line read should add measurable close breath texture");
 assert.ok(otomeTraceCompare.items.some((item) => item.id === "tail-air"), "trace compare should expose tail air movement");
 assert.ok(otomeTraceCompare.deltas.tailTexture > 0, "otome line read should increase tail breath/frication in the performance trace");
+assert.ok(otomeScriptMatch.items.some((item) => item.id === "breath"), "script match should judge planned breath against rendered motion");
+assert.ok(otomeScriptMatch.score >= 30, "script match should produce a bounded render-vs-script score");
 
 const lowSource = generateTestVoice({ sampleRate, duration: 1.0, f0: 95 });
 const lowProfile = buildCalibrationProfile(lowSource, sampleRate);
@@ -248,6 +258,8 @@ const deckStudioPlan = buildStudioPlan({
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
   renderReview: autoReview,
   performanceComparison: { status: "ready", score: 92, items: [{ label: "Tail Air", value: "+800/s" }] },
+  performanceScript: otomeWhisperScript,
+  scriptMatch: { status: "ready", score: 88, items: [{ label: "Breath", value: "+900 / +850" }] },
   renderDeckCount: 2,
   renderDeckSeconds: totalDeckSeconds(deck)
 });

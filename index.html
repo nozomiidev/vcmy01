@@ -126,6 +126,15 @@
                 <div class="coach-list" id="lineReadCoachList"></div>
                 <button class="command" id="applyNextLineReadFix" type="button">Apply Next Fix</button>
               </div>
+              <div class="performance-script-panel">
+                <div class="performance-script-head">
+                  <span>Performance Script</span>
+                  <strong id="performanceScriptStatus">No script</strong>
+                </div>
+                <canvas id="performanceScriptCanvas" class="performance-script-canvas" width="520" height="150" aria-label="Performance script timeline"></canvas>
+                <div class="performance-script-grid" id="performanceScriptCards"></div>
+                <div class="performance-script-cues" id="performanceScriptCues"></div>
+              </div>
               <div class="scene-kit-panel">
                 <div class="scene-kit-head">
                   <span>Scene Kit</span>
@@ -262,6 +271,13 @@
                   <strong id="performanceTraceStatus">No source</strong>
                 </div>
                 <canvas id="performanceTraceCanvas" class="performance-trace-canvas" height="150" aria-label="Performance trace"></canvas>
+                <div class="script-match" id="scriptMatchPanel">
+                  <div class="script-match-head">
+                    <span>Script Match</span>
+                    <strong id="scriptMatchStatus">No render</strong>
+                  </div>
+                  <div class="script-match-grid" id="scriptMatchGrid"></div>
+                </div>
                 <div class="performance-trace-grid" id="performanceTraceMetrics"></div>
               </div>
               <div class="render-deck" id="renderDeckPanel">

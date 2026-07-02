@@ -2,6 +2,7 @@ export const STUDIO_PLAN_STEP_IDS = Object.freeze([
   "source",
   "route",
   "shape",
+  "script",
   "audition",
   "trace",
   "deck"
@@ -17,6 +18,8 @@ export function buildStudioPlan(options = {}) {
   ) || null;
   const topRoute = routes[0] || null;
   const chain = options.chainReport || null;
+  const script = options.performanceScript || null;
+  const scriptMatch = options.scriptMatch || null;
   const review = options.renderReview || null;
   const trace = options.performanceComparison || null;
   const renderDeckCount = Math.max(0, Number(options.renderDeckCount || 0));
@@ -26,6 +29,7 @@ export function buildStudioPlan(options = {}) {
     sourceStep(hasSource, sourceFit),
     routeStep(hasSource, topRoute, activeRoute),
     shapeStep(hasSource, chain),
+    scriptStep(script, scriptMatch),
     auditionStep(hasSource, review, renderDeckCount),
     traceStep(hasSource, review, trace),
     deckStep(hasSource, renderDeckCount, renderDeckSeconds)
@@ -41,6 +45,37 @@ export function buildStudioPlan(options = {}) {
     steps,
     nextAction
   };
+}
+
+function scriptStep(script, scriptMatch) {
+  if (!script) {
+    return step({
+      id: "script",
+      label: "Script",
+      status: "check",
+      score: 50,
+      summary: "No script",
+      detail: "Select a Line Read or Scene Beat before judging performance motion."
+    });
+  }
+  if (scriptMatch && !scriptMatch.plannedOnly) {
+    return step({
+      id: "script",
+      label: "Script",
+      status: scriptMatch.status,
+      score: scriptMatch.score,
+      summary: `${scriptMatch.score}% Match`,
+      detail: scriptMatch.items?.slice(0, 2).map((item) => `${item.label} ${item.value}`).join(" / ") || "Rendered motion compared to the script."
+    });
+  }
+  return step({
+    id: "script",
+    label: "Script",
+    status: script.status,
+    score: script.score,
+    summary: `${script.score}% Planned`,
+    detail: script.cues?.slice(0, 2).join(" / ") || "Performance gestures are planned."
+  });
 }
 
 function sourceStep(hasSource, sourceFit) {

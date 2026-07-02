@@ -132,6 +132,13 @@ it the same way they judge the base targets. This is the non-AI bridge toward
 "otome-game voice" and "ikemen scene" workflows: the app gives the user a
 performable scene structure while DSP handles the measurable voice shaping.
 
+Performance Script is the next bridge between acting intent and DSP evidence.
+It converts the active Line Read or Scene Beat into a planned time-axis shape:
+lift, energy, distance, breath, and release lanes, with concrete cues such as
+near-mic entry, upward phrase gesture, soft tail, or breath placement. This is
+not AI prosody transfer. It is a local, static, testable plan that lets the user
+see how the read should move before recording or offline rendering.
+
 ## Calibration
 
 Presets should eventually ask for or infer:
@@ -176,12 +183,13 @@ layer: users should be able to see which part of the character voice is missing
 instead of guessing from a flat preset name or a wall of sliders.
 
 Studio Plan is the workflow coordinator above those panels. Source Fit, Voice
-Route, Character Chain, Performance Trace, and Render Deck are useful evidence,
-but they can still leave a user asking what to do next. Studio Plan keeps every
-production step visible and chooses the next action in order: load or analyze a
-source, apply a stronger route, fix the weakest chain stage, render a preview,
-compare performance evidence, then choose from the deck. This makes the app feel
-like a voice-production session instead of a collection of unrelated widgets.
+Route, Character Chain, Performance Script, Performance Trace, and Render Deck
+are useful evidence, but they can still leave a user asking what to do next.
+Studio Plan keeps every production step visible and chooses the next action in
+order: load or analyze a source, apply a stronger route, fix the weakest chain
+stage, inspect the acting script, render a preview, compare performance
+evidence, then choose from the deck. This makes the app feel like a
+voice-production session instead of a collection of unrelated widgets.
 
 Performance Trace is the time-axis evidence layer. It analyzes source and
 rendered regions into bounded frames for energy, frame-level F0, ending motion,
@@ -189,6 +197,12 @@ tail breath/frication, and delivery range, then overlays source/render curves.
 This cannot prove emotional acting quality, but it makes phrase lift, tail
 release, breath placement, and over-flattened delivery visible instead of hidden
 inside average F0 or loudness metrics.
+
+Script Match connects Performance Script to Performance Trace. After a preview
+or full render, the trace deltas are scored against the planned lift, release,
+tail-air, energy, and coverage moves. This does not claim to judge beauty or
+acting truth, but it prevents a render from looking "good" only because generic
+signal metrics passed while the intended scene gesture was missed.
 
 Render Deck is the audition layer after rendering. Every offline preview or full
 render can be kept as a bounded in-memory take with F0 movement, level delta,

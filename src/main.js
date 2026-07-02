@@ -18,6 +18,7 @@ import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
 import { bestCharacterChainPatch, characterChainReport } from "./audio/character-chain.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "./audio/performance-trace.js";
+import { buildPerformanceScript, compareScriptToPerformance } from "./audio/performance-script.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
 import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { buildStudioPlan } from "./audio/studio-plan.js";
@@ -69,6 +70,7 @@ function init() {
   renderLineReadLibrary();
   renderSceneKitPanel();
   renderSceneKitLibrary();
+  renderPerformanceScript();
   renderCharacterChain();
   renderPerformanceTrace();
   renderStudioPlan();
@@ -79,7 +81,10 @@ function init() {
   bindLineReads();
   bindDiagnostics();
   bindTheme();
-  window.addEventListener("resize", renderLineReadDiagnostics);
+  window.addEventListener("resize", () => {
+    renderLineReadDiagnostics();
+    renderPerformanceScript();
+  });
   takeStore.open().then(async () => {
     state.takes = await takeStore.all();
     renderTakes();
@@ -347,6 +352,8 @@ function updateLineReadScore() {
   const target = lineReadById(state.lineReadId);
   $("activeLineReadScore").textContent = `${scoreLineReadTarget(state.params, target)}%`;
   renderLineReadDiagnostics();
+  renderPerformanceScript();
+  renderScriptMatch();
 }
 
 function renderLineReadDiagnostics() {
@@ -411,6 +418,136 @@ function coachStatusLabel(status) {
   if (status === "locked") return "Locked";
   if (status === "polish") return "Polish";
   return "Shape";
+}
+
+function currentPerformanceScript() {
+  return buildPerformanceScript(lineReadById(state.lineReadId), state.params);
+}
+
+function renderPerformanceScript() {
+  const canvas = $("performanceScriptCanvas");
+  const cards = $("performanceScriptCards");
+  const cues = $("performanceScriptCues");
+  if (!canvas || !cards || !cues) return;
+  const script = currentPerformanceScript();
+  $("performanceScriptStatus").textContent = `${script.score}% ${scriptStatusLabel(script.status)}`;
+  drawPerformanceScriptCanvas(canvas, script);
+  cards.innerHTML = script.lanes.map((lane) => `
+    <div class="performance-script-card is-${lane.id}">
+      <span>${escapeHtml(lane.label)}</span>
+      <strong>${lane.score}%</strong>
+      <small>${escapeHtml(lane.summary)}</small>
+    </div>
+  `).join("");
+  cues.innerHTML = script.cues.map((cue, index) => `
+    <span><b>${String(index + 1).padStart(2, "0")}</b>${escapeHtml(cue)}</span>
+  `).join("");
+}
+
+function drawPerformanceScriptCanvas(canvas, script) {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  const w = width / dpr;
+  const h = height / dpr;
+  const pad = 14;
+  const laneH = (h - pad * 2) / script.lanes.length;
+  ctx.fillStyle = "rgba(255,255,255,0.025)";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+  script.phases.forEach((phase) => {
+    const x = pad + (w - pad * 2) * (phase.range[0] / script.durationSec);
+    ctx.beginPath();
+    ctx.moveTo(x, pad);
+    ctx.lineTo(x, h - pad);
+    ctx.stroke();
+  });
+  script.lanes.forEach((lane, index) => {
+    const y0 = pad + laneH * index;
+    const yMid = y0 + laneH * 0.5;
+    ctx.strokeStyle = "rgba(255,255,255,0.09)";
+    ctx.beginPath();
+    ctx.moveTo(pad, yMid);
+    ctx.lineTo(w - pad, yMid);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(247,247,251,0.58)";
+    ctx.font = "10px Inter, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(lane.label, pad, y0 + 10);
+    drawScriptLaneLine(ctx, lane, script.durationSec, pad + 62, y0 + 5, w - pad, y0 + laneH - 6, scriptLaneColor(lane.id));
+  });
+  ctx.fillStyle = "rgba(247,247,251,0.58)";
+  ctx.textAlign = "right";
+  ctx.fillText(`${script.durationSec.toFixed(1)}s`, w - pad, h - 5);
+  ctx.restore();
+}
+
+function drawScriptLaneLine(ctx, lane, durationSec, x0, y0, x1, y1, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  lane.points.forEach((point, index) => {
+    const x = x0 + (x1 - x0) * (point.t / Math.max(0.001, durationSec));
+    const y = y1 - (y1 - y0) * Math.max(0, Math.min(1, point.value));
+    index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.fillStyle = color;
+  lane.points.forEach((point) => {
+    const x = x0 + (x1 - x0) * (point.t / Math.max(0.001, durationSec));
+    const y = y1 - (y1 - y0) * Math.max(0, Math.min(1, point.value));
+    ctx.beginPath();
+    ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function scriptLaneColor(id) {
+  if (id === "lift") return "#8fa7ff";
+  if (id === "energy") return "#ffd166";
+  if (id === "distance") return "#69e3b5";
+  if (id === "breath") return "#ff6d9e";
+  return "#c59cff";
+}
+
+function renderScriptMatch() {
+  const panel = $("scriptMatchPanel");
+  if (!panel) return;
+  const script = currentPerformanceScript();
+  const match = compareScriptToPerformance(script, currentPerformanceComparison());
+  panel.className = `script-match is-${match?.status || "empty"}`;
+  $("scriptMatchStatus").textContent = match
+    ? `${match.score}% ${match.plannedOnly ? "Planned" : scriptStatusLabel(match.status)}`
+    : "No script";
+  $("scriptMatchGrid").innerHTML = match?.items?.slice(0, 5).map((item) => `
+    <div class="script-match-card is-${item.status || script.status}">
+      <span>${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <small>${escapeHtml(item.detail)}</small>
+    </div>
+  `).join("") || "";
+}
+
+function currentScriptMatch() {
+  const comparison = currentPerformanceComparison();
+  if (!comparison) return null;
+  return compareScriptToPerformance(currentPerformanceScript(), comparison);
+}
+
+function scriptStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "check") return "Check";
+  return "Risk";
 }
 
 function drawLineReadRadar(axes) {
@@ -822,6 +959,7 @@ function renderPerformanceTrace() {
     $("performanceTraceStatus").textContent = "No source";
     $("performanceTraceMetrics").innerHTML = "";
     drawPerformanceTraceCanvas($("performanceTraceCanvas"), null, null);
+    renderScriptMatch();
     renderStudioPlan();
     return;
   }
@@ -852,6 +990,7 @@ function renderPerformanceTrace() {
         <small>${escapeHtml(item.detail)}</small>
       </div>
     `).join("");
+  renderScriptMatch();
   renderStudioPlan();
 }
 
@@ -989,6 +1128,8 @@ function currentStudioPlan() {
     chainReport,
     renderReview: review,
     performanceComparison: currentPerformanceComparison(),
+    performanceScript: currentPerformanceScript(),
+    scriptMatch: currentScriptMatch(),
     renderDeckCount: state.renderDeck.length,
     renderDeckSeconds: totalDeckSeconds(state.renderDeck)
   });

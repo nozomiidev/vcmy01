@@ -182,3 +182,25 @@ Decision:
 - Use Scene Kits as the bridge between subjective acting direction and the
   measurable DSP workflow: Source Fit, Voice Route, Character Chain, Studio
   Plan, Performance Trace, and Render Deck should all understand them.
+
+## ADR 012 - Acting Intent Needs A Pre-Render Script
+
+Performance Trace shows what happened after rendering, but it does not tell the
+user what the read was supposed to do. Without a pre-render plan, the app can
+score source fit, route choice, and render quality while still missing the
+actual acting gesture: close entry, phrase lift, breath tail, tease, confession,
+release, or protective landing.
+
+Decision:
+
+- Add a Performance Script layer generated from the active Line Read or Scene
+  Beat.
+- Represent the script as time-axis lanes for lift, energy, distance, breath,
+  and release, plus concise acting cues.
+- Keep the script static and deterministic so it works on GitHub Pages, remains
+  testable, and does not require AI.
+- Add Script Match after rendering so Performance Trace deltas are judged
+  against the planned acting intent rather than generic signal movement alone.
+- Include Script as a Studio Plan step between chain shaping and audition, so
+  the production flow becomes target -> route -> shape -> script -> render ->
+  trace -> choose.

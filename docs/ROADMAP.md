@@ -54,6 +54,8 @@ GitHub Pages.
   before rendering or recording another take.
 - Turn Line Read target drift into coaching and one-step corrections so users
   can shape a read progressively instead of only applying a full preset.
+- Add Performance Script timelines so every Line Read or Scene Beat has planned
+  lift, energy, distance, breath, and release gestures before rendering.
 - Add Source Fit scoring for generated/uploaded audio so calibration becomes an
   explicit render decision with visible patch deltas.
 - Add Voice Route planning so users can rank likely character targets for the
@@ -64,6 +66,8 @@ GitHub Pages.
   deck decisions are connected by a single next-step production flow.
 - Add Performance Trace visualization so phrase lift, ending release, tail air,
   and delivery motion can be compared before and after offline rendering.
+- Add Script Match scoring so rendered motion is judged against the planned
+  acting script, not only generic signal quality.
 - Add a bounded Render Deck so multiple offline previews/full renders can be
   compared by audible output and measured deltas without leaking memory.
 - Build target voices:

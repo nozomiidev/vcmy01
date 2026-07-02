@@ -36,6 +36,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   softness, energy, distance, breath placement, confidence, and related macros.
 - Line Read coaching that turns target drift into recipe-group scores and a
   focused Apply Next Fix workflow before committing to a full target.
+- Performance Script timelines that turn a Line Read or Scene Beat into
+  planned lift, energy, distance, breath, and release gestures before rendering.
 - Offline generated/uploaded source processing with analysis, A/B compare,
   preview-region rendering, source-aware Auto Tune, and WAV export.
 - Source Fit scoring for generated or uploaded audio, including target range,
@@ -46,10 +48,12 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   Texture, Performance, Dynamics, Space, and Guardrail layers with measured
   drift and one-step chain fixes.
 - Studio Plan production flow that connects source loading, route choice,
-  chain shaping, preview audition, trace evidence, and render-deck comparison
-  into a single next-step workflow.
+  chain shaping, script planning, preview audition, trace evidence, and
+  render-deck comparison into a single next-step workflow.
 - Performance Trace visualization for source/render timing, F0 motion, ending
   movement, tail breath/frication, and delivery dynamics across the region.
+- Script Match scoring that compares rendered phrase motion against the planned
+  performance script, so traces can be judged against acting intent.
 - Render Deck auditions for offline previews/full renders with F0, level, tone,
   texture, and review-score deltas for comparing multiple takes.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
