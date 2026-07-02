@@ -22,6 +22,7 @@ export function buildStudioPlan(options = {}) {
   const chain = options.chainReport || null;
   const effectStack = options.effectStack || null;
   const voiceMemory = options.voiceMemory || null;
+  const stackAuditionCount = Math.max(0, Number(options.stackAuditionCount || 0));
   const script = options.performanceScript || null;
   const scriptMatch = options.scriptMatch || null;
   const scriptAutomation = options.scriptAutomation || null;
@@ -37,7 +38,7 @@ export function buildStudioPlan(options = {}) {
     sourceStep(hasSource, sourceFit),
     routeStep(hasSource, topRoute, activeRoute),
     shapeStep(hasSource, chain),
-    stackStep(hasSource, effectStack),
+    stackStep(hasSource, effectStack, stackAuditionCount),
     memoryStep(hasSource, voiceMemory, review),
     scriptStep(script, scriptMatch, scriptAutomation),
     auditionStep(hasSource, review, renderDeckCount, auditionVariantCount),
@@ -95,7 +96,7 @@ function memoryStep(hasSource, voiceMemory, review) {
   });
 }
 
-function stackStep(hasSource, effectStack) {
+function stackStep(hasSource, effectStack, stackAuditionCount = 0) {
   if (!hasSource) {
     return waitingStep("stack", "Stack", "Waiting for source");
   }
@@ -111,6 +112,7 @@ function stackStep(hasSource, effectStack) {
   }
   const hasPatch = Object.keys(effectStack.nextPatch || {}).some((key) => !key.startsWith("_"));
   const nextStage = effectStack.stages?.find((stage) => stage.id === effectStack.nextStageId);
+  const needsAudition = !hasPatch && stackAuditionCount > 0 && effectStack.status !== "ready";
   return step({
     id: "stack",
     label: "Stack",
@@ -119,9 +121,13 @@ function stackStep(hasSource, effectStack) {
     summary: `${effectStack.score}% ${labelForStatus(effectStack.status)}`,
     detail: nextStage
       ? `Next signal layer: ${nextStage.label}; ${effectStack.summary}.`
-      : `${effectStack.activeCount || 0} active signal layers are balanced.`,
+      : needsAudition
+        ? `${stackAuditionCount} layer auditions can isolate the stack before another full take.`
+        : `${effectStack.activeCount || 0} active signal layers are balanced.`,
     action: hasPatch
       ? { id: "stack-fix", label: `Fix ${nextStage?.label || "Stack"}` }
+      : needsAudition
+        ? { id: "render-stack", label: "Render Stack" }
       : null
   });
 }

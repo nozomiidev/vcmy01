@@ -65,6 +65,9 @@ GitHub Pages.
 - Add Signal Stack staging so input prep, core shift, voice tract, tone,
   texture, performance motion, dynamics, space, and guardrails expose actual
   signal-path activity, overload risk, and bounded stack fixes.
+- Add Stack Audition rendering so active or weak signal-path stages can produce
+  Fix and Bypass-style preview takes for audible A/B comparison in the Render
+  Deck.
 - Add Design Board memory so promising voice designs can be captured, scored
   against the active Line Read target, and restored as meaningful
   macro/director/DSP deltas instead of being lost slider states.

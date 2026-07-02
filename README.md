@@ -51,6 +51,9 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   intensity, live/offline mode, source/render evidence, and bounded stack fixes
   for input prep, voice tract, tone, texture, performance, dynamics, space, and
   guardrails.
+- Stack Audition rendering that turns risky or active Signal Stack stages into
+  layer-specific Fix and Bypass-style preview takes, then sends those takes to
+  the Render Deck for audible A/B comparison.
 - Design Board memory that captures local voice-design snapshots, scores saved
   designs against the active Line Read target, and restores the highest-impact
   macro/director/DSP deltas when a previous design fits better than the current
@@ -89,9 +92,9 @@ Known product capability gap:
   approximations rather than real phrase understanding, emotion transfer, or
   actor-style timing conversion.
 - Offline post-processing has region preview, script-driven automation, and
-  audition variant batches, plus Signal Stack and Design Board layers, but
-  still needs per-layer bypass auditioning, named scene/design collections,
-  longer uploaded-file workflow, and offline-only high-quality render modes.
+  audition variant batches, plus Signal Stack, Stack Audition, and Design Board
+  layers, but still needs named scene/design collections, longer uploaded-file
+  workflow, and offline-only high-quality render modes.
 - The app still needs richer performance targets, repeatable line-read tests,
   phrase/ending behavior, distance, emotion, and delivery workflows beyond the
   first Director controls and first Line Read target set.

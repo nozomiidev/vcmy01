@@ -22,6 +22,7 @@ import { buildKeeperRefinement } from "../src/audio/take-refinement.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
 import { bestEffectStackPatch, buildEffectStack, EFFECT_STACK_STAGE_IDS } from "../src/audio/effect-stack.js";
+import { buildStackAuditions, stackAuditionSummary } from "../src/audio/stack-audition.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
 import { automationSummary, buildPerformanceScript, compareScriptToPerformance, renderScriptAutomation, SCRIPT_LANES } from "../src/audio/performance-script.js";
 import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.js";
@@ -146,6 +147,26 @@ const stackStudioPlan = buildStudioPlan({
   renderDeckCount: 0
 });
 assert.equal(stackStudioPlan.nextAction.id, "stack-fix", "studio plan should fix a weak signal stack before auditioning");
+const stackAuditionStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: {
+    status: "check",
+    score: 80,
+    activeCount: 5,
+    nextPatch: {},
+    summary: "Needs layer audition",
+    stages: []
+  },
+  voiceMemory: mockReadyMemory,
+  stackAuditionCount: 4,
+  renderDeckCount: 0
+});
+assert.equal(stackAuditionStudioPlan.nextAction.id, "render-stack", "studio plan should render stack auditions when a weak stack has no direct patch");
 
 for (const preset of FACTORY_PRESETS) {
   const processed = processVoiceBuffer(source, sampleRate, paramsForPreset(preset.id));
@@ -271,6 +292,13 @@ const lowKawaiiStack = buildEffectStack(kawaii, {
   sourceFit: lowToKawaiiFit,
   performanceScript: buildPerformanceScript(kawaiiSpark, kawaii)
 });
+const lowKawaiiStackAuditions = buildStackAuditions(kawaii, lowKawaiiStack, { limit: 7 });
+const lowKawaiiStackAuditionSummary = stackAuditionSummary(lowKawaiiStackAuditions);
+assert.ok(lowKawaiiStackAuditions.length >= 3, "stack audition should expose multiple layer audition candidates");
+assert.ok(lowKawaiiStackAuditions.some((item) => item.type === "fix" && item.patch.length > 0), "stack audition should include direct fix candidates");
+assert.ok(lowKawaiiStackAuditions.some((item) => item.type === "bypass" && item.patch.length > 0), "stack audition should include bypass-like candidates");
+assert.ok(lowKawaiiStackAuditionSummary.patchCount >= lowKawaiiStackAuditions.length, "stack audition summary should count meaningful patch moves");
+assert.ok(lowKawaiiStackAuditions.every((item) => item.params && item.axes.length >= 3), "stack audition candidates should be renderable and visualizable");
 const kawaiiMemoryParams = paramsForLineReadTarget(kawaiiSpark.id);
 const kawaiiSnapshot = createVoiceSnapshot(kawaiiMemoryParams, {
   id: "snap-kawaii",

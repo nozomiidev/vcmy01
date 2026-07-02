@@ -1100,6 +1100,176 @@ input[type="range"] {
   font-weight: 800;
 }
 
+.stack-audition {
+  display: grid;
+  gap: 10px;
+  margin: 12px 14px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, rgba(105,227,181,0.04), rgba(255,209,102,0.028)),
+    var(--panel-2);
+}
+
+.stack-audition.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--line));
+}
+
+.stack-audition.is-check {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+}
+
+.stack-audition-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.stack-audition-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stack-audition-head strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stack-audition-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 8px;
+}
+
+.stack-audition-grid:empty {
+  display: none;
+}
+
+.stack-audition-card {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.stack-audition-card:hover,
+.stack-audition-card:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  outline: none;
+}
+
+.stack-audition-card.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
+}
+
+.stack-audition-card.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 34%, var(--line));
+}
+
+.stack-audition-score {
+  justify-self: start;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.07);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.stack-audition-card strong,
+.stack-audition-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stack-audition-card strong {
+  font-size: 13px;
+}
+
+.stack-audition-card small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.stack-audition-axis-list {
+  display: grid;
+  gap: 5px;
+}
+
+.stack-audition-axis-list span {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.stack-audition-axis-list i {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.stack-audition-axis-list i::before {
+  content: "";
+  display: block;
+  width: var(--value);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--ok), var(--accent));
+}
+
+.stack-audition-axis-list em {
+  color: var(--ink);
+  font-style: normal;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stack-audition-patches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.stack-audition-patches span {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.stack-audition-patches b {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
 .voice-memory {
   display: grid;
   gap: 10px;
@@ -3067,6 +3237,8 @@ audio {
   .effect-stack-flow { grid-template-columns: 1fr; }
   .effect-stack-head { align-items: flex-start; flex-direction: column; }
   .effect-stack-head > div { justify-content: flex-start; }
+  .stack-audition-grid { grid-template-columns: 1fr; }
+  .stack-audition-head { align-items: flex-start; flex-direction: column; }
   .voice-memory-list { grid-template-columns: 1fr; }
   .voice-memory-head { align-items: flex-start; flex-direction: column; }
   .voice-memory-head > div { justify-content: flex-start; }

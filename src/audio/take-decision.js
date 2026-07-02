@@ -48,7 +48,8 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
   const script = rendered.performanceScriptPlan || buildPerformanceScript(target, params);
   const scriptMatch = compareScriptToPerformance(script, comparison);
   const scriptScore = Number.isFinite(scriptMatch?.score) ? scriptMatch.score : Number(script?.score || 0);
-  const variantScore = Number.isFinite(item.variant?.score) ? item.variant.score : 76;
+  const audition = item.variant || item.stackAudition || null;
+  const variantScore = Number.isFinite(audition?.score) ? audition.score : 76;
   const score = clampScore(
     targetScore * weights.target +
     scriptScore * weights.script +
@@ -56,7 +57,7 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
     variantScore * weights.variant
   );
 
-  const label = item.variant?.label || item.title || `Take ${deckIndex + 1}`;
+  const label = audition?.label || item.title || `Take ${deckIndex + 1}`;
   const status = decisionStatus(score);
   const weakest = weakestEvidence([
     ["Target", targetScore],
@@ -70,7 +71,7 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
     title: item.title || label,
     target: item.target || target.name,
     mode: item.mode || rendered.mode || "Render",
-    variantLabel: item.variant?.label || null,
+    variantLabel: audition?.label || null,
     score,
     status,
     weakest,
@@ -83,7 +84,12 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
       evidenceItem("target", "Target", targetScore, `${target.name} macro/director fit.`),
       evidenceItem("script", "Script", scriptScore, scriptMatch?.plannedOnly ? "Planned script only." : "Rendered motion against the acting script."),
       evidenceItem("safety", "Safety", safetyScore, review ? "Clip, level, tone, and texture review." : "Fallback render-safety estimate."),
-      evidenceItem("variant", "Variant", variantScore, item.variant?.intent || "Baseline take without a variant direction.")
+      evidenceItem(
+        "variant",
+        item.stackAudition ? "Layer" : "Variant",
+        variantScore,
+        audition?.intent || "Baseline take without a variant direction."
+      )
     ]
   };
 }

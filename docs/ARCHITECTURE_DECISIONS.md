@@ -328,3 +328,28 @@ Decision:
 - Keep the feature static, local, bounded, and compatible with later per-layer
   bypass, named design collections, plugin workflows, or optional model-backed
   engines.
+
+## ADR 019 - Signal Layers Need Audible Audition Takes
+
+Signal Stack shows which DSP layer is active, risky, or overloaded, but a
+diagnostic card is still not enough for a character voice product. Users need to
+hear whether the breath layer, voice-tract layer, dynamics layer, or performance
+motion layer is actually helping the read. Otherwise the app can identify a
+problem while still forcing users to guess from sliders.
+
+Decision:
+
+- Add Stack Audition as a workflow layer between Signal Stack and the Render
+  Deck.
+- Generate Fix candidates from each stage's bounded next patch.
+- Generate Bypass-style candidates by pulling only that stage's parameters
+  toward neutral, acknowledging that the current DSP graph is parameter-chain
+  based rather than a physically separate insert rack.
+- Render selected layer candidates through the same offline renderer,
+  Performance Script automation, Auto Tune, Render Review, and Render Deck
+  path as normal previews.
+- Preserve the distinction between character-direction Variant Lab takes and
+  signal-layer Stack Audition takes in UI labels and Take Decision evidence.
+- Keep the feature deterministic, local, and static so deeper per-layer bypass,
+  plugin insert slots, or offline-only processors can replace the approximation
+  later without changing the GitHub Pages constraint.

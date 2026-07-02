@@ -19,6 +19,7 @@ import { OfflineRenderer } from "./audio/offline-renderer.js";
 import { auditionVariantSummary, buildAuditionVariants } from "./audio/audition-variants.js";
 import { bestCharacterChainPatch, characterChainReport } from "./audio/character-chain.js";
 import { bestEffectStackPatch, buildEffectStack } from "./audio/effect-stack.js";
+import { buildStackAuditions, stackAuditionSummary } from "./audio/stack-audition.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "./audio/performance-trace.js";
 import { buildPerformanceScript, compareScriptToPerformance } from "./audio/performance-script.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
@@ -83,6 +84,7 @@ function init() {
   renderPerformanceScript();
   renderCharacterChain();
   renderEffectStack();
+  renderStackAuditions();
   renderVoiceMemory();
   renderPerformanceTrace();
   renderStudioPlan();
@@ -788,15 +790,22 @@ function bindOffline() {
   $("renderOffline").addEventListener("click", () => renderOfflineToPreview(false));
 
   $("renderVariantSet")?.addEventListener("click", () => renderAuditionVariantSet());
+  $("renderStackAuditions")?.addEventListener("click", () => renderStackAuditionSet());
 
   $("variantLabGrid")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-variant-render]");
     if (button) renderAuditionVariantSet(button.dataset.variantRender);
   });
 
+  $("stackAuditionGrid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-stack-audition-render]");
+    if (button) renderStackAuditionSet(button.dataset.stackAuditionRender);
+  });
+
   $("scriptAutomationRender")?.addEventListener("change", () => {
     renderAutomationPanel();
     renderAuditionVariants();
+    renderStackAuditions();
     renderStudioPlan();
   });
 
@@ -939,16 +948,19 @@ function renderOfflineToPreview(preview) {
   }
 }
 
-function addRenderedTakeToDeck(rendered, preview, variant = null) {
+function addRenderedTakeToDeck(rendered, preview, variant = null, stackAudition = null) {
   const review = renderReview(offline.source, rendered);
   const auditionVariant = variant || rendered.auditionVariant || null;
+  const stackLayer = stackAudition || rendered.stackAudition || null;
+  const badge = auditionVariant || stackLayer;
   const item = {
     id: `render-${Date.now()}-${state.renderDeckSeq += 1}`,
-    title: auditionVariant ? `${presetById(state.presetId).name} / ${auditionVariant.label}` : presetById(state.presetId).name,
+    title: badge ? `${presetById(state.presetId).name} / ${badge.label}` : presetById(state.presetId).name,
     target: lineReadById(state.lineReadId).name,
-    mode: `${preview ? "Preview" : "Full"}${rendered.scriptAutomated ? " Scripted" : ""}${auditionVariant ? " Variant" : ""}`,
+    mode: `${preview ? "Preview" : "Full"}${rendered.scriptAutomated ? " Scripted" : ""}${auditionVariant ? " Variant" : ""}${stackLayer ? " Stack" : ""}`,
     route: state.voiceRoutes.find((route) => route.presetId === state.presetId && route.targetId === state.lineReadId)?.targetName || null,
     variant: auditionVariant,
+    stackAudition: stackLayer,
     rendered,
     review
   };
@@ -977,6 +989,11 @@ function currentAuditionVariants() {
   const target = lineReadById(state.lineReadId);
   const sourceFit = offline.sourceFitReport(state.params, target);
   return buildAuditionVariants(state.params, target, { sourceFit, limit: 5 });
+}
+
+function currentStackAuditions() {
+  if (!offline.source) return [];
+  return buildStackAuditions(state.params, currentEffectStackReport(), { limit: 7 });
 }
 
 function renderAuditionVariants() {
@@ -1014,6 +1031,106 @@ function renderAuditionVariants() {
       </div>
     </button>
   `).join("");
+}
+
+function renderStackAuditions() {
+  const panel = $("stackAuditionPanel");
+  if (!panel) return;
+  const button = $("renderStackAuditions");
+  if (!offline.source) {
+    panel.className = "stack-audition";
+    $("stackAuditionStatus").textContent = "No source";
+    $("stackAuditionGrid").innerHTML = "";
+    if (button) button.disabled = true;
+    return;
+  }
+  const auditions = currentStackAuditions();
+  const summary = stackAuditionSummary(auditions);
+  panel.className = `stack-audition ${summary.ready ? "is-ready" : "is-check"}`;
+  $("stackAuditionStatus").textContent = `${summary.count} layer takes`;
+  if (button) button.disabled = !auditions.length;
+  $("stackAuditionGrid").innerHTML = auditions.map((audition) => `
+    <button class="stack-audition-card is-${audition.status}" data-stack-audition-render="${audition.id}" type="button">
+      <span class="stack-audition-score">${audition.score}% ${renderReviewStatusLabel(audition.status)} / ${escapeHtml(audition.type)}</span>
+      <strong>${escapeHtml(audition.label)}</strong>
+      <small>${escapeHtml(audition.intent)}</small>
+      <div class="stack-audition-axis-list">
+        ${audition.axes.map((axis) => `
+          <span style="--value:${axis.value}%">
+            <b>${escapeHtml(axis.label)}</b>
+            <i></i>
+            <em>${axis.value}%</em>
+          </span>
+        `).join("")}
+      </div>
+      <div class="stack-audition-patches">
+        ${audition.patch.slice(0, 4).map((patch) => `<span>${escapeHtml(paramLabel(patch.key))} <b>${formatPatchDelta(patch)}</b></span>`).join("")}
+      </div>
+    </button>
+  `).join("");
+}
+
+function renderStackAuditionSet(auditionId = null) {
+  if (!offline.source) {
+    toast("Stack Audition needs a source", "Generate or upload audio before rendering layer auditions.");
+    return;
+  }
+  const auditions = currentStackAuditions().filter((audition) => !auditionId || audition.id === auditionId);
+  if (!auditions.length) {
+    toast("No stack audition available", "The current signal stack has no renderable layer audition.");
+    return;
+  }
+
+  const autoTune = $("autoTuneRender").checked;
+  const scriptAuto = $("scriptAutomationRender")?.checked ?? true;
+  const target = lineReadById(state.lineReadId);
+  const region = currentRegion();
+  let lastRendered = null;
+  $("renderStatus").textContent = auditionId ? "Rendering stack layer" : "Rendering stack set";
+  for (const audition of auditions) {
+    const auditionScript = buildPerformanceScript(target, audition.params);
+    const rendered = offline.render(audition.params, {
+      autoCalibrate: autoTune,
+      automatePerformance: scriptAuto,
+      performanceScript: auditionScript,
+      automationOptions: { intensity: audition.automationIntensity },
+      region,
+      mode: "preview"
+    });
+    rendered.stackAudition = {
+      id: audition.id,
+      label: audition.label,
+      intent: audition.intent,
+      focus: audition.focus,
+      score: audition.score,
+      status: audition.status,
+      type: audition.type,
+      stageId: audition.stageId,
+      stageIntensity: audition.stageIntensity,
+      patch: audition.patch
+    };
+    addRenderedTakeToDeck(rendered, true, null, rendered.stackAudition);
+    lastRendered = rendered;
+  }
+
+  if (!lastRendered) return;
+  setAudioPreview("renderAudio", "render", lastRendered.blob, lastRendered.samples, lastRendered.sampleRate);
+  drawWaveform($("renderWave"), lastRendered.samples, "#8fa7ff");
+  drawAnalysisCards($("offlineAnalysis"), offline.source, lastRendered);
+  updateSourceFit();
+  updateRoutePlanner();
+  renderCharacterChain();
+  renderPerformanceTrace();
+  renderRenderDeck();
+  renderAuditionVariants();
+  renderStackAuditions();
+  $("downloadRender").disabled = false;
+  $("playCompare").disabled = false;
+  $("renderStatus").textContent = auditionId ? "Stack layer ready" : "Stack set ready";
+  toast(
+    auditionId ? "Stack audition rendered" : "Stack audition set rendered",
+    `${auditions.length} layer ${auditions.length === 1 ? "take" : "takes"} added to the deck.`
+  );
 }
 
 function renderAuditionVariantSet(variantId = null) {
@@ -1197,6 +1314,7 @@ function renderEffectStack() {
   const hasPatch = Object.keys(stack.nextPatch).some((key) => !key.startsWith("_"));
   $("applyStackFix").disabled = !hasPatch;
   $("applyStackFix").textContent = hasPatch && patchStage ? `Fix ${patchStage.label}` : "Stack Locked";
+  renderStackAuditions();
 }
 
 function applyNextEffectStackFix() {
@@ -1529,6 +1647,7 @@ function currentStudioPlan() {
     chainReport,
     effectStack,
     voiceMemory,
+    stackAuditionCount: currentStackAuditions().length,
     renderReview: review,
     performanceComparison: currentPerformanceComparison(),
     performanceScript: currentPerformanceScript(),
@@ -1614,6 +1733,10 @@ function applyStudioPlanStep() {
     applyNextEffectStackFix();
     return;
   }
+  if (action.id === "render-stack") {
+    renderStackAuditionSet();
+    return;
+  }
   if (action.id === "capture-memory") {
     captureVoiceMemory();
     return;
@@ -1669,12 +1792,15 @@ function renderRenderDeck() {
     const review = item.review;
     const active = item.id === state.activeRenderId;
     const metrics = review?.items || [];
+    const badge = item.variant || item.stackAudition || null;
+    const badgeLabel = item.stackAudition ? `Stack: ${item.stackAudition.label}` : badge?.label || "";
+    const detail = badge ? `${badge.intent} ${renderReviewSummary(review)}` : renderReviewSummary(review);
     return `
       <button class="render-card is-${review?.status || "empty"} ${active ? "is-active" : ""}" data-render-deck="${item.id}" type="button">
         <span class="render-card-score">${review ? `${review.score}% ${renderReviewStatusLabel(review.status)}` : "No review"}</span>
         <strong>${escapeHtml(item.title)}</strong>
         <small>${escapeHtml(item.target)} - ${escapeHtml(item.mode)} ${index === 0 ? "latest" : `#${index + 1}`}</small>
-        ${item.variant ? `<span class="render-card-variant">${escapeHtml(item.variant.label)}</span>` : ""}
+        ${badge ? `<span class="render-card-variant">${escapeHtml(badgeLabel)}</span>` : ""}
         <div class="render-card-metrics">
           ${metrics.map((metric) => `
             <span>
@@ -1683,7 +1809,7 @@ function renderRenderDeck() {
             </span>
           `).join("")}
         </div>
-        <p>${escapeHtml(item.variant ? `${item.variant.intent} ${renderReviewSummary(review)}` : renderReviewSummary(review))}</p>
+        <p>${escapeHtml(detail)}</p>
       </button>
     `;
   }).join("");

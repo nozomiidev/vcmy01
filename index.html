@@ -225,6 +225,13 @@
                 <div class="effect-stack-flow" id="effectStackFlow"></div>
                 <div class="effect-stack-patches" id="effectStackPatches"></div>
               </div>
+              <div class="stack-audition" id="stackAuditionPanel">
+                <div class="stack-audition-head">
+                  <span>Stack Audition</span>
+                  <strong id="stackAuditionStatus">No source</strong>
+                </div>
+                <div class="stack-audition-grid" id="stackAuditionGrid"></div>
+              </div>
               <div class="voice-memory" id="voiceMemoryPanel">
                 <div class="voice-memory-head">
                   <span>Design Board</span>
@@ -278,6 +285,7 @@
               <div class="source-actions">
                 <button class="command primary" id="previewOffline" type="button">Preview Region</button>
                 <button class="command" id="renderVariantSet" type="button" disabled>Render Variants</button>
+                <button class="command" id="renderStackAuditions" type="button" disabled>Render Stack</button>
                 <button class="command" id="renderOffline" type="button">Render Full Voice</button>
                 <label class="toggle-command">
                   <input id="autoTuneRender" type="checkbox" checked>
