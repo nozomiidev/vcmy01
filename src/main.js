@@ -1,5 +1,6 @@
 import { DIRECTOR_DEFS, FACTORY_PRESETS, MACRO_DEFS, PARAM_DEFS, paramsForPreset, presetById } from "./audio/presets.js";
 import {
+  coachLineReadTarget,
   firstLineReadForPreset,
   LINE_READ_TARGETS,
   lineReadById,
@@ -11,6 +12,8 @@ import {
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
+import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
+import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
@@ -30,6 +33,10 @@ const state = {
   sourceUrl: null,
   offlineRegion: { startSec: 0, durationSec: 0 },
   lineReadId: savedLineReadId || firstLineReadForPreset(savedPresetId).id,
+  voiceRoutes: [],
+  renderDeck: [],
+  activeRenderId: null,
+  renderDeckSeq: 0,
   qualitySuite: null
 };
 
@@ -99,6 +106,8 @@ function renderPresets() {
       renderLineReadPanel();
       renderLineReadLibrary();
       updateActivePreset();
+      updateSourceFit();
+      updateRoutePlanner();
       toast(presetById(state.presetId).name, presetById(state.presetId).target);
     });
   });
@@ -120,12 +129,15 @@ function renderControlGroup(host, defs) {
   host.querySelectorAll("input[type=range]").forEach((input) => {
     const key = input.dataset.key;
     input.addEventListener("input", () => {
+      delete state.params._sourceCalibration;
       state.params[key] = Number(input.value);
       const output = host.querySelector(`[data-output="${key}"]`);
       if (output) output.textContent = formatValue(state.params[key], defs.find((d) => d.key === key));
       persist();
       engine.setParams(state.params);
       updateLineReadScore();
+      updateSourceFit();
+      updateRoutePlanner();
     });
   });
 }
@@ -224,6 +236,8 @@ function bindTransport() {
     engine.setParams(state.params);
     renderControls();
     updateLineReadScore();
+    updateSourceFit();
+    updateRoutePlanner();
   });
 
   $("clearTakes").addEventListener("click", async () => {
@@ -242,6 +256,7 @@ function toggleMonitor(on) {
 
 function bindLineReads() {
   $("applyActiveLineRead").addEventListener("click", () => applyLineReadTarget(state.lineReadId));
+  $("applyNextLineReadFix").addEventListener("click", applyNextLineReadFix);
   $("nextLineRead").addEventListener("click", () => {
     const index = LINE_READ_TARGETS.findIndex((target) => target.id === state.lineReadId);
     const next = LINE_READ_TARGETS[(index + 1 + LINE_READ_TARGETS.length) % LINE_READ_TARGETS.length];
@@ -263,7 +278,27 @@ function applyLineReadTarget(id) {
   renderLineReadPanel();
   renderLineReadLibrary();
   updateActivePreset();
+  updateSourceFit();
+  updateRoutePlanner();
   toast(target.name, target.direction);
+}
+
+function applyNextLineReadFix() {
+  const target = lineReadById(state.lineReadId);
+  const coach = coachLineReadTarget(state.params, target, 1);
+  const [key, value] = Object.entries(coach.nextPatch)[0] || [];
+  if (!key) {
+    toast("Target already matched", "Line Read controls are locked to this read.");
+    return;
+  }
+  state.params = { ...state.params, [key]: value };
+  persist();
+  engine.setParams(state.params);
+  renderControls();
+  updateLineReadScore();
+  updateSourceFit();
+  updateRoutePlanner();
+  toast("Next fix applied", `${coach.cues[0].label} ${signed(Math.round(coach.cues[0].delta))}`);
 }
 
 function renderLineReadPanel() {
@@ -310,7 +345,40 @@ function renderLineReadDiagnostics() {
   $("activeLineReadGaps").innerHTML = gaps.map((axis) => `
     <span>${axis.action === "raise" ? "Raise" : "Lower"} ${escapeHtml(axis.fullLabel)} <b>${signed(Math.round(axis.delta))}</b></span>
   `).join("");
+  renderLineReadCoach(target);
   drawLineReadRadar(axes.slice(0, 6));
+}
+
+function renderLineReadCoach(target) {
+  const coach = coachLineReadTarget(state.params, target, 3);
+  $("lineReadCoachStatus").textContent = coachStatusLabel(coach.status);
+  $("lineReadRecipeFlow").innerHTML = coach.groups.map((group) => `
+    <div class="recipe-step is-${group.status}" data-recipe="${group.id}">
+      <span>${escapeHtml(group.label)}</span>
+      <strong>${group.score}%</strong>
+      <small>${group.gap ? `${group.gap.action === "raise" ? "Raise" : "Lower"} ${escapeHtml(group.gap.label)}` : "Locked"}</small>
+    </div>
+  `).join("");
+  $("lineReadCoachList").innerHTML = coach.cues.length ? coach.cues.map((cue) => `
+    <div class="coach-item" data-axis="${cue.key}">
+      <span>${cue.action === "raise" ? "Raise" : "Lower"} ${escapeHtml(cue.label)} <b>${signed(Math.round(cue.delta))}</b></span>
+      <p>${escapeHtml(cue.cue)}</p>
+    </div>
+  `).join("") : `
+    <div class="coach-item is-locked">
+      <span>Target locked</span>
+      <p>The current macro and director controls match this Line Read.</p>
+    </div>
+  `;
+  const next = coach.cues[0];
+  $("applyNextLineReadFix").disabled = !next;
+  $("applyNextLineReadFix").textContent = next ? `Fix ${next.label}` : "Target Locked";
+}
+
+function coachStatusLabel(status) {
+  if (status === "locked") return "Locked";
+  if (status === "polish") return "Polish";
+  return "Shape";
 }
 
 function drawLineReadRadar(axes) {
@@ -441,6 +509,8 @@ function bindOffline() {
       $("sourceStatus").textContent = `${offline.source.name} - ${profile.range} source`;
       drawSourceWaveform();
       drawAnalysisCards($("offlineAnalysis"), offline.source, offline.rendered);
+      updateSourceFit();
+      updateRoutePlanner();
       toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
     } catch (error) {
       toast("Analysis needs a source", error.message || "Generate or upload audio first.");
@@ -454,6 +524,9 @@ function bindOffline() {
       persist();
       engine.setParams(state.params);
       renderControls();
+      updateLineReadScore();
+      updateSourceFit();
+      updateRoutePlanner();
       toast("Tuned to source", describeCalibrationDelta(before, state.params));
     } catch (error) {
       toast("Tuning needs a source", error.message || "Generate or upload audio first.");
@@ -488,16 +561,29 @@ function bindOffline() {
       toast("A/B playback failed", error.message || "Use the audio controls to play both versions.");
     }
   });
+
+  $("voiceRouteList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-route]");
+    if (button) applyVoiceRoute(button.dataset.route);
+  });
+
+  $("renderDeckList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-render-deck]");
+    if (button) selectRenderDeckItem(button.dataset.renderDeck);
+  });
 }
 
 function useOfflineSource(source) {
   setAudioPreview("sourceAudio", "source", source.blob, source.samples, source.sampleRate);
+  clearRenderDeck();
   clearOfflineRenderPreview();
   setDefaultRegion(source);
   $("sourceStatus").textContent = `${source.name} - ${source.analysis.range} source`;
   $("renderStatus").textContent = "Ready";
   updateRegionControls();
   drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
+  updateSourceFit();
+  updateRoutePlanner();
 }
 
 function renderOfflineToPreview(preview) {
@@ -511,6 +597,10 @@ function renderOfflineToPreview(preview) {
     setAudioPreview("renderAudio", "render", rendered.blob, rendered.samples, rendered.sampleRate);
     drawWaveform($("renderWave"), rendered.samples, "#8fa7ff");
     drawAnalysisCards($("offlineAnalysis"), offline.source, rendered);
+    addRenderedTakeToDeck(rendered, preview);
+    updateSourceFit();
+    updateRoutePlanner();
+    renderRenderDeck();
     $("renderStatus").textContent = preview
       ? autoTune ? "Preview - tuned" : "Preview ready"
       : autoTune ? "Rendered - tuned" : "Rendered";
@@ -521,6 +611,185 @@ function renderOfflineToPreview(preview) {
   } catch (error) {
     toast(preview ? "Preview needs a source" : "Render needs a source", error.message || "Generate or upload audio first.");
   }
+}
+
+function addRenderedTakeToDeck(rendered, preview) {
+  const review = renderReview(offline.source, rendered);
+  const item = {
+    id: `render-${Date.now()}-${state.renderDeckSeq += 1}`,
+    title: presetById(state.presetId).name,
+    target: lineReadById(state.lineReadId).name,
+    mode: preview ? "Preview" : "Full",
+    route: state.voiceRoutes.find((route) => route.presetId === state.presetId && route.targetId === state.lineReadId)?.targetName || null,
+    rendered,
+    review
+  };
+  state.renderDeck = addRenderDeckItem(state.renderDeck, item);
+  state.activeRenderId = item.id;
+}
+
+function selectRenderDeckItem(id) {
+  const item = state.renderDeck.find((candidate) => candidate.id === id);
+  if (!item) return;
+  state.activeRenderId = item.id;
+  offline.rendered = item.rendered;
+  setAudioPreview("renderAudio", "render", item.rendered.blob, item.rendered.samples, item.rendered.sampleRate);
+  drawWaveform($("renderWave"), item.rendered.samples, "#8fa7ff");
+  drawAnalysisCards($("offlineAnalysis"), offline.source, item.rendered);
+  $("renderStatus").textContent = item.rendered.mode === "preview" ? "Preview ready" : "Rendered";
+  $("downloadRender").disabled = false;
+  $("playCompare").disabled = false;
+  renderRenderDeck();
+}
+
+function renderRenderDeck() {
+  const host = $("renderDeckList");
+  if (!host) return;
+  if (!state.renderDeck.length) {
+    $("renderDeckStatus").textContent = "No renders";
+    host.innerHTML = "";
+    return;
+  }
+  $("renderDeckStatus").textContent = `${state.renderDeck.length} takes / ${totalDeckSeconds(state.renderDeck).toFixed(1)}s`;
+  host.innerHTML = state.renderDeck.map((item, index) => {
+    const review = item.review;
+    const active = item.id === state.activeRenderId;
+    const metrics = review?.items || [];
+    return `
+      <button class="render-card is-${review?.status || "empty"} ${active ? "is-active" : ""}" data-render-deck="${item.id}" type="button">
+        <span class="render-card-score">${review ? `${review.score}% ${renderReviewStatusLabel(review.status)}` : "No review"}</span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.target)} - ${escapeHtml(item.mode)} ${index === 0 ? "latest" : `#${index + 1}`}</small>
+        <div class="render-card-metrics">
+          ${metrics.map((metric) => `
+            <span>
+              ${escapeHtml(metric.label)}
+              <b>${escapeHtml(metric.value)}</b>
+            </span>
+          `).join("")}
+        </div>
+        <p>${escapeHtml(renderReviewSummary(review))}</p>
+      </button>
+    `;
+  }).join("");
+}
+
+function clearRenderDeck() {
+  state.renderDeck = [];
+  state.activeRenderId = null;
+  renderRenderDeck();
+}
+
+function renderReviewStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "check") return "Check";
+  return "Risk";
+}
+
+function renderReviewSummary(review) {
+  if (!review) return "Render review unavailable.";
+  return review.items.slice(0, 2).map((item) => `${item.label} ${item.value}`).join(" / ");
+}
+
+function updateSourceFit() {
+  const panel = $("sourceFitPanel");
+  if (!panel) return;
+  const report = offline.sourceFitReport(state.params, lineReadById(state.lineReadId));
+  if (!report) {
+    panel.className = "source-fit";
+    $("sourceFitScore").textContent = "No source";
+    $("sourceFitGrid").innerHTML = "";
+    $("sourceFitPatches").innerHTML = "";
+    return;
+  }
+  panel.className = `source-fit is-${report.status}`;
+  $("sourceFitScore").textContent = `${report.score}% ${sourceFitStatusLabel(report.status)}`;
+  $("sourceFitGrid").innerHTML = report.items.map((item) => `
+    <div class="source-fit-card is-${item.status}" data-fit="${item.id}">
+      <span>${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <small>${escapeHtml(item.detail)}</small>
+    </div>
+  `).join("");
+  $("sourceFitPatches").innerHTML = report.patches.length ? report.patches.slice(0, 6).map((patch) => `
+    <span data-patch="${patch.key}">
+      ${escapeHtml(paramLabel(patch.key))}
+      <b>${formatPatchDelta(patch)}</b>
+    </span>
+  `).join("") : `<span>No source patch needed <b>0</b></span>`;
+}
+
+function updateRoutePlanner() {
+  const panel = $("routePlanner");
+  if (!panel) return;
+  if (!offline.source || !offline.profile) {
+    state.voiceRoutes = [];
+    panel.className = "route-planner";
+    $("routePlannerStatus").textContent = "No source";
+    $("voiceRouteList").innerHTML = "";
+    return;
+  }
+  state.voiceRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });
+  const topRoute = state.voiceRoutes[0];
+  panel.className = `route-planner is-${topRoute?.status || "empty"}`;
+  $("routePlannerStatus").textContent = topRoute ? `${topRoute.score}% best` : "No route";
+  $("voiceRouteList").innerHTML = state.voiceRoutes.map((route) => {
+    const active = route.presetId === state.presetId && route.targetId === state.lineReadId;
+    const patchText = route.patches.length
+      ? route.patches.slice(0, 3).map((patch) => `<span>${escapeHtml(paramLabel(patch.key))} <b>${formatPatchDelta(patch)}</b></span>`).join("")
+      : `<span>No patch <b>0</b></span>`;
+    const reasonText = route.reasons.length
+      ? route.reasons.slice(0, 2).map((reason) => `<span>${escapeHtml(reason)}</span>`).join("")
+      : `<span>Source aligned</span>`;
+    return `
+      <button class="voice-route is-${route.status} ${active ? "is-active" : ""}" data-route="${route.id}" type="button">
+        <span class="route-score">${route.score}% ${routeStatusLabel(route.status)}</span>
+        <strong>${escapeHtml(route.presetName)}</strong>
+        <small>${escapeHtml(route.targetName)}</small>
+        <p>${escapeHtml(route.direction)}</p>
+        <div class="route-metrics">
+          <span>Fit <b>${route.fitAfterScore}%</b></span>
+          <span>Read <b>${route.targetScore}%</b></span>
+          <span>Patch <b>${route.patchCount}</b></span>
+        </div>
+        <div class="route-patches">${patchText}</div>
+        <div class="route-reasons">${reasonText}</div>
+      </button>
+    `;
+  }).join("");
+}
+
+function applyVoiceRoute(routeId) {
+  const route = state.voiceRoutes.find((item) => item.id === routeId);
+  if (!route) {
+    toast("Route needs a source", "Generate or upload audio before choosing a voice route.");
+    return;
+  }
+  state.presetId = route.presetId;
+  state.lineReadId = route.hasLineRead ? route.targetId : firstLineReadForPreset(route.presetId).id;
+  state.params = { ...route.tunedParams };
+  persist();
+  engine.setParams(state.params);
+  renderPresets();
+  renderControls();
+  renderLineReadPanel();
+  renderLineReadLibrary();
+  updateActivePreset();
+  updateSourceFit();
+  updateRoutePlanner();
+  toast("Route applied", `${route.presetName} - ${route.targetName}; ${route.patchCount ? `${route.patchCount} source patches` : "source aligned"}.`);
+}
+
+function sourceFitStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "tune") return "Tune";
+  return "Risk";
+}
+
+function routeStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "tune") return "Tune";
+  return "Risk";
 }
 
 function setDefaultRegion(source) {
@@ -618,6 +887,18 @@ function describeCalibrationDelta(before, after) {
     .slice(0, 4)
     .map((item) => `${names.get(item.key) || item.key} ${item.delta > 0 ? "+" : ""}${item.delta.toFixed(item.key === "pitch" || item.key === "formant" ? 1 : 0)}`);
   return changes.length ? changes.join(", ") : "Profile already fits this voice.";
+}
+
+function paramLabel(key) {
+  if (key === "inputGain") return "Input Gain";
+  return [...MACRO_DEFS, ...DIRECTOR_DEFS, ...PARAM_DEFS].find((def) => def.key === key)?.label || key;
+}
+
+function formatPatchDelta(patch) {
+  const def = [...MACRO_DEFS, ...DIRECTOR_DEFS, ...PARAM_DEFS].find((item) => item.key === patch.key);
+  const unit = patch.key === "inputGain" ? " dB" : def?.unit || "";
+  const fixed = patch.key === "pitch" || patch.key === "formant" || patch.key === "inputGain" ? 1 : 0;
+  return `${patch.delta > 0 ? "+" : ""}${patch.delta.toFixed(fixed)}${unit}`;
 }
 
 function playSnippet(audio, seconds, startSec = 0) {

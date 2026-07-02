@@ -31,8 +31,16 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   calibration reads.
 - Line Read target visualization with radar and per-axis gap bars for lift,
   softness, energy, distance, breath placement, confidence, and related macros.
+- Line Read coaching that turns target drift into recipe-group scores and a
+  focused Apply Next Fix workflow before committing to a full target.
 - Offline generated/uploaded source processing with analysis, A/B compare,
   preview-region rendering, source-aware Auto Tune, and WAV export.
+- Source Fit scoring for generated or uploaded audio, including target range,
+  level, tone, texture, and the calibration patch that Tune to Source would add.
+- Voice Route planning that ranks character targets for the current source and
+  applies the preset, Line Read, and source-tuned chain as one workflow.
+- Render Deck auditions for offline previews/full renders with F0, level, tone,
+  texture, and review-score deltas for comparing multiple takes.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
   local take storage, and diagnostics.
 

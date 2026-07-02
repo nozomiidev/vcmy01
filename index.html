@@ -117,6 +117,15 @@
                 </div>
               </div>
               <div class="target-axis-list" id="lineReadBreakdown"></div>
+              <div class="coach-panel">
+                <div class="coach-head">
+                  <span>Coach</span>
+                  <strong id="lineReadCoachStatus">Locked</strong>
+                </div>
+                <div class="recipe-flow" id="lineReadRecipeFlow"></div>
+                <div class="coach-list" id="lineReadCoachList"></div>
+                <button class="command" id="applyNextLineReadFix" type="button">Apply Next Fix</button>
+              </div>
             </section>
 
             <section class="panel visual-panel">
@@ -163,6 +172,21 @@
                   Upload Audio
                 </label>
               </div>
+              <div class="source-fit" id="sourceFitPanel">
+                <div class="source-fit-head">
+                  <span>Source Fit</span>
+                  <strong id="sourceFitScore">No source</strong>
+                </div>
+                <div class="source-fit-grid" id="sourceFitGrid"></div>
+                <div class="source-fit-patches" id="sourceFitPatches"></div>
+              </div>
+              <div class="route-planner" id="routePlanner">
+                <div class="route-planner-head">
+                  <span>Voice Route</span>
+                  <strong id="routePlannerStatus">No source</strong>
+                </div>
+                <div class="voice-route-list" id="voiceRouteList"></div>
+              </div>
               <canvas id="sourceWave" class="scope" height="120" aria-label="Source waveform"></canvas>
               <div class="region-controls" aria-label="Offline preview region">
                 <div class="region-head">
@@ -203,6 +227,13 @@
               <canvas id="renderWave" class="scope" height="120" aria-label="Rendered waveform"></canvas>
               <audio id="renderAudio" controls></audio>
               <div class="analysis-grid" id="offlineAnalysis"></div>
+              <div class="render-deck" id="renderDeckPanel">
+                <div class="render-deck-head">
+                  <span>Render Deck</span>
+                  <strong id="renderDeckStatus">No renders</strong>
+                </div>
+                <div class="render-deck-list" id="renderDeckList"></div>
+              </div>
             </section>
           </div>
         </section>

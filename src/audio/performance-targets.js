@@ -30,6 +30,75 @@ export const PERFORMANCE_AXES = Object.freeze([
   { key: "consonantSoftness", label: "Consonants", fullLabel: "Soft Consonants", range: 100 }
 ]);
 
+const RECIPE_GROUPS = Object.freeze([
+  {
+    id: "character",
+    label: "Character",
+    keys: ["cuteness", "anime", "body", "consonantSoftness"]
+  },
+  {
+    id: "performance",
+    label: "Performance",
+    keys: ["phraseLift", "endingSoftness", "deliveryEnergy", "confidence"]
+  },
+  {
+    id: "distance",
+    label: "Distance",
+    keys: ["closeMic", "romanticBreath", "intimacy", "breath"]
+  }
+]);
+
+const AXIS_CUES = Object.freeze({
+  phraseLift: {
+    raise: "Lift the phrase contour and keep the motion brighter.",
+    lower: "Flatten the phrase arc so the read feels more controlled."
+  },
+  endingSoftness: {
+    raise: "Soften the tail and let the ending release more gently.",
+    lower: "Tighten the ending so it lands with less softness."
+  },
+  deliveryEnergy: {
+    raise: "Push the read forward with more attack and level stability.",
+    lower: "Pull the delivery back and leave more room between phrases."
+  },
+  closeMic: {
+    raise: "Move the voice closer and make the proximity feel more intimate.",
+    lower: "Step the voice back so the character feels less near-mic."
+  },
+  romanticBreath: {
+    raise: "Place more breath after phrases without washing out consonants.",
+    lower: "Clean up breath placement so the read stays clearer."
+  },
+  confidence: {
+    raise: "Add firmer intent and a steadier finish.",
+    lower: "Relax the finish so the character feels less assertive."
+  },
+  cuteness: {
+    raise: "Narrow the character brighter and sweeter.",
+    lower: "Reduce sweetness so the voice feels less cute."
+  },
+  anime: {
+    raise: "Bring the upper lift forward for a more animated read.",
+    lower: "Reduce animated lift for a more grounded read."
+  },
+  intimacy: {
+    raise: "Bring the delivery closer and more confidential.",
+    lower: "Open the distance so the read feels less private."
+  },
+  body: {
+    raise: "Add body and chest weight without over-darkening the vowels.",
+    lower: "Lighten the body so the mouth feels smaller and brighter."
+  },
+  breath: {
+    raise: "Add controlled air texture for softness and presence.",
+    lower: "Reduce air texture so the voice stays cleaner."
+  },
+  consonantSoftness: {
+    raise: "Round consonants so the read feels softer.",
+    lower: "Restore consonant edge for clearer articulation."
+  }
+});
+
 const SCORE_RANGES = Object.freeze({
   body: 200,
   default: 100
@@ -198,6 +267,67 @@ export const LINE_READ_TARGETS = Object.freeze([
       ambience: 16,
       compression: 64
     }
+  },
+  {
+    id: "radio_tag",
+    presetId: "radio",
+    name: "Radio Tag",
+    line: "You are tuned to the signal that cuts through the whole night.",
+    direction: "Compressed broadcast push, narrow space, clear tag ending.",
+    tags: ["radio", "broadcast", "compressed"],
+    sourceProfileId: "neutral_medium",
+    params: {
+      body: 36,
+      phraseLift: 6,
+      endingSoftness: 10,
+      deliveryEnergy: 90,
+      closeMic: 18,
+      romanticBreath: 0,
+      confidence: 92,
+      compression: 82,
+      presence: 72
+    }
+  },
+  {
+    id: "robot_protocol",
+    presetId: "robot",
+    name: "Robot Protocol",
+    line: "Protocol accepted. Emotional variance remains within useful limits.",
+    direction: "Mechanical timing, dry confidence, intelligible metallic tone.",
+    tags: ["robot", "machine", "dry"],
+    sourceProfileId: "neutral_medium",
+    params: {
+      phraseLift: 4,
+      endingSoftness: 0,
+      deliveryEnergy: 72,
+      closeMic: 0,
+      romanticBreath: 0,
+      confidence: 70,
+      consonantSoftness: 8,
+      robot: 84,
+      compression: 62
+    }
+  },
+  {
+    id: "creature_warning",
+    presetId: "creature",
+    name: "Creature Warning",
+    line: "Step back while the room still remembers your shape.",
+    direction: "Large dark mouth, forward threat, minimal lift, rough body.",
+    tags: ["creature", "monster", "dark"],
+    sourceProfileId: "low_warm",
+    params: {
+      body: 92,
+      phraseLift: 0,
+      endingSoftness: 24,
+      deliveryEnergy: 82,
+      closeMic: 58,
+      romanticBreath: 0,
+      confidence: 62,
+      breath: 20,
+      consonantSoftness: 8,
+      creature: 78
+    }
   }
 ]);
 
@@ -260,4 +390,51 @@ export function topTargetGaps(params, targetOrId, limit = 3) {
     .filter((axis) => axis.targeted && axis.action !== "hold")
     .sort((a, b) => b.normalizedGap - a.normalizedGap)
     .slice(0, limit);
+}
+
+export function lineReadRecipe(params, targetOrId) {
+  const axes = targetMatchBreakdown(params, targetOrId).filter((axis) => axis.targeted);
+  return RECIPE_GROUPS.map((group) => {
+    const groupAxes = axes.filter((axis) => group.keys.includes(axis.key));
+    const score = groupAxes.length
+      ? Math.round(groupAxes.reduce((sum, axis) => sum + axis.score, 0) / groupAxes.length)
+      : 100;
+    const largestGap = [...groupAxes]
+      .filter((axis) => axis.action !== "hold")
+      .sort((a, b) => b.normalizedGap - a.normalizedGap)[0] || null;
+    return {
+      id: group.id,
+      label: group.label,
+      score,
+      status: score >= 98 ? "locked" : score >= 90 ? "polish" : "shape",
+      gap: largestGap ? coachCueForAxis(largestGap) : null
+    };
+  });
+}
+
+export function coachLineReadTarget(params, targetOrId, limit = 3) {
+  const score = scoreLineReadTarget(params, targetOrId);
+  const gaps = topTargetGaps(params, targetOrId, limit).map(coachCueForAxis);
+  const next = gaps[0] || null;
+  return {
+    score,
+    status: score >= 98 ? "locked" : score >= 90 ? "polish" : "shape",
+    groups: lineReadRecipe(params, targetOrId),
+    cues: gaps,
+    nextPatch: next ? { [next.key]: next.target } : {}
+  };
+}
+
+function coachCueForAxis(axis) {
+  const cue = AXIS_CUES[axis.key]?.[axis.action] || "Move this axis toward the target.";
+  return {
+    key: axis.key,
+    label: axis.fullLabel,
+    action: axis.action,
+    current: axis.current,
+    target: axis.target,
+    delta: axis.delta,
+    score: axis.score,
+    cue
+  };
 }

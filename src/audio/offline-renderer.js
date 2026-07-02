@@ -4,7 +4,8 @@ import {
   calibrateParamsForVoice,
   encodeWavMono,
   generateReferenceVoice,
-  processVoiceBuffer
+  processVoiceBuffer,
+  referenceVoiceProfileById
 } from "./dsp-core.js";
 
 export class OfflineRenderer {
@@ -88,6 +89,63 @@ export class OfflineRenderer {
     };
     return this.rendered;
   }
+
+  sourceFitReport(params, target = null) {
+    if (!this.source) return null;
+    if (!this.profile) this.analyze();
+    return sourceFitReport(params, this.profile, target, this.source);
+  }
+}
+
+export function sourceFitReport(params = {}, profile = {}, target = null, source = {}) {
+  const expected = target?.sourceProfileId ? referenceVoiceProfileById(target.sourceProfileId) : null;
+  const expectedRange = expected ? rangeForF0(expected.f0) : "any";
+  const rangeMatch = expected
+    ? source.sourceProfileId === expected.id || profile.range === expectedRange || (expected.id === "breathy_close" && profile.breathyOrNoisy)
+    : true;
+  const calibrated = calibrateParamsForVoice(params, profile);
+  const patches = paramDeltas(params, calibrated);
+  const items = [
+    {
+      id: "range",
+      label: "Range",
+      status: rangeMatch ? "ready" : profile.range === "unknown" ? "tune" : "risk",
+      value: `${profile.range || "unknown"} -> ${expected?.name || "Any"}`,
+      detail: rangeMatch ? "Source range supports this target." : "Target may need range compensation."
+    },
+    {
+      id: "level",
+      label: "Level",
+      status: profile.tooQuiet || profile.tooHot ? "tune" : "ready",
+      value: `${formatDb(profile.rmsDb)} RMS / ${formatDb(profile.peakDb)} peak`,
+      detail: profile.tooQuiet ? "Input needs lift before character shaping." : profile.tooHot ? "Input needs headroom before rendering." : "Level has usable headroom."
+    },
+    {
+      id: "tone",
+      label: "Tone",
+      status: profile.bright || profile.dark ? "tune" : "ready",
+      value: profile.bright ? "bright" : profile.dark ? "dark" : "balanced",
+      detail: profile.bright ? "De-essing and darker balance are recommended." : profile.dark ? "Air and brightness compensation are recommended." : "Tone is balanced enough for this chain."
+    },
+    {
+      id: "texture",
+      label: "Texture",
+      status: textureStatus(profile, expected),
+      value: profile.breathyOrNoisy ? "breathy/noisy" : "controlled",
+      detail: textureDetail(profile, expected)
+    }
+  ];
+  const patchPenalty = patches.reduce((sum, item) => sum + Math.min(10, Math.abs(item.delta)), 0);
+  const statusPenalty = items.reduce((sum, item) => sum + (item.status === "risk" ? 18 : item.status === "tune" ? 8 : 0), 0);
+  const score = Math.max(0, Math.min(100, Math.round(100 - statusPenalty - Math.min(24, patchPenalty))));
+  return {
+    score,
+    status: score >= 86 ? "ready" : score >= 68 ? "tune" : "risk",
+    expectedSource: expected ? expected.name : "Any",
+    sourceRange: profile.range || "unknown",
+    items,
+    patches
+  };
 }
 
 export function normalizeRenderRegion(sampleCount, sampleRate, region = null) {
@@ -119,6 +177,29 @@ export function normalizeRenderRegion(sampleCount, sampleRate, region = null) {
     durationSec: Math.max(0, endSec - startSample / sampleRate),
     isFull: startSample === 0 && endSample === totalSamples
   };
+}
+
+function rangeForF0(f0) {
+  if (!Number.isFinite(f0) || f0 <= 0) return "unknown";
+  if (f0 < 120) return "low";
+  if (f0 < 185) return "medium";
+  return "high";
+}
+
+function textureStatus(profile, expected) {
+  if (expected?.id === "breathy_close") return profile.breathyOrNoisy ? "ready" : "tune";
+  return profile.breathyOrNoisy ? "tune" : "ready";
+}
+
+function textureDetail(profile, expected) {
+  if (expected?.id === "breathy_close") {
+    return profile.breathyOrNoisy ? "Breathy source texture supports this target." : "Close breath targets may need added whisper texture.";
+  }
+  return profile.breathyOrNoisy ? "Noise cleanup is recommended before character shaping." : "Texture is controlled enough for this target.";
+}
+
+function formatDb(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)} dB` : "-inf dB";
 }
 
 function clampNumber(value, min, max) {

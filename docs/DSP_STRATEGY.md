@@ -116,6 +116,12 @@ gaps, and draws a compact radar so users can see whether a read is missing lift,
 softness, energy, distance, breath placement, or confidence before rendering
 another take.
 
+The next layer is coaching. Target drift is now grouped into Character,
+Performance, and Distance recipe stages, and the UI exposes an Apply Next Fix
+action that moves only the highest-priority missing axis. This keeps the full
+Apply Target path for fast setup while also supporting iterative shaping, which
+is closer to how a user would tune an acted character read.
+
 ## Calibration
 
 Presets should eventually ask for or infer:
@@ -139,6 +145,24 @@ Offline rendering should support render-time Auto Tune. This applies calibration
 to the rendered output without permanently moving the user's live sliders, while
 the explicit Tune to Source command remains available when the user wants to
 commit those offsets to the current voice chain.
+
+Source Fit is the workflow layer on top of this calibration. It compares the
+loaded or generated source against the active Line Read target, scores range,
+level, tone, and texture, and exposes the exact patch that Tune to Source would
+apply. This makes source calibration part of the creative decision flow instead
+of a hidden DSP side effect.
+
+Voice Route planning sits one layer above Source Fit. It ranks every character
+target for the loaded source, combines pre-tune fit, post-tune fit, Line Read
+match, patch load, and explicit source-profile hints, then lets the user apply
+the route as preset + Line Read + source-tuned parameters. This turns
+calibration from a corrective button into a route-selection workflow.
+
+Render Deck is the audition layer after rendering. Every offline preview or full
+render can be kept as a bounded in-memory take with F0 movement, level delta,
+tone delta, texture delta, and a review score. The deck is intentionally capped
+by item count and total seconds so comparison does not become an unbounded audio
+buffer leak.
 
 ## Prosody And Performance
 

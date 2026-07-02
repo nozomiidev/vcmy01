@@ -50,6 +50,14 @@ GitHub Pages.
   against acting intent, not just signal movement.
 - Expand Line Read target visualizations so users can see macro/director drift
   before rendering or recording another take.
+- Turn Line Read target drift into coaching and one-step corrections so users
+  can shape a read progressively instead of only applying a full preset.
+- Add Source Fit scoring for generated/uploaded audio so calibration becomes an
+  explicit render decision with visible patch deltas.
+- Add Voice Route planning so users can rank likely character targets for the
+  current source and apply preset, Line Read, and source tuning together.
+- Add a bounded Render Deck so multiple offline previews/full renders can be
+  compared by audible output and measured deltas without leaking memory.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic
