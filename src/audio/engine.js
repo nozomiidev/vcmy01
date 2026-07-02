@@ -146,6 +146,10 @@ export class LiveAudioEngine extends EventTarget {
       anime: p.anime / 100,
       cuteness: p.cuteness / 100,
       intimacy: p.intimacy / 100,
+      brightness: p.brightness / 100,
+      presence: p.presence / 100,
+      air: p.air / 100,
+      consonantSoftness: p.consonantSoftness / 100,
       saturation: p.saturation / 100,
       outputGain: dbToLin(p.outputGain)
     });

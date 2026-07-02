@@ -464,6 +464,7 @@ function renderQualityMatrix(suite) {
           <th class="numeric">F0</th>
           <th class="numeric">dF0</th>
           <th class="numeric">Bright</th>
+          <th class="numeric">dZCR</th>
           <th>Notes</th>
         </tr>
       </thead>
@@ -481,6 +482,7 @@ function renderQualityMatrix(suite) {
             <td class="numeric">${Math.round(item.analysis.pitchMedianHz || 0)} Hz</td>
             <td class="numeric">${signed(Math.round(item.deltas.pitchHz || 0))} Hz</td>
             <td class="numeric">${signed(Math.round(item.deltas.brightness * 100))}%</td>
+            <td class="numeric">${signed(Math.round(item.deltas.zcr || 0))}</td>
             <td>${escapeHtml(item.issues.map((issue) => issue.text).join(", ") || "stable")}</td>
           </tr>
         `;

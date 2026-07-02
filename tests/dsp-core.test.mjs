@@ -68,13 +68,18 @@ const quality = runPresetQualitySuite({ sampleRate, duration: 0.65 });
 assert.equal(quality.ok, true, "preset quality suite should pass");
 assert.equal(quality.results.length, FACTORY_PRESETS.length, "quality suite should cover every preset");
 assert.equal(quality.counts.fail, 0, "quality suite should not fail any preset");
+assert.equal(quality.renderedSeconds, quality.duration * quality.results.length, "quality suite should track rendered seconds");
 assert.ok(quality.results.some((item) => item.id === "kawaii" && item.deltas.brightness > 0.03), "kawaii should brighten the source");
 assert.ok(quality.results.some((item) => item.id === "kawaii" && item.deltas.pitchHz > 20), "kawaii should lift the apparent F0");
 assert.ok(quality.results.some((item) => item.id === "ikemen" && item.deltas.pitchHz < -10), "ikemen should lower the apparent F0");
+assert.ok(quality.results.some((item) => item.id === "asmr" && item.deltas.zcr > 1000), "asmr should add measurable breath/frication texture");
+assert.ok(quality.results.some((item) => item.id === "otome" && item.deltas.zcr > 600), "otome should add close breath texture");
 
 const referenceQuality = runReferenceQualitySuite({ sampleRate, duration: 0.42 });
 assert.equal(referenceQuality.ok, true, "multi-source quality suite should pass");
 assert.equal(referenceQuality.suites.length, REFERENCE_VOICE_PROFILES.length, "multi-source suite should cover all reference profiles");
 assert.equal(referenceQuality.results.length, FACTORY_PRESETS.length * REFERENCE_VOICE_PROFILES.length, "multi-source suite should cover every preset/profile pair");
+assert.equal(referenceQuality.renderedSeconds, referenceQuality.duration * referenceQuality.results.length, "multi-source suite should track all rendered seconds");
+assert.ok(referenceQuality.realtimeFactor < 0.8, "multi-source aggregate render speed should be measured against every rendered preset/profile pair");
 
 console.log("dsp-core.test.mjs passed");

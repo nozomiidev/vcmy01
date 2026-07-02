@@ -9,10 +9,17 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
     this.fw = 0;
     this.phase = 0;
     this.fphase = 0;
+    this.ratioState = 1;
     this.env = 0;
+    this.fast = 0;
+    this.slow = 0;
+    this.dryLp = 0;
+    this.highEnv = 0;
     this.gateGain = 1;
     this.rphase = 0;
     this.seed = 999;
+    this.noiseHp = 0;
+    this.lastNoise = 0;
     this.params = {
       pitch: 1,
       formant: 1,
@@ -24,6 +31,10 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       anime: 0,
       cuteness: 0,
       intimacy: 0,
+      brightness: 0.08,
+      presence: 0,
+      air: 0.04,
+      consonantSoftness: 0,
       gate: 1,
       deEss: 0.35,
       saturation: 0,
@@ -50,11 +61,19 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
     const fwin = Math.max(96, Math.round(sampleRate * 0.024));
     const fstep = 1 - p.formant;
     const ringInc = 2 * Math.PI * (42 + p.robot * 110 + p.creature * 22) / sampleRate;
+    const lpCoeff = Math.exp(-2 * Math.PI * 2600 / sampleRate);
 
     for (let i = 0; i < out.length; i++) {
       let s = input ? input[i] : 0;
+      const dry = s;
       const abs = Math.abs(s);
       this.env = abs > this.env ? this.env + (abs - this.env) * 0.2 : this.env * 0.996;
+      this.fast += (abs - this.fast) * (abs > this.fast ? 0.08 : 0.014);
+      this.slow += (abs - this.slow) * 0.0012;
+      this.dryLp = (1 - lpCoeff) * dry + lpCoeff * this.dryLp;
+      const dryHigh = dry - this.dryLp;
+      const highAbs = Math.abs(dryHigh);
+      this.highEnv = highAbs > this.highEnv ? this.highEnv + (highAbs - this.highEnv) * 0.2 : this.highEnv * 0.984;
       let gateTarget = 1;
       if (p.gate && this.env < 0.0025) {
         const r = this.env / 0.0025;
@@ -69,7 +88,11 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       const phrase = 0.5 + 0.5 * Math.sin(2 * Math.PI * (0.44 + p.anime * 0.16 + p.cuteness * 0.08) * t - Math.PI / 2);
       const vibrato = Math.sin(2 * Math.PI * (4.7 + p.anime * 0.8) * t) * p.prosody * (0.002 + p.anime * 0.0035 + p.cuteness * 0.002);
       const lift = p.prosody * (p.anime * 0.045 + p.cuteness * 0.028) * phrase;
-      const step = 1 - p.pitch * (1 + lift + vibrato);
+      const rawRatio = p.pitch * (1 + lift + vibrato);
+      const voiceGate = Math.max(0, Math.min(1, (this.env - 0.0025) * 42));
+      const targetRatio = 1 + (rawRatio - 1) * (0.3 + voiceGate * 0.7);
+      this.ratioState += (targetRatio - this.ratioState) * (targetRatio > this.ratioState ? 0.018 : 0.012);
+      const step = 1 - this.ratioState;
       this.phase += step;
       if (this.phase >= win) this.phase -= win;
       if (this.phase < 0) this.phase += win;
@@ -88,6 +111,18 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       y = this.read(this.fbuf, this.fw, e1) * Math.sin(Math.PI * e1 / fwin) +
         this.read(this.fbuf, this.fw, e2) * Math.sin(Math.PI * e2 / fwin);
 
+      const clarity = Math.max(0, Math.min(0.38,
+        p.presence * 0.35 +
+        Math.max(0, p.brightness - 0.08) * 0.16 +
+        Math.max(0, p.air - 0.04) * 0.12 +
+        Math.max(0, 0.28 - p.consonantSoftness) * 0.04 -
+        p.whisper * 0.22
+      ));
+      if (clarity > 0.018) {
+        const consonant = Math.max(0, Math.min(1, this.highEnv * 24 + Math.max(0, this.highEnv - this.env * 0.42) * 60));
+        y += dryHigh * clarity * consonant;
+      }
+
       if (p.robot > 0 || p.creature > 0) {
         const ring = Math.sin(this.rphase);
         this.rphase += ringInc;
@@ -100,7 +135,17 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       if (breath > 0) {
         this.seed = (this.seed * 1664525 + 1013904223) >>> 0;
         const noise = (this.seed / 0xffffffff) * 2 - 1;
-        y = y * (1 - p.whisper * 0.32) + noise * breath * Math.min(1, this.env * 8) * 0.08;
+        this.noiseHp = noise - this.lastNoise + this.noiseHp * 0.985;
+        this.lastNoise = noise;
+        const onset = Math.max(0, Math.min(1, (this.fast - this.slow * 1.05) * 22));
+        const tail = Math.max(0, Math.min(1, (this.slow - this.fast) * 30));
+        const consonant = Math.max(0, Math.min(1, this.highEnv * 24 + onset * 0.42));
+        const breathBed = Math.max(0, Math.min(1, this.slow * 10)) * (0.52 + p.intimacy * 0.48);
+        const whisperFocus = Math.max(0, Math.min(1, consonant * (1 - p.consonantSoftness * 0.55) + tail * p.intimacy * 0.75));
+        const shaped = this.noiseHp * (0.65 + Math.max(0, p.air) * 0.35);
+        const textureGain = p.breath * 0.085 * breathBed + p.whisper * 0.13 * whisperFocus;
+        const duck = 1 - p.whisper * 0.22 * Math.max(0, Math.min(1, this.slow * 8));
+        y = y * duck + shaped * textureGain;
       }
 
       if (p.saturation > 0) {

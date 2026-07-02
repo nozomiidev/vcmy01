@@ -12,6 +12,7 @@ const rows = suite.results.map((item) => ({
   f0: `${Math.round(item.analysis.pitchMedianHz || 0)} Hz`,
   dF0: signed(Math.round(item.deltas.pitchHz || 0)),
   bright: signed(Math.round(item.deltas.brightness * 100)),
+  dZCR: signed(Math.round(item.deltas.zcr || 0)),
   notes: item.issues.map((issue) => issue.text).join(", ") || "stable"
 }));
 

@@ -44,6 +44,8 @@ Priority DSP blocks to investigate and implement:
 - multiband compression
 - proximity/body shaping around low-mid ranges
 - transient and consonant softness controls
+- consonant-detail restoration so pitch/formant-like processing does not smear
+  intelligibility when the target voice needs clarity
 - stereo/spatial distance and close-mic simulation
 - non-AI prosody approximations such as micro-vibrato, phrase dynamics, and
   syllable-envelope shaping
@@ -127,6 +129,7 @@ checks:
 - RMS and peak ranges
 - apparent F0 movement
 - brightness movement
+- ZCR / texture movement for breath, whisper, and frication-heavy presets
 - render speed against realtime duration
 - per-preset warnings for weak character movement
 
@@ -134,6 +137,10 @@ This matrix cannot prove that a voice is emotionally convincing, but it catches
 regressions where a character preset stops moving the signal, clips, becomes too
 quiet, or loses basic F0 tracking. Browser Diagnostics and `npm run quality`
 should stay aligned.
+
+Aggregate realtime factor must be measured against every rendered preset/profile
+pair, not only against the source duration. Otherwise a full quality matrix can
+look slower than it really is and distort engineering decisions.
 
 The reference set should include at least low, medium, high/bright, and breathy
 source profiles so source-voice calibration and preset behavior are not judged

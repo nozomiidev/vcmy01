@@ -387,6 +387,7 @@ export function processVoiceBuffer(input, sampleRate, rawParams = {}, options = 
   work = applyBiquad(work, sampleRate, "lowpass", params.highCut, 0.72, 0);
   work = characterFilterBank(work, sampleRate, params);
   work = harmonicExciter(work, sampleRate, params);
+  work = consonantDetailBlend(work, dry, sampleRate, params);
   work = addBreathAndWhisper(work, dry, sampleRate, params);
   work = performanceShape(work, dry, sampleRate, params);
   work = robotAndCreature(work, sampleRate, params);
@@ -422,14 +423,16 @@ export function runPresetQualitySuite({
     acc[item.status] = (acc[item.status] || 0) + 1;
     return acc;
   }, { pass: 0, warn: 0, fail: 0 });
+  const renderedSeconds = duration * results.length;
   return {
     ok: counts.fail === 0,
     counts,
     sampleRate,
     duration,
+    renderedSeconds,
     sourceProfile: sourceRef.profile,
     elapsedMs,
-    realtimeFactor: elapsedMs / Math.max(1, duration * 1000),
+    realtimeFactor: elapsedMs / Math.max(1, renderedSeconds * 1000),
     source: sourceAnalysis,
     results
   };
@@ -455,14 +458,16 @@ export function runReferenceQualitySuite({
     return acc;
   }, { pass: 0, warn: 0, fail: 0 });
   const elapsedMs = nowMs() - started;
+  const renderedSeconds = suites.reduce((sum, suite) => sum + suite.renderedSeconds, 0);
   return {
     ok: counts.fail === 0,
     counts,
     sampleRate,
     duration,
+    renderedSeconds,
     sourceProfile: null,
     elapsedMs,
-    realtimeFactor: elapsedMs / Math.max(1, duration * 1000 * profiles.length),
+    realtimeFactor: elapsedMs / Math.max(1, renderedSeconds * 1000),
     suites,
     results: suites.flatMap((suite) => suite.results.map((result) => ({
       ...result,
@@ -517,6 +522,9 @@ function qualityIssues(preset, sourceAnalysis, sourceLength, rendered, analysis,
   }
   if (/ikemen|narrator/.test(preset.id) && deltas.pitchHz > -10) {
     issues.push({ level: "warn", text: "weak pitch/body shift" });
+  }
+  if (/otome|asmr/.test(preset.id) && sourceAnalysis.zeroCrossingsPerSecond < 3200 && deltas.zcr < 600) {
+    issues.push({ level: "warn", text: "weak breath texture" });
   }
   if (/radio|streamer/.test(preset.id) && analysis.rmsDb < -24) {
     issues.push({ level: "warn", text: "presentation too soft" });
@@ -589,6 +597,8 @@ export function prosodyPitchShift(input, sampleRate, baseRatio = 1, params = {})
   const out = new Float32Array(n);
   const windowSize = Math.max(192, Math.round(sampleRate * 0.085));
   let phase = 0;
+  let env = 0;
+  let ratioState = baseRatio;
   const anime = clamp((params.anime || 0) / 100, 0, 1);
   const cute = clamp((params.cuteness || 0) / 100, 0, 1);
   const liftDepth = amount * (anime * 0.045 + cute * 0.028);
@@ -601,7 +611,12 @@ export function prosodyPitchShift(input, sampleRate, baseRatio = 1, params = {})
     const phrase = 0.5 + 0.5 * Math.sin(TAU * phraseRate * t - Math.PI / 2);
     const vibrato = Math.sin(TAU * vibratoRate * t) * vibratoDepth;
     const ratio = baseRatio * (1 + phrase * liftDepth + vibrato);
-    phase += 1 - ratio;
+    const abs = Math.abs(input[i]);
+    env = abs > env ? env + (abs - env) * 0.06 : env * 0.996;
+    const voiceGate = clamp((env - 0.0025) * 42, 0, 1);
+    const targetRatio = 1 + (ratio - 1) * (0.3 + voiceGate * 0.7);
+    ratioState += (targetRatio - ratioState) * (targetRatio > ratioState ? 0.018 : 0.012);
+    phase += 1 - ratioState;
     if (phase >= windowSize) phase -= windowSize;
     if (phase < 0) phase += windowSize;
     const d1 = phase;
@@ -646,6 +661,31 @@ function harmonicExciter(input, sampleRate, p) {
   for (let i = 0; i < input.length; i++) {
     const sparkle = Math.tanh(high[i] * drive) * amount * 0.11;
     out[i] = input[i] + sparkle;
+  }
+  return out;
+}
+
+function consonantDetailBlend(input, dry, sampleRate, p) {
+  const clarity = clamp((
+    Math.max(0, p.presence) * 0.35 +
+    Math.max(0, p.brightness - 8) * 0.16 +
+    Math.max(0, p.air - 4) * 0.12 +
+    Math.max(0, 28 - p.consonantSoftness) * 0.04 -
+    p.whisper * 0.22
+  ) / 100, 0, 0.38);
+  if (clarity <= 0.018) return input;
+  const dryHigh = applyBiquad(dry, sampleRate, "highpass", 2600, 0.72, 0);
+  const wetHigh = applyBiquad(input, sampleRate, "highpass", 3200, 0.72, 0);
+  const out = new Float32Array(input.length);
+  let env = 0;
+  let highEnv = 0;
+  for (let i = 0; i < input.length; i++) {
+    const abs = Math.abs(dry[i]);
+    env = abs > env ? env + (abs - env) * 0.05 : env * 0.995;
+    const highAbs = Math.abs(dryHigh[i]);
+    highEnv = highAbs > highEnv ? highEnv + (highAbs - highEnv) * 0.18 : highEnv * 0.986;
+    const consonant = clamp(highEnv * 22 + Math.max(0, highEnv - env * 0.42) * 60, 0, 1);
+    out[i] = input[i] + (dryHigh[i] - wetHigh[i] * 0.25) * clarity * consonant;
   }
   return out;
 }
@@ -727,15 +767,33 @@ function addBreathAndWhisper(input, dry, sampleRate, p) {
   if (amount <= 0.001) return input;
   const out = new Float32Array(input.length);
   let seed = 22222;
-  let hp = 0, lastNoise = 0, env = 0;
+  let hp = 0, lastNoise = 0, fast = 0, slow = 0, dryLp = 0, highEnv = 0;
+  const whisper = clamp(p.whisper / 100, 0, 1);
+  const breath = clamp(p.breath / 100, 0, 1);
+  const intimate = clamp(p.intimacy / 100, 0, 1);
+  const soft = clamp(p.consonantSoftness / 100, 0, 1);
+  const lpCoeff = Math.exp(-TAU * 2600 / sampleRate);
   for (let i = 0; i < input.length; i++) {
-    env = Math.max(Math.abs(dry[i]), env * 0.995);
+    const abs = Math.abs(dry[i]);
+    fast += (abs - fast) * (abs > fast ? 0.08 : 0.014);
+    slow += (abs - slow) * 0.0012;
+    dryLp = (1 - lpCoeff) * dry[i] + lpCoeff * dryLp;
+    const dryHigh = dry[i] - dryLp;
+    const highAbs = Math.abs(dryHigh);
+    highEnv = highAbs > highEnv ? highEnv + (highAbs - highEnv) * 0.2 : highEnv * 0.984;
     seed = (seed * 1664525 + 1013904223) >>> 0;
     const noise = (seed / 0xffffffff) * 2 - 1;
     hp = noise - lastNoise + hp * 0.985;
     lastNoise = noise;
-    const shaped = hp * clamp(env * 8, 0, 1);
-    out[i] = input[i] * (1 - p.whisper / 220) + shaped * amount * 0.12;
+    const onset = clamp((fast - slow * 1.05) * 22, 0, 1);
+    const tail = clamp((slow - fast) * 30, 0, 1);
+    const consonant = clamp(highEnv * 24 + onset * 0.42, 0, 1);
+    const breathBed = clamp(slow * 10, 0, 1) * (0.52 + intimate * 0.48);
+    const whisperFocus = clamp(consonant * (1 - soft * 0.55) + tail * intimate * 0.75, 0, 1);
+    const shaped = hp * (0.65 + clamp(Math.max(0, p.air) / 100, 0, 1) * 0.35);
+    const textureGain = breath * 0.085 * breathBed + whisper * 0.13 * whisperFocus;
+    const duck = 1 - whisper * 0.22 * clamp(slow * 8, 0, 1);
+    out[i] = input[i] * duck + shaped * textureGain;
   }
   return out;
 }
