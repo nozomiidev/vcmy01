@@ -62,6 +62,8 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   then render them into the same deck for A/B comparison.
 - Render Deck auditions for offline previews/full renders with F0, level, tone,
   texture, and review-score deltas for comparing multiple takes.
+- Take Decision ranking that recommends a keeper from the deck using target
+  fit, script-match evidence, render safety, and variant intent.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
   local take storage, and diagnostics.
 

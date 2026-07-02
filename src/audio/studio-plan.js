@@ -23,6 +23,7 @@ export function buildStudioPlan(options = {}) {
   const scriptAutomation = options.scriptAutomation || null;
   const review = options.renderReview || null;
   const trace = options.performanceComparison || null;
+  const takeDecision = options.takeDecision || null;
   const auditionVariantCount = Math.max(0, Number(options.auditionVariantCount || 0));
   const renderDeckCount = Math.max(0, Number(options.renderDeckCount || 0));
   const renderDeckSeconds = Math.max(0, Number(options.renderDeckSeconds || 0));
@@ -34,7 +35,7 @@ export function buildStudioPlan(options = {}) {
     scriptStep(script, scriptMatch, scriptAutomation),
     auditionStep(hasSource, review, renderDeckCount, auditionVariantCount),
     traceStep(hasSource, review, trace),
-    deckStep(hasSource, renderDeckCount, renderDeckSeconds)
+    deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision)
   ];
   const nextAction = steps.find((step) => step.action)?.action || null;
   const scored = steps.filter((step) => Number.isFinite(step.score));
@@ -259,7 +260,7 @@ function traceStep(hasSource, review, trace) {
   });
 }
 
-function deckStep(hasSource, renderDeckCount, renderDeckSeconds) {
+function deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision) {
   if (!hasSource) {
     return waitingStep("deck", "Deck", "Waiting for source");
   }
@@ -277,14 +278,19 @@ function deckStep(hasSource, renderDeckCount, renderDeckSeconds) {
       action: { id: "preview-region", label: "Add Another Take" }
     });
   }
-  const score = Math.min(100, 72 + renderDeckCount * 6);
+  const score = Number.isFinite(takeDecision?.score)
+    ? takeDecision.score
+    : Math.min(100, 72 + renderDeckCount * 6);
+  const winner = takeDecision?.winner || null;
   return step({
     id: "deck",
     label: "Deck",
-    status: "ready",
+    status: takeDecision?.status || "ready",
     score,
-    summary: `${renderDeckCount} takes`,
-    detail: `${renderDeckSeconds.toFixed(1)}s retained for A/B decisions.`,
+    summary: winner ? `${renderDeckCount} takes / ${score}%` : `${renderDeckCount} takes`,
+    detail: winner
+      ? `Keeper: ${winner.label}; weakest evidence is ${winner.weakest}.`
+      : `${renderDeckSeconds.toFixed(1)}s retained for A/B decisions.`,
     action: { id: "compare-deck", label: "A/B Compare" }
   });
 }

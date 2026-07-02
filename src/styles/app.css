@@ -1467,6 +1467,179 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
 }
 
+.take-decision {
+  display: grid;
+  gap: 10px;
+  margin: 0 14px 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.take-decision.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
+}
+
+.take-decision.is-check {
+  border-color: color-mix(in srgb, var(--warn) 28%, var(--line));
+}
+
+.take-decision.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 32%, var(--line));
+}
+
+.take-decision-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.take-decision-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.take-decision-head strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.take-decision-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.take-decision-list:empty {
+  display: none;
+}
+
+.take-decision-card {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.take-decision-card:hover,
+.take-decision-card:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.take-decision-card.is-winner {
+  border-color: color-mix(in srgb, var(--ok) 44%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 30%, transparent);
+}
+
+.take-decision-card.is-active {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 56%, transparent);
+}
+
+.take-decision-card.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 38%, var(--line));
+}
+
+.take-decision-score {
+  justify-self: start;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.07);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.take-decision-card strong,
+.take-decision-card small,
+.take-decision-card p {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.take-decision-card strong {
+  font-size: 13px;
+}
+
+.take-decision-card small,
+.take-decision-card p {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.take-decision-card p {
+  margin: 0;
+}
+
+.take-decision-bars {
+  display: grid;
+  gap: 5px;
+}
+
+.take-decision-bars span {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 850;
+}
+
+.take-decision-bars b,
+.take-decision-bars em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: normal;
+}
+
+.take-decision-bars em {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.take-decision-bars i {
+  height: 5px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 74%, transparent) var(--score), rgba(255,255,255,0.08) var(--score));
+}
+
+.take-decision-bars span.is-ready i {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--ok) 76%, transparent) var(--score), rgba(255,255,255,0.08) var(--score));
+}
+
+.take-decision-bars span.is-check i {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--warn) 78%, transparent) var(--score), rgba(255,255,255,0.08) var(--score));
+}
+
+.take-decision-bars span.is-risk i {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--bad) 78%, transparent) var(--score), rgba(255,255,255,0.08) var(--score));
+}
+
 .meter-grid {
   display: grid;
   gap: 8px;
@@ -2408,6 +2581,7 @@ audio {
   .performance-trace-grid { grid-template-columns: 1fr; }
   .variant-lab-grid { grid-template-columns: 1fr; }
   .render-deck-list { grid-template-columns: 1fr; }
+  .take-decision-list { grid-template-columns: 1fr; }
   .region-grid { grid-template-columns: 1fr; }
   .transport-main { align-items: flex-start; flex-direction: column; }
   .transport-actions { margin-left: 0; }

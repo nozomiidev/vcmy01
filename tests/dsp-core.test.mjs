@@ -17,6 +17,7 @@ import {
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
 import { AUDITION_VARIANT_IDS, auditionVariantSummary, buildAuditionVariants } from "../src/audio/audition-variants.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
+import { rankRenderDeckTakes, sourceSamplesForRenderedRegion } from "../src/audio/take-decision.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
 import { bestCharacterChainPatch, characterChainReport, CHARACTER_CHAIN_STAGES } from "../src/audio/character-chain.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
@@ -278,6 +279,26 @@ const variantPreview = offline.render(kawaiiVariants[0].params, {
 });
 assert.equal(variantPreview.performanceScriptPlan.targetId, kawaiiSpark.id, "variant render should preserve its script plan for later scoring");
 assert.equal(variantPreview.scriptAutomated, true, "variant render should support script automation");
+const takeDecisionDeck = [
+  { id: "base", title: "Base", target: kawaiiSpark.name, mode: "Preview", rendered: previewRendered, review: renderReview(offline.source, previewRendered) },
+  {
+    id: "variant",
+    title: "Variant",
+    target: kawaiiSpark.name,
+    mode: "Preview Scripted Variant",
+    variant: { label: kawaiiVariants[0].label, score: kawaiiVariants[0].score, intent: kawaiiVariants[0].intent },
+    rendered: variantPreview,
+    review: renderReview(offline.source, variantPreview)
+  }
+];
+const takeDecision = rankRenderDeckTakes(takeDecisionDeck, offline.source, kawaiiSpark);
+assert.equal(takeDecision.items.length, 2, "take decision should rank every render-deck item");
+assert.ok(takeDecision.winnerId, "take decision should select a keeper candidate");
+assert.ok(takeDecision.items[0].items.some((item) => item.id === "target"), "take decision should include target-fit evidence");
+assert.ok(takeDecision.items[0].items.some((item) => item.id === "script"), "take decision should include script-match evidence");
+assert.ok(takeDecision.items[0].items.some((item) => item.id === "safety"), "take decision should include render-safety evidence");
+assert.ok(takeDecision.score >= 0 && takeDecision.score <= 100, "take decision score should be bounded");
+assert.equal(sourceSamplesForRenderedRegion(offline.source, previewRendered).length, previewRendered.samples.length, "take decision should compare matching source/render regions");
 const variantStudioPlan = buildStudioPlan({
   hasSource: true,
   sourceFit: mockReadySourceFit,
@@ -311,11 +332,13 @@ const deckStudioPlan = buildStudioPlan({
   scriptAutomation: scriptedPreview.scriptAutomationSummary,
   scriptMatch: { status: "ready", score: 88, items: [{ label: "Breath", value: "+900 / +850" }] },
   renderDeckCount: 2,
-  renderDeckSeconds: totalDeckSeconds(deck)
+  renderDeckSeconds: totalDeckSeconds(deck),
+  takeDecision: { score: 90, status: "ready", winner: { label: "Sweet Lift", weakest: "Script" } }
 });
 assert.equal(deckStudioPlan.nextAction.id, "compare-deck", "studio plan should end in deck comparison once multiple takes exist");
 assert.equal(deckStudioPlan.status, "ready", "studio plan should mark a fully evidenced deck as ready");
 assert.ok(deckStudioPlan.steps.find((step) => step.id === "script").detail.includes("acting-automation frames"), "studio plan should preserve scripted automation evidence");
+assert.ok(deckStudioPlan.steps.find((step) => step.id === "deck").detail.includes("Keeper: Sweet Lift"), "studio plan should preserve take-decision evidence");
 
 offline.generateSample(sampleRate, "high_bright");
 const highRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });

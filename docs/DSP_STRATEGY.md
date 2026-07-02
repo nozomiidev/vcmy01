@@ -224,6 +224,12 @@ tone delta, texture delta, and a review score. The deck is intentionally capped
 by item count and total seconds so comparison does not become an unbounded audio
 buffer leak.
 
+Take Decision is the keeper-selection layer above the deck. It ranks retained
+takes by target macro/director fit, Script Match evidence, render safety, and
+variant intent. This still does not claim to judge taste or acting beauty, but
+it turns "which one should I keep?" into an evidence-backed workflow instead of
+forcing the user to infer everything from isolated cards.
+
 ## Prosody And Performance
 
 Real prosody transformation requires knowing phrase structure, syllable timing,

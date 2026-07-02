@@ -23,6 +23,7 @@ import { buildPerformanceScript, compareScriptToPerformance } from "./audio/perf
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
 import { rankVoiceRoutes } from "./audio/route-planner.js";
 import { buildStudioPlan } from "./audio/studio-plan.js";
+import { rankRenderDeckTakes } from "./audio/take-decision.js";
 import { TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
@@ -76,6 +77,8 @@ function init() {
   renderPerformanceTrace();
   renderStudioPlan();
   renderAuditionVariants();
+  renderRenderDeck();
+  renderTakeDecision();
   renderVoiceMap();
   bindTabs();
   bindTransport();
@@ -817,6 +820,11 @@ function bindOffline() {
     if (button) selectRenderDeckItem(button.dataset.renderDeck);
   });
 
+  $("takeDecisionList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-take-decision]");
+    if (button) selectRenderDeckItem(button.dataset.takeDecision);
+  });
+
   $("applyChainFix").addEventListener("click", applyNextCharacterChainFix);
   $("applyStudioPlanStep").addEventListener("click", applyStudioPlanStep);
 }
@@ -1300,8 +1308,13 @@ function currentStudioPlan() {
     scriptAutomation: offline.rendered?.scriptAutomationSummary || null,
     auditionVariantCount: currentAuditionVariants().length,
     renderDeckCount: state.renderDeck.length,
-    renderDeckSeconds: totalDeckSeconds(state.renderDeck)
+    renderDeckSeconds: totalDeckSeconds(state.renderDeck),
+    takeDecision: currentTakeDecision()
   });
+}
+
+function currentTakeDecision() {
+  return rankRenderDeckTakes(state.renderDeck, offline.source, lineReadById(state.lineReadId));
 }
 
 function currentPerformanceComparison() {
@@ -1334,6 +1347,7 @@ function renderStudioPlan() {
     ? `${nextStep.label}: ${nextStep.detail}`
     : "Plan ready. Choose a take from the render deck.";
   renderAuditionVariants();
+  renderTakeDecision();
 }
 
 function applyStudioPlanStep() {
@@ -1398,6 +1412,7 @@ function renderRenderDeck() {
   if (!state.renderDeck.length) {
     $("renderDeckStatus").textContent = "No renders";
     host.innerHTML = "";
+    renderTakeDecision();
     return;
   }
   $("renderDeckStatus").textContent = `${state.renderDeck.length} takes / ${totalDeckSeconds(state.renderDeck).toFixed(1)}s`;
@@ -1423,6 +1438,43 @@ function renderRenderDeck() {
       </button>
     `;
   }).join("");
+  renderTakeDecision();
+}
+
+function renderTakeDecision() {
+  const panel = $("takeDecisionPanel");
+  if (!panel) return;
+  const host = $("takeDecisionList");
+  const decision = currentTakeDecision();
+  if (!decision.items.length) {
+    panel.className = "take-decision";
+    $("takeDecisionStatus").textContent = offline.source ? "No takes" : "No source";
+    host.innerHTML = "";
+    return;
+  }
+  panel.className = `take-decision is-${decision.status}`;
+  $("takeDecisionStatus").textContent = `${decision.score}% ${takeDecisionStatusLabel(decision.status)}`;
+  host.innerHTML = decision.items.map((item, index) => {
+    const isWinner = item.id === decision.winnerId;
+    const isActive = item.id === state.activeRenderId;
+    return `
+      <button class="take-decision-card is-${item.status} ${isWinner ? "is-winner" : ""} ${isActive ? "is-active" : ""}" data-take-decision="${item.id}" type="button">
+        <span class="take-decision-score">${isWinner ? "Keeper" : `#${index + 1}`} ${item.score}% ${takeDecisionStatusLabel(item.status)}</span>
+        <strong>${escapeHtml(item.label)}</strong>
+        <small>${escapeHtml(item.target)} - ${escapeHtml(item.mode)}</small>
+        <div class="take-decision-bars">
+          ${item.items.slice(0, 4).map((metric) => `
+            <span class="is-${metric.status}" style="--score:${metric.score}%">
+              <b>${escapeHtml(metric.label)}</b>
+              <i></i>
+              <em>${escapeHtml(metric.value)}</em>
+            </span>
+          `).join("")}
+        </div>
+        <p>${escapeHtml(takeDecisionDetail(item, isWinner))}</p>
+      </button>
+    `;
+  }).join("");
 }
 
 function clearRenderDeck() {
@@ -1437,9 +1489,21 @@ function renderReviewStatusLabel(status) {
   return "Risk";
 }
 
+function takeDecisionStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "check") return "Check";
+  if (status === "waiting") return "Waiting";
+  return "Risk";
+}
+
 function renderReviewSummary(review) {
   if (!review) return "Render review unavailable.";
   return review.items.slice(0, 2).map((item) => `${item.label} ${item.value}`).join(" / ");
+}
+
+function takeDecisionDetail(item, isWinner) {
+  const prefix = isWinner ? "Recommended keeper" : "Alternate take";
+  return `${prefix}; weakest evidence: ${item.weakest}. ${item.items.slice(0, 3).map((metric) => `${metric.label} ${metric.value}`).join(" / ")}`;
 }
 
 function updateSourceFit() {

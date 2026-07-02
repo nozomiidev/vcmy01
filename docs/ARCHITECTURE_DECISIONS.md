@@ -244,3 +244,21 @@ Decision:
   comparison, review metrics, and Studio Plan can treat them as normal takes.
 - Keep variants local and static. They are a DSP/product workflow layer, not AI
   generation and not a substitute for future high-quality VC.
+
+## ADR 015 - Render Decks Need Keeper Decisions
+
+Variant Lab can produce multiple plausible takes, but a deck without a decision
+layer still leaves the user doing all production judgment manually. Generic
+render-review cards are useful, but they do not combine the actual character
+target, the planned acting script, safety checks, and variant intent into one
+keeper recommendation.
+
+Decision:
+
+- Add a Take Decision layer above Render Deck.
+- Rank every retained take with target macro/director fit, Script Match or
+  planned script evidence, render safety, and variant intent.
+- Keep the ranking deterministic and local so tests, Studio Plan, and UI all
+  use the same evidence model.
+- Treat the result as an evidence-backed keeper recommendation, not an
+  objective judgment of acting beauty or speaker identity.

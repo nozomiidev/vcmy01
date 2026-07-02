@@ -74,6 +74,8 @@ GitHub Pages.
   and compared in the deck instead of requiring one-slider-at-a-time guessing.
 - Add a bounded Render Deck so multiple offline previews/full renders can be
   compared by audible output and measured deltas without leaking memory.
+- Add Take Decision ranking so the deck can recommend a keeper from target fit,
+  script-match evidence, render safety, and variant intent.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic
