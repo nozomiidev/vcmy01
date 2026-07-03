@@ -1406,7 +1406,7 @@ async function downloadCurrentZip() {
     downloadBlob(pack.blob, pack.name);
     $("renderStatus").textContent = offline.rendered.mode === "preview" ? "Preview ready" : "Rendered";
     renderGuidedStudio();
-    toast("ZIP exported", webmBlob ? "WAV, WebM, settings, analysis, and research notes." : `WAV package exported. ${webmError || "Compressed audio was not available."}`);
+    toast("ZIP exported", webmBlob ? "WAV, WebM, A/B audition files, settings, analysis, and notes." : `WAV + A/B audition package exported. ${webmError || "Compressed audio was not available."}`);
   } catch (error) {
     $("renderStatus").textContent = offline.rendered.mode === "preview" ? "Preview ready" : "Rendered";
     renderGuidedStudio();

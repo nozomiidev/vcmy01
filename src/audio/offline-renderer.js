@@ -141,13 +141,21 @@ export class OfflineRenderer {
     const samples = mastering.samples;
     const blob = encodeWavMono(samples, this.source.sampleRate);
     const mode = options.mode || (region.isFull ? "full" : "preview");
+    const analysis = analyzeBuffer(samples, this.source.sampleRate);
+    const studioAnalysis = analyzeStudioVoice(samples, this.source.sampleRate);
+    const audition = buildAuditionSummary({
+      sourceAnalysis: analyzeBuffer(sourceSamples, this.source.sampleRate),
+      polishAnalysis: studioPolish ? analyzeBuffer(studioPolish.samples, this.source.sampleRate) : null,
+      renderAnalysis: analysis,
+      mastering
+    });
     this.rendered = {
       name: `${this.source.name} - VoiceForge ${mode}.wav`,
       sampleRate: this.source.sampleRate,
       samples,
       blob,
-      analysis: analyzeBuffer(samples, this.source.sampleRate),
-      studioAnalysis: analyzeStudioVoice(samples, this.source.sampleRate),
+      analysis,
+      studioAnalysis,
       mastering: {
         enabled: mastering.enabled,
         target: { id: masteringTarget.id, label: masteringTarget.label },
@@ -179,6 +187,7 @@ export class OfflineRenderer {
         outputAnalysis: null
       },
       autoCalibrated: !!options.autoCalibrate,
+      audition,
       characterSafety,
       scriptAutomated: !!automation,
       performanceScript: options.performanceScript ? {
@@ -203,6 +212,54 @@ export class OfflineRenderer {
     if (!this.profile) this.analyze();
     return sourceFitReport(params, this.profile, target, this.source);
   }
+}
+
+function buildAuditionSummary({ sourceAnalysis = null, polishAnalysis = null, renderAnalysis = null, mastering = null } = {}) {
+  const referenceLufs = Number.isFinite(renderAnalysis?.integratedLufs)
+    ? renderAnalysis.integratedLufs
+    : Number.isFinite(mastering?.targetLufs)
+    ? mastering.targetLufs
+    : -19;
+  const stages = [
+    auditionStageSummary("source", "Source", sourceAnalysis, referenceLufs, mastering),
+    polishAnalysis ? auditionStageSummary("studio-polish", "Studio Polish", polishAnalysis, referenceLufs, mastering) : null,
+    auditionStageSummary("character-render", "Character Render", renderAnalysis, referenceLufs, mastering)
+  ].filter(Boolean);
+  const warnings = stages.filter((stage) => stage.status !== "ready").map((stage) => `${stage.label}: ${stage.reason}`);
+  return {
+    status: warnings.length ? "check" : "ready",
+    reference: {
+      integratedLufs: Number(referenceLufs.toFixed(2)),
+      truePeakCeilingDb: Number((mastering?.truePeakCeilingDb ?? -1).toFixed(2))
+    },
+    stageCount: stages.length,
+    stages,
+    warnings
+  };
+}
+
+function auditionStageSummary(id, label, analysis, referenceLufs, mastering) {
+  if (!analysis) return null;
+  const truePeakCeilingDb = Number.isFinite(mastering?.truePeakCeilingDb) ? mastering.truePeakCeilingDb : -1;
+  const loudnessGainDb = referenceLufs - (Number.isFinite(analysis.integratedLufs) ? analysis.integratedLufs : referenceLufs);
+  const peakSafeGainDb = truePeakCeilingDb - (Number.isFinite(analysis.truePeakDb) ? analysis.truePeakDb : -120);
+  const gainDb = Math.max(-18, Math.min(18, Math.min(loudnessGainDb, peakSafeGainDb)));
+  const limitedByPeak = loudnessGainDb > peakSafeGainDb;
+  const projectedLufs = (Number.isFinite(analysis.integratedLufs) ? analysis.integratedLufs : referenceLufs) + gainDb;
+  const deltaLu = projectedLufs - referenceLufs;
+  const status = Math.abs(deltaLu) <= 1.2 || limitedByPeak ? "ready" : "check";
+  return {
+    id,
+    label,
+    gainDb: Number(gainDb.toFixed(2)),
+    projectedLufs: Number(projectedLufs.toFixed(2)),
+    deltaLu: Number(deltaLu.toFixed(2)),
+    limitedByPeak,
+    status,
+    reason: status === "ready"
+      ? limitedByPeak ? "true-peak ceiling constrained exact loudness match" : "within loudness-match tolerance"
+      : "outside loudness-match tolerance"
+  };
 }
 
 function renderStudioPolish(sourceSamples, sampleRate, option = "standard") {

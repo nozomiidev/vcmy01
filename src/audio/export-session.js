@@ -1,3 +1,6 @@
+import { analyzeBuffer, clamp, dbToLin, encodeWavMono } from "./dsp-core.js";
+import { processStudioPolish } from "./studio-polish.js";
+
 export const OPUS_MIME_CANDIDATES = Object.freeze([
   "audio/webm;codecs=opus",
   "audio/webm",
@@ -28,7 +31,8 @@ export function buildExportManifest({
   lineReadId = "",
   lineReadName = "",
   review = null,
-  compressed = null
+  compressed = null,
+  audition = null
 } = {}) {
   return {
     app: "VoiceForge",
@@ -78,6 +82,7 @@ export function buildExportManifest({
         detail: item.detail
       })) || []
     } : null,
+    audition: compactAuditionComparison(audition || rendered?.audition),
     files: {
       wav: rendered ? `${renderedBaseName(rendered)}.wav` : "",
       webm: compressed?.blob ? `${renderedBaseName(rendered)}.webm` : "",
@@ -91,6 +96,82 @@ export function buildExportManifest({
     } : null,
     privacy: "All audio was processed locally in the browser. No backend is required."
   };
+}
+
+export function buildAuditionComparison({ source = null, rendered = null } = {}) {
+  if (!source?.samples?.length || !rendered?.samples?.length) return null;
+  const sampleRate = rendered.sampleRate || source.sampleRate || 48000;
+  const sourceSamples = sourceSamplesForRender(source, rendered);
+  const stages = [
+    createAuditionStage("source", "Source", "Raw input, level-matched for honest before/after listening.", sourceSamples, sampleRate)
+  ];
+  const polishSamples = buildPolishAuditionSamples(sourceSamples, sampleRate, rendered);
+  if (polishSamples) {
+    stages.push(createAuditionStage("studio-polish", "Studio Polish", "Cleanup and broadcast polish before character transformation.", polishSamples, sampleRate));
+  }
+  stages.push(createAuditionStage(
+    rendered.stage === "polish" ? "polish-render" : "character-render",
+    rendered.stage === "polish" ? "Polish Render" : "Character Render",
+    "Final exported render used as the loudness reference for A/B checks.",
+    rendered.samples,
+    sampleRate
+  ));
+  const renderAnalysis = rendered.analysis || stages[stages.length - 1].analysis;
+  const referenceLufs = Number.isFinite(renderAnalysis?.integratedLufs)
+    ? renderAnalysis.integratedLufs
+    : Number.isFinite(rendered.mastering?.targetLufs)
+    ? rendered.mastering.targetLufs
+    : -19;
+  const truePeakCeilingDb = Number.isFinite(rendered.mastering?.truePeakCeilingDb)
+    ? rendered.mastering.truePeakCeilingDb
+    : -1;
+  const matchedStages = stages.map((stage) => matchAuditionStage(stage, referenceLufs, truePeakCeilingDb, sampleRate));
+  const warnings = matchedStages
+    .filter((stage) => stage.match.status !== "ready")
+    .map((stage) => `${stage.label}: ${stage.match.reason}`);
+  return {
+    version: 1,
+    status: warnings.length ? "check" : "ready",
+    summary: warnings.length
+      ? `A/B package created with ${warnings.length} loudness-match warning(s).`
+      : "A/B package is loudness-matched against the final render.",
+    reference: {
+      stageId: matchedStages[matchedStages.length - 1]?.id || "character-render",
+      integratedLufs: round(referenceLufs, 2),
+      truePeakCeilingDb: round(truePeakCeilingDb, 2),
+      principle: "Compare tone and character at matched loudness so louder does not automatically feel better."
+    },
+    stages: matchedStages,
+    warnings
+  };
+}
+
+export function auditionComparisonNotes(audition = null) {
+  if (!audition) return "# VoiceForge A/B Audition\n\nNo audition comparison was available.\n";
+  const lines = [
+    "# VoiceForge A/B Audition",
+    "",
+    "Use these files for level-matched before/after listening. The final render is the reference; source and polish stages are gain-matched within true-peak safety so decisions are not biased by loudness.",
+    "",
+    `Status: ${audition.status}`,
+    `Reference: ${audition.reference.integratedLufs} LUFS / ${audition.reference.truePeakCeilingDb} dBTP ceiling`,
+    "",
+    "Files:"
+  ];
+  for (const stage of audition.stages || []) {
+    lines.push(`- ${stage.file}: ${stage.label}; gain ${signedDb(stage.match.gainDb)}; matched ${stage.match.integratedLufs} LUFS / ${stage.match.truePeakDb} dBTP; ${stage.purpose}`);
+  }
+  if (audition.warnings?.length) {
+    lines.push("", "Warnings:");
+    for (const warning of audition.warnings) lines.push(`- ${warning}`);
+  }
+  lines.push(
+    "",
+    "Research anchor:",
+    "- A/B and reference workflows should be loudness-matched; otherwise louder processing is often perceived as better even when tone or articulation got worse.",
+    "- This package is a local browser export. It is not a substitute for a calibrated room, headphones, or human listening notes."
+  );
+  return `${lines.join("\n")}\n`;
 }
 
 export function studioPolishResearchNotes(rendered = null) {
@@ -198,8 +279,20 @@ export async function encodeRenderedWebmOpus(rendered, options = {}) {
   });
   return new Promise((resolve, reject) => {
     let settled = false;
+    let timer = 0;
+    const durationMs = rendered.samples.length / Math.max(1, rendered.sampleRate || ctx.sampleRate) * 1000;
+    const maxEncodeMs = options.timeoutMs || Math.max(4000, Math.min(90000, durationMs + 3500));
+    const stopRecorder = () => {
+      try {
+        recorder.requestData?.();
+      } catch {
+        // Some MediaRecorder implementations do not allow requestData near stop.
+      }
+      if (recorder.state !== "inactive") recorder.stop();
+    };
     const cleanup = async () => {
       try {
+        clearTimeout(timer);
         source.disconnect();
         destination.disconnect?.();
         await ctx.close?.();
@@ -221,14 +314,19 @@ export async function encodeRenderedWebmOpus(rendered, options = {}) {
       if (settled) return;
       settled = true;
       await cleanup();
+      if (!chunks.length) {
+        reject(new Error("MediaRecorder produced no compressed audio."));
+        return;
+      }
       resolve(new Blob(chunks, { type: mimeType }));
     };
     source.onended = () => {
-      if (recorder.state !== "inactive") recorder.stop();
+      stopRecorder();
     };
     try {
       recorder.start(250);
       source.start();
+      timer = setTimeout(() => stopRecorder(), maxEncodeMs);
     } catch (error) {
       fail(error);
     }
@@ -250,6 +348,7 @@ export async function buildRenderZipPackage({
   const JSZip = await loadJSZip();
   const base = renderedBaseName(rendered);
   const compressed = webmBlob ? { blob: webmBlob, mimeType: webmBlob.type } : null;
+  const audition = buildAuditionComparison({ source, rendered });
   const manifest = buildExportManifest({
     source,
     rendered,
@@ -259,11 +358,17 @@ export async function buildRenderZipPackage({
     lineReadId,
     lineReadName,
     review,
-    compressed
+    compressed,
+    audition
   });
   const zip = new JSZip();
   zip.file(`${base}.wav`, rendered.blob);
   if (webmBlob) zip.file(`${base}.webm`, webmBlob);
+  if (audition?.stages?.length) {
+    for (const stage of audition.stages) zip.file(`audition/${stage.file}`, stage.blob);
+    zip.file("audition/ab-report.json", JSON.stringify(compactAuditionComparison(audition), null, 2));
+    zip.file("audition/ab-notes.md", auditionComparisonNotes(audition));
+  }
   zip.file("settings.json", JSON.stringify(manifest.voice, null, 2));
   zip.file("analysis.json", JSON.stringify(manifest, null, 2));
   zip.file("research-notes.md", studioPolishResearchNotes(rendered));
@@ -277,6 +382,108 @@ export async function buildRenderZipPackage({
     blob,
     manifest
   };
+}
+
+function createAuditionStage(id, label, purpose, samples, sampleRate) {
+  return {
+    id,
+    label,
+    purpose,
+    file: `${id}-loudness-matched.wav`,
+    samples: toFloat32(samples),
+    sampleRate,
+    analysis: analyzeBuffer(samples, sampleRate)
+  };
+}
+
+function matchAuditionStage(stage, referenceLufs, truePeakCeilingDb, sampleRate) {
+  const analysis = stage.analysis;
+  const loudnessGainDb = referenceLufs - safeNumber(analysis.integratedLufs, referenceLufs);
+  const peakSafeGainDb = truePeakCeilingDb - safeNumber(analysis.truePeakDb, -120);
+  const gainDb = clamp(Math.min(loudnessGainDb, peakSafeGainDb), -18, 18);
+  const matchedSamples = applyGain(stage.samples, gainDb);
+  const matchedAnalysis = analyzeBuffer(matchedSamples, sampleRate);
+  const deltaLu = matchedAnalysis.integratedLufs - referenceLufs;
+  const limitedByPeak = loudnessGainDb > peakSafeGainDb;
+  const status = Math.abs(deltaLu) <= 1.2 || limitedByPeak ? "ready" : "check";
+  return {
+    ...stage,
+    match: {
+      targetLufs: round(referenceLufs, 2),
+      gainDb: round(gainDb, 2),
+      integratedLufs: round(matchedAnalysis.integratedLufs, 2),
+      truePeakDb: round(matchedAnalysis.truePeakDb, 2),
+      deltaLu: round(deltaLu, 2),
+      limitedByPeak,
+      status,
+      reason: status === "ready"
+        ? limitedByPeak ? "true-peak ceiling constrained exact loudness match" : "within loudness-match tolerance"
+        : "loudness remained outside tolerance after safety gain"
+    },
+    analysis: compactAnalysis(analysis),
+    matchedAnalysis: compactAnalysis(matchedAnalysis),
+    samples: matchedSamples,
+    blob: encodeWavMono(matchedSamples, sampleRate)
+  };
+}
+
+function buildPolishAuditionSamples(sourceSamples, sampleRate, rendered) {
+  if (!rendered?.studioPolish?.enabled || !rendered.studioPolish.plan) return null;
+  try {
+    return processStudioPolish(sourceSamples, sampleRate, rendered.studioPolish.plan).samples;
+  } catch {
+    return null;
+  }
+}
+
+function sourceSamplesForRender(source, rendered) {
+  const samples = source.samples || new Float32Array();
+  const region = rendered?.region || null;
+  if (region && !region.isFull && Number.isFinite(region.startSample) && Number.isFinite(region.endSample)) {
+    const start = clamp(Math.round(region.startSample), 0, samples.length);
+    const end = clamp(Math.round(region.endSample), start, samples.length);
+    return samples.slice(start, end);
+  }
+  return samples;
+}
+
+function compactAuditionComparison(audition = null) {
+  if (!audition) return null;
+  return {
+    version: audition.version || 1,
+    status: audition.status || "",
+    summary: audition.summary || "",
+    reference: audition.reference || null,
+    warnings: audition.warnings || [],
+    stages: (audition.stages || []).map((stage) => ({
+      id: stage.id,
+      label: stage.label,
+      purpose: stage.purpose,
+      file: stage.file,
+      analysis: stage.analysis,
+      matchedAnalysis: stage.matchedAnalysis,
+      match: stage.match
+    }))
+  };
+}
+
+function applyGain(samples, gainDb) {
+  const gain = dbToLin(gainDb);
+  const out = new Float32Array(samples.length);
+  for (let i = 0; i < samples.length; i++) out[i] = clamp(samples[i] * gain, -1, 1);
+  return out;
+}
+
+function toFloat32(samples) {
+  return samples instanceof Float32Array ? samples : new Float32Array(samples || []);
+}
+
+function safeNumber(value, fallback) {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function signedDb(value) {
+  return `${value > 0 ? "+" : ""}${round(value, 2)} dB`;
 }
 
 async function loadJSZip() {

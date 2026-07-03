@@ -40,7 +40,7 @@ import {
   runStudioPolishQualitySuite,
   STUDIO_PRODUCTION_TARGETS
 } from "../src/audio/studio-polish.js";
-import { buildExportManifest, renderedBaseName, studioPolishResearchNotes } from "../src/audio/export-session.js";
+import { auditionComparisonNotes, buildAuditionComparison, buildExportManifest, renderedBaseName, studioPolishResearchNotes } from "../src/audio/export-session.js";
 import { applyCharacterSafety, characterSafetySummary } from "../src/audio/character-safety.js";
 import { analyzeSpectralVoice, spectralVoiceSummary } from "../src/audio/spectral-voice.js";
 import { analyzeLoudness, loudnessTargetReview } from "../src/audio/loudness-meter.js";
@@ -712,6 +712,14 @@ assert.equal(extremeRender.characterSafety.status, "guarded", "offline render sh
 assert.ok(extremeRender.safetyDelta.some((item) => item.key === "pitch" && item.delta < 0), "offline safety should reduce excessive pitch");
 assert.ok(extremeRender.safetyDelta.some((item) => item.key === "formant" && item.delta < 0), "offline safety should reduce excessive formant shift");
 assert.ok(extremeReview.items.some((item) => item.id === "character-safety" && item.value === "Guarded"), "render review should include character-safety evidence");
+assert.equal(autoRendered.audition.status, "ready", "offline render should expose a lightweight A/B audition summary");
+const exportAudition = buildAuditionComparison({ source: offline.source, rendered: autoRendered });
+assert.equal(exportAudition.status, "ready", "export audition should loudness-match stages for honest A/B checks");
+assert.ok(exportAudition.stages.length >= 3, "export audition should include source, polish, and character stages");
+assert.ok(exportAudition.stages.every((stage) => stage.file.endsWith(".wav") && stage.blob?.size > 44), "export audition should create matched WAV files for every stage");
+assert.ok(exportAudition.stages.some((stage) => stage.id === "studio-polish"), "export audition should include Studio Polish as a separate listenable stage");
+assert.ok(exportAudition.stages.every((stage) => Math.abs(stage.match.deltaLu) <= 1.2 || stage.match.limitedByPeak), "audition stages should be loudness matched or explicitly peak-limited");
+assert.ok(auditionComparisonNotes(exportAudition).includes("level-matched before/after"), "audition notes should explain the comparison method");
 const exportManifest = buildExportManifest({
   source: offline.source,
   rendered: autoRendered,
@@ -721,7 +729,8 @@ const exportManifest = buildExportManifest({
   lineReadId: kawaiiSpark.id,
   lineReadName: kawaiiSpark.name,
   review: autoReview,
-  compressed: { blob: { size: 1234 }, mimeType: "audio/webm;codecs=opus" }
+  compressed: { blob: { size: 1234 }, mimeType: "audio/webm;codecs=opus" },
+  audition: exportAudition
 });
 assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest should retain Studio Polish metadata");
 assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
@@ -734,6 +743,8 @@ assert.ok(Number.isFinite(exportManifest.render.analysis.integratedLufs), "expor
 assert.ok(Number.isFinite(exportManifest.render.analysis.truePeakDb), "export manifest should retain render true-peak metadata");
 assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
 assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");
+assert.equal(exportManifest.audition.status, "ready", "export manifest should retain A/B audition status");
+assert.ok(exportManifest.audition.stages.some((stage) => stage.id === "character-render"), "export manifest should retain final audition stage metadata");
 assert.equal(exportManifest.source.sourceKind, "generated", "export manifest should retain source import kind");
 assert.equal(exportManifest.files.webm.endsWith(".webm"), true, "export manifest should name compressed WebM output");
 assert.equal(renderedBaseName(autoRendered).includes("VoiceForge"), true, "export base name should derive from render name");

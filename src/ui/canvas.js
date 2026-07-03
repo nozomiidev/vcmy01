@@ -70,6 +70,7 @@ export function drawAnalysisCards(host, source, rendered) {
     }
     if (rendered.region && !rendered.region.isFull) entries.push(["Region", `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)} s`]);
     if (rendered.mastering?.enabled) entries.push(["Master Gain", `${signedNumber(rendered.mastering.gainDb)} dB -> ${rendered.mastering.targetLufs.toFixed(1)} LUFS`]);
+    if (rendered.audition) entries.push(["A/B Match", formatAudition(rendered.audition)]);
     entries.push(["Render Loudness", formatLoudness(rendered.analysis)]);
     entries.push(["Render True Peak", formatTruePeak(rendered.analysis)]);
     entries.push(["Render F0", formatHz(rendered.analysis.pitchMedianHz)]);
@@ -78,6 +79,14 @@ export function drawAnalysisCards(host, source, rendered) {
     entries.push(["Auto Tune", rendered.autoCalibrated ? formatTune(rendered.calibrationDelta) : "Off"]);
   }
   host.innerHTML = entries.map(([k, v]) => `<div class="metric"><span>${k}</span><strong>${v}</strong></div>`).join("");
+}
+
+function formatAudition(audition) {
+  const target = Number.isFinite(audition?.reference?.integratedLufs)
+    ? `${audition.reference.integratedLufs.toFixed(1)} LUFS`
+    : "render level";
+  const status = audition?.status === "ready" ? "Ready" : "Check";
+  return `${status} / ${audition?.stageCount || audition?.stages?.length || 0} stages @ ${target}`;
 }
 
 function formatHz(value) {

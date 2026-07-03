@@ -243,6 +243,35 @@ https://github.com/breakfastquay/rubberband
 https://dsprelated.com/freebooks/pasp/Formant_Synthesis_Models.html
 https://dsp.stackexchange.com/questions/89674/change-pitch-of-voice
 
+## A/B Audition Export Loop
+
+The eleventh production-director pass strengthens export from "download the result" into "download the evidence needed to judge the result." Professional A/B and reference workflows repeatedly warn that louder processing is perceived as better, so comparisons need level matching before judging tone, articulation, mouth repair, breath, or character believability.
+
+Research decisions:
+
+- Reference and A/B tooling such as Perception AB centers on fast before/after switching, loudness matching, and compensation so the engineer hears processing choices rather than gain differences.
+- Podcast workflows such as Transom's loudness guidance treat final loudness normalization as part of the production chain, not an afterthought.
+- Community mastering and mixing practice also converges on level-matching references and processed material; useful, but it should be implemented as a bounded, measurable utility rather than accepted as folklore.
+
+Implementation response:
+
+- ZIP export now builds an `audition/` package with source, Studio Polish, and final character render WAV files matched to the final render loudness within true-peak safety.
+- `analysis.json` now carries an A/B audition manifest with per-stage gain, matched LUFS, true peak, delta LU, and peak-limited warnings.
+- `drawAnalysisCards()` exposes an A/B Match card so the user can see that the render is ready for fair before/polish/character listening before exporting.
+- Render objects keep only a lightweight audition summary; long intermediate audio is regenerated on ZIP export to avoid retaining unnecessary memory for long files.
+- WebM package encoding now has a timeout and WAV-package fallback because in-app Browser verification showed `MediaRecorder` can stall without an end event in some automation surfaces.
+
+Verification:
+
+- In-app Browser private-fixture render showed A/B Match Ready / 3 stages at -19.5 LUFS, Render Loudness -19.5 LUFS, Render True Peak -1.2 dBTP, and enabled WAV/WebM/ZIP controls.
+- Clicking ZIP in the in-app Browser cannot complete a real download event on that surface, but the UI recovered from Encoding package back to Rendered - tuned with no console errors after adding the encoder timeout/fallback.
+
+Sources:
+https://www.production-expert.com/production-expert-1/an-accurate-way-to-make-ab-audio-comparisons
+https://transom.org/2015/podcasting-basics-part-3-audio-levels-and-processing/
+https://www.reddit.com/r/audioengineering/comments/1hnmimn/how_do_you_ab_with_your_reference_tracks/
+https://gearspace.com/board/mastering-forum/1364051-b-ing-level-matching-original-mix-your-master.html
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
