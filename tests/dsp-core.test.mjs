@@ -709,6 +709,7 @@ assert.ok(snapshotParamPatch(paramsForPreset("clean"), kawaiiSnapshot.params).so
 assert.equal(lowToKawaiiFit.status, "risk", "low source should be risky for a bright kawaii target before tuning");
 assert.ok(lowToKawaiiFit.score < 70, "source fit should score mismatched source and target conservatively");
 assert.ok(lowToKawaiiFit.items.some((item) => item.id === "range" && item.status === "risk"), "source fit should flag range mismatch");
+assert.ok(lowToKawaiiFit.items.some((item) => item.id === "spectral" && ["ready", "tune", "risk"].includes(item.status)), "source fit should include spectral-fit evidence");
 assert.ok(lowToKawaiiFit.patches.some((item) => item.key === "pitch" && item.delta > 0), "source fit should expose calibration patches");
 assert.equal(lowKawaiiChain.nextStageId, "guardrail", "source mismatch should prioritize the guardrail chain stage");
 assert.ok(bestCharacterChainPatch(lowKawaiiChain)._sourceCalibration, "guardrail chain patch should carry calibration idempotency");

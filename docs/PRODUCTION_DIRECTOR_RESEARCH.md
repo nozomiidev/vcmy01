@@ -491,6 +491,32 @@ https://support.ircam.fr/docs/AudioSculpt/3.0/co/LPC_1.html
 https://www.dsprelated.com/freebooks/sasp/Equivalent_Rectangular_Bandwidth.html
 https://www.fabfilter.com/help/pro-q/using/dynamic-eq
 
+## Spectral Source Fit Loop
+
+The twentieth production-director pass moves spectral risk earlier in the workflow. A user should not discover only after rendering that a kawaii/anime macro was guarded because the source was nasal or sibilant. The Guided Studio source-fit layer should explain that risk before the render button.
+
+Research decisions:
+
+- Professional voice workflows diagnose source suitability before committing to a treatment chain: range, level, tone, texture, and resonant problems all affect which processing is safe.
+- For character voices, a bright target makes nasal/harsh/sibilant evidence more dangerous, while body/ikemen targets make mud/darkness more important.
+- Source-fit should stay advisory: it does not process audio, but it helps the route planner and UI explain why calibration or guardrails are needed.
+
+Implementation response:
+
+- `sourceFitReport()` now adds a `Spectral Fit` card when studio spectral analysis exists.
+- Spectral Fit weights nasal/harsh/sibilance more for kawaii/anime/otome-like targets and mud/darkness more for ikemen/deep/body-like targets.
+- The value carries the top spectral risk plus ERB crowding frequency when available, so the Guided Studio can explain risks before render/export.
+
+Verification:
+
+- `npm test` and `npm run quality` passed with the Spectral Fit item included in source-fit reports.
+- In-app Browser verification with the private Yamada Taro fixture loaded the kawaii guided render, showed `Spectral Fit: mud 100 / ERB 387Hz`, kept `Kawaii Bright / Safety Guarded`, carried spectral-fit route-card reasons, and exposed WAV/WebM/ZIP download actions without console errors.
+
+Sources:
+https://www.izotope.com/en/learn/how-to-eq-vocals.html
+https://www.dsprelated.com/freebooks/sasp/Equivalent_Rectangular_Bandwidth.html
+https://support.ircam.fr/docs/AudioSculpt/3.0/co/LPC_1.html
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

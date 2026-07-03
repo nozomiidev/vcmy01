@@ -286,6 +286,7 @@ export function sourceFitReport(params = {}, profile = {}, target = null, source
     : true;
   const calibrated = calibrateParamsForVoice(params, profile);
   const patches = paramDeltas(params, calibrated);
+  const spectralItem = spectralFitItem(source?.studioAnalysis, params, target);
   const items = [
     {
       id: "range",
@@ -314,8 +315,9 @@ export function sourceFitReport(params = {}, profile = {}, target = null, source
       status: textureStatus(profile, expected),
       value: profile.breathyOrNoisy ? "breathy/noisy" : "controlled",
       detail: textureDetail(profile, expected)
-    }
-  ];
+    },
+    spectralItem
+  ].filter(Boolean);
   const patchPenalty = patches.reduce((sum, item) => sum + Math.min(10, Math.abs(item.delta)), 0);
   const statusPenalty = items.reduce((sum, item) => sum + (item.status === "risk" ? 18 : item.status === "tune" ? 8 : 0), 0);
   const score = Math.max(0, Math.min(100, Math.round(100 - statusPenalty - Math.min(24, patchPenalty))));
@@ -326,6 +328,45 @@ export function sourceFitReport(params = {}, profile = {}, target = null, source
     sourceRange: profile.range || "unknown",
     items,
     patches
+  };
+}
+
+function spectralFitItem(studioAnalysis = null, params = {}, target = null) {
+  const spectral = studioAnalysis?.spectral || null;
+  if (!spectral) return null;
+  const risks = spectral.risks || {};
+  const brightTarget = (params.pitch || 0) > 0.5 || (params.formant || 0) > 0.5 || (params.cuteness || 0) > 35 || (params.anime || 0) > 35 || /kawaii|anime|otome/i.test(target?.id || target?.presetId || "");
+  const bodyTarget = (params.pitch || 0) < -0.5 || (params.formant || 0) < -0.5 || (params.body || 0) > 35 || /ikemen|narrator|deep/i.test(target?.id || target?.presetId || "");
+  const problemMap = {
+    nasal: risks.nasal || 0,
+    harsh: risks.harsh || 0,
+    sibilance: risks.sibilance || 0,
+    mud: risks.mud || 0,
+    dark: risks.dark || 0,
+    thin: risks.thin || 0
+  };
+  const weighted = {
+    nasal: problemMap.nasal + (brightTarget ? 8 : 0),
+    harsh: problemMap.harsh + (brightTarget ? 6 : 0),
+    sibilance: problemMap.sibilance + (brightTarget ? 8 : 0),
+    mud: problemMap.mud + (bodyTarget ? 8 : 0),
+    dark: problemMap.dark + (bodyTarget ? 5 : 0),
+    thin: problemMap.thin + (brightTarget ? 5 : 0)
+  };
+  const top = Object.entries(weighted).sort((a, b) => b[1] - a[1])[0] || ["balanced", 0];
+  const score = Math.max(0, top[1]);
+  const crowded = spectral.perceptual?.crowding;
+  const evidence = crowded?.band?.centerHz ? ` / ERB ${Math.round(crowded.band.centerHz)}Hz` : "";
+  return {
+    id: "spectral",
+    label: "Spectral Fit",
+    status: score > 58 ? "risk" : score > 32 ? "tune" : "ready",
+    value: `${top[0]} ${Math.round(score)}${evidence}`,
+    detail: score > 58
+      ? "Guard character formant, air, and presence before rendering."
+      : score > 32
+      ? "Use Studio Polish and guarded character macros before final export."
+      : "Spectral balance is safe enough for this target."
   };
 }
 
