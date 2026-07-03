@@ -820,6 +820,25 @@ assert.ok(exportAudition.stages.every((stage) => stage.file.endsWith(".wav") && 
 assert.ok(exportAudition.stages.some((stage) => stage.id === "studio-polish"), "export audition should include Studio Polish as a separate listenable stage");
 assert.ok(exportAudition.stages.every((stage) => Math.abs(stage.match.deltaLu) <= 1.2 || stage.match.limitedByPeak), "audition stages should be loudness matched or explicitly peak-limited");
 assert.ok(auditionComparisonNotes(exportAudition).includes("level-matched before/after"), "audition notes should explain the comparison method");
+const exportTakeDecision = {
+  status: "risk",
+  score: 68,
+  winnerId: "",
+  candidateId: "safety-render",
+  candidate: {
+    id: "safety-render",
+    label: "Safety Render",
+    score: 68,
+    status: "risk",
+    weakest: "QC Gate",
+    keeperEligible: false,
+    qc: { status: "risk", score: 31, summary: "render + comfort QC", blockers: ["render", "comfort"], checks: [] }
+  },
+  items: [
+    { id: "safety-render", keeperEligible: false }
+  ],
+  summary: "QC hold: Safety Render needs render + comfort QC"
+};
 const exportManifest = buildExportManifest({
   source: offline.source,
   rendered: autoRendered,
@@ -829,6 +848,7 @@ const exportManifest = buildExportManifest({
   lineReadId: kawaiiSpark.id,
   lineReadName: kawaiiSpark.name,
   review: autoReview,
+  takeDecision: exportTakeDecision,
   compressed: { blob: { size: 1234 }, mimeType: "audio/webm;codecs=opus" },
   audition: exportAudition
 });
@@ -853,6 +873,8 @@ assert.ok(Number.isFinite(exportManifest.render.characterSafety.evidence.nasal),
 assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");
 assert.equal(exportManifest.review.comfort.score, autoReview.comfort.score, "export manifest should retain listening comfort metadata");
 assert.equal(exportManifest.review.performanceBudget.status, autoReview.performanceBudget.status, "export manifest should retain review performance-budget metadata");
+assert.equal(exportManifest.takeDecision.candidate.qc.blockers.includes("comfort"), true, "export manifest should retain take QC blockers");
+assert.equal(exportManifest.takeDecision.blockedCount, 1, "export manifest should count QC-blocked deck items");
 assert.equal(exportManifest.audition.status, "ready", "export manifest should retain A/B audition status");
 assert.ok(exportManifest.audition.stages.some((stage) => stage.id === "character-render"), "export manifest should retain final audition stage metadata");
 assert.equal(exportManifest.source.sourceKind, "generated", "export manifest should retain source import kind");
@@ -868,11 +890,14 @@ const safetyProject = createProjectSnapshot({
   lineReadId: kawaiiSpark.id,
   params: autoRendered.appliedParams,
   source: offline.source,
+  takeDecision: exportTakeDecision,
   renderDeck: [{ id: "safety-render", title: "Safety Render", target: kawaiiSpark.name, targetId: kawaiiSpark.id, review: autoReview, rendered: autoRendered }]
 }, { id: "project-safety", title: "Safety metadata project", includeAudio: false });
 assert.equal(safetyProject.renderDeck[0].rendered.characterSafety.enabled, true, "project snapshot should retain character-safety metadata");
 assert.ok(Number.isFinite(safetyProject.renderDeck[0].rendered.characterSafety.evidence.nasal), "project snapshot should retain character-safety tone evidence");
 assert.equal(safetyProject.renderDeck[0].rendered.mastering.enabled, true, "project snapshot should retain mastering metadata");
+assert.equal(safetyProject.takeDecision.candidate.qc.blockers.includes("render"), true, "project snapshot should retain take QC candidate blockers");
+assert.equal(safetyProject.takeDecision.winnerId, "", "project snapshot should distinguish QC-held candidates from keepers");
 assert.ok(safetyProject.source.studioAnalysis.spectral.centroidHz > 0, "project snapshot should retain source FFT tone map");
 assert.equal(safetyProject.source.studioAnalysis.spectral.envelope.method, "lpc-autocorrelation-envelope", "project snapshot should retain LPC envelope metadata");
 assert.equal(safetyProject.source.studioAnalysis.spectral.perceptual.method, "erb-critical-band-tone-map", "project snapshot should retain perceptual tone metadata");

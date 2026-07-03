@@ -31,6 +31,7 @@ export function buildExportManifest({
   lineReadId = "",
   lineReadName = "",
   review = null,
+  takeDecision = null,
   compressed = null,
   audition = null
 } = {}) {
@@ -85,6 +86,7 @@ export function buildExportManifest({
         detail: item.detail
       })) || []
     } : null,
+    takeDecision: compactTakeDecision(takeDecision),
     audition: compactAuditionComparison(audition || rendered?.audition),
     files: {
       wav: rendered ? `${renderedBaseName(rendered)}.wav` : "",
@@ -345,6 +347,7 @@ export async function buildRenderZipPackage({
   lineReadId = "",
   lineReadName = "",
   review = null,
+  takeDecision = null,
   webmBlob = null
 } = {}) {
   if (!rendered?.blob) throw new Error("No rendered WAV is available for ZIP export.");
@@ -361,6 +364,7 @@ export async function buildRenderZipPackage({
     lineReadId,
     lineReadName,
     review,
+    takeDecision,
     compressed,
     audition
   });
@@ -623,6 +627,42 @@ function compactListeningComfort(comfort = null) {
       reason: item.reason || ""
     })) : [],
     detail: comfort.detail || ""
+  };
+}
+
+function compactTakeDecision(decision = null) {
+  if (!decision) return null;
+  return {
+    status: decision.status || "waiting",
+    score: Math.round(Number(decision.score || 0)),
+    winnerId: decision.winnerId || "",
+    candidateId: decision.candidateId || decision.winnerId || "",
+    winner: compactDecisionTake(decision.winner),
+    candidate: compactDecisionTake(decision.candidate || decision.winner),
+    count: Array.isArray(decision.items) ? decision.items.length : 0,
+    blockedCount: Array.isArray(decision.items)
+      ? decision.items.filter((item) => item?.keeperEligible === false).length
+      : 0,
+    summary: decision.summary || ""
+  };
+}
+
+function compactDecisionTake(item = null) {
+  if (!item) return null;
+  return {
+    id: item.id || "",
+    label: item.label || "",
+    score: Math.round(Number(item.score || 0)),
+    status: item.status || "",
+    weakest: item.weakest || "",
+    keeperEligible: item.keeperEligible !== false,
+    qc: item.qc ? {
+      status: item.qc.status || "",
+      score: Math.round(Number(item.qc.score || 0)),
+      summary: item.qc.summary || "",
+      blockers: Array.isArray(item.qc.blockers) ? item.qc.blockers.slice(0, 8) : [],
+      checks: Array.isArray(item.qc.checks) ? item.qc.checks.slice(0, 8) : []
+    } : null
   };
 }
 

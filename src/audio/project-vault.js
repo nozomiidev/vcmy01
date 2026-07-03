@@ -363,16 +363,36 @@ function sanitizeSourceTimeline(timeline = null) {
 
 function sanitizeTakeDecision(decision = null) {
   if (!decision) return null;
+  const items = Array.isArray(decision.items) ? decision.items : [];
   return {
     status: cleanText(decision.status || "waiting", 24),
     score: clampScore(decision.score),
     winnerId: cleanText(decision.winnerId || "", 96),
-    winner: decision.winner ? {
-      label: cleanText(decision.winner.label || "", 100),
-      weakest: cleanText(decision.winner.weakest || "", 80),
-      score: clampScore(decision.winner.score)
-    } : null,
-    count: Array.isArray(decision.items) ? decision.items.length : 0
+    candidateId: cleanText(decision.candidateId || decision.winnerId || "", 96),
+    winner: sanitizeDecisionTake(decision.winner),
+    candidate: sanitizeDecisionTake(decision.candidate || decision.winner),
+    count: items.length,
+    blockedCount: items.filter((item) => item?.keeperEligible === false).length,
+    summary: cleanText(decision.summary || "", 180)
+  };
+}
+
+function sanitizeDecisionTake(item = null) {
+  if (!item) return null;
+  return {
+    id: cleanText(item.id || "", 96),
+    label: cleanText(item.label || "", 100),
+    weakest: cleanText(item.weakest || "", 80),
+    score: clampScore(item.score),
+    status: cleanText(item.status || "", 24),
+    keeperEligible: item.keeperEligible !== false,
+    qc: item.qc ? {
+      status: cleanText(item.qc.status || "", 24),
+      score: clampScore(item.qc.score),
+      summary: cleanText(item.qc.summary || "", 120),
+      blockers: cleanTextList(item.qc.blockers, 8, 40),
+      checks: cleanTextList(item.qc.checks, 8, 40)
+    } : null
   };
 }
 
@@ -866,6 +886,13 @@ function average(values, fallback = 0) {
 
 function cleanText(value, maxLength) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function cleanTextList(values, maxItems, maxLength) {
+  return (Array.isArray(values) ? values : [])
+    .slice(0, maxItems)
+    .map((value) => cleanText(value, maxLength))
+    .filter(Boolean);
 }
 
 function finiteNumber(value) {

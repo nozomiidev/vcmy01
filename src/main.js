@@ -1394,6 +1394,7 @@ async function downloadCurrentZip() {
   try {
     const target = lineReadById(state.lineReadId);
     const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
+    const takeDecision = currentTakeDecision();
     const pack = await buildRenderZipPackage({
       source: offline.source,
       rendered: offline.rendered,
@@ -1403,6 +1404,7 @@ async function downloadCurrentZip() {
       lineReadId: target.id,
       lineReadName: target.name,
       review,
+      takeDecision,
       webmBlob
     });
     downloadBlob(pack.blob, pack.name);

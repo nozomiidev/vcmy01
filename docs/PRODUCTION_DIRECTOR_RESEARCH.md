@@ -809,6 +809,7 @@ Implementation response:
 - `rankRenderDeckTakes()` now builds a QC gate for every render-deck item. Render risk, comfort risk, slow full-render budget, clipping, tight peaks, and empty audio make a take ineligible for keeper selection.
 - The deck can still expose the strongest blocked candidate as `candidate`, so Keeper Refinement can produce repair moves instead of leaving the user with a dead end.
 - Guided Studio now routes QC-held candidates to refinement before A/B comparison, and the UI labels such cards as `QC Hold` rather than `Keeper`.
+- Export `analysis.json` and Project Vault snapshots now retain compact Take Decision evidence, including the QC-held candidate, blocker/check lists, and blocked deck count.
 - Unit tests now cover safer-take selection, all-risk candidate hold, QC evidence cards, and Studio Plan routing.
 
 Sources:
