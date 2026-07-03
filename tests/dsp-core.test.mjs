@@ -49,6 +49,7 @@ import {
   buildCalibrationProfile,
   calibrateParamsForVoice,
   encodeWavMono,
+  estimatePitch,
   generateReferenceVoice,
   generateTestVoice,
   granularShift,
@@ -123,6 +124,7 @@ assert.equal(new Set(voiceRouteTargets().map((target) => target.presetId)).size,
 assert.ok(REFERENCE_VOICE_PROFILES.length >= 4, "reference profiles should cover varied source voices");
 assert.equal(source.length, Math.round(sampleRate * 1.25), "generated sample length");
 const sourceAnalysis = analyzeBuffer(source, sampleRate);
+const sourcePitch = estimatePitch(source, sampleRate);
 const sourceSpectral = analyzeSpectralVoice(source, sampleRate);
 const sourceLoudness = analyzeLoudness(source, sampleRate);
 const sourceLoudnessReview = loudnessTargetReview(sourceLoudness, -16, -1);
@@ -132,6 +134,9 @@ assert.ok(Number.isFinite(sourceAnalysis.brightnessRatio), "generated sample exp
 assert.ok(Number.isFinite(sourceAnalysis.integratedLufs), "generated sample should expose K-weighted loudness");
 assert.ok(Number.isFinite(sourceAnalysis.truePeakDb), "generated sample should expose true-peak proxy");
 assert.equal(sourceAnalysis.loudnessStandard, "BS.1770-style mono proxy", "generated sample should name the loudness proxy");
+assert.equal(sourceAnalysis.pitchMethod, "yin-autocorr-hybrid", "analysis should use the hybrid YIN pitch tracker");
+assert.ok(Math.abs(sourcePitch.medianHz - 150) < 24, "hybrid pitch tracker should keep generated F0 in range");
+assert.ok(sourcePitch.octaveCorrections >= 0, "hybrid pitch tracker should expose octave correction evidence");
 assert.ok(sourceLoudness.gatedBlockCount >= 0, "loudness analysis should expose gating metadata");
 assert.ok(Number.isFinite(sourceLoudnessReview.gainToTargetDb), "loudness target review should expose target gain");
 assert.ok(sourceSpectral.frameCount > 0, "spectral voice analysis should inspect FFT frames");

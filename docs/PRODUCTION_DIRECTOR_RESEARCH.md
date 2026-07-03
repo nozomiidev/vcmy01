@@ -301,6 +301,34 @@ https://theproaudiofiles.com/video/rx-6-spectral-de-ess-tutorial/
 https://www.reddit.com/r/audioengineering/comments/1qtbfw5/vocal_eq_midrange_harshness_and_deessing/
 https://www.soundonsound.com/sound-advice/q-can-use-eq-fix-my-nasal-sounding-vocals
 
+## Hybrid YIN F0 Tracking Loop
+
+The thirteenth production-director pass improves the measurement layer under calibration, source-fit routing, character safety, and prosody review. Character macros are only as good as their source diagnosis: if F0 jumps an octave, kawaii/ikemen guardrails and performance scoring make the wrong decision.
+
+Research decisions:
+
+- The YIN paper improves autocorrelation-style pitch detection with a cumulative mean normalized difference function, reducing common pitch errors while remaining classical DSP.
+- Speech pitch tracking practice often adds post-processing such as median, dynamic programming, or octave smoothing to remove isolated octave jumps.
+- For this static browser app, the right next step is not a large neural F0 model; it is a lightweight hybrid that preserves the existing autocorrelation fallback while adding YIN confidence and local octave correction.
+
+Implementation response:
+
+- `estimatePitch()` now uses a YIN/autocorrelation hybrid per frame.
+- The analyzer exposes `pitchMethod` and `pitchOctaveCorrections` so diagnostics can explain which pitch layer is active.
+- Frame candidates are smoothed against the previous voiced frame to reduce octave jumps before median F0 is calculated.
+- Offline analysis cards show the active Pitch Tracker so the measurement layer is visible to users and testers.
+
+Verification:
+
+- `npm test` and `npm run quality` passed after switching the analyzer to the hybrid tracker.
+- In-app Browser private-fixture Kawaii render showed Source F0 246 Hz, Pitch Tracker yin-autocorr-hybrid, A/B Match Ready / 3 stages at -19.2 LUFS, Render Loudness -19.2 LUFS, Render True Peak -1.4 dBTP, Render F0 115 Hz, and enabled WAV/WebM/ZIP controls.
+
+Sources:
+https://pubmed.ncbi.nlm.nih.gov/12002874/
+https://docs.rs/pitch-detection/latest/pitch_detection/detector/yin/index.html
+https://www.mathworks.com/help/audio/ug/pitch-tracking-using-multiple-pitch-estimations-and-hmm.html
+https://dsp.stackexchange.com/questions/17758/pitch-detection-avoiding-frequency-doubling-halving
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

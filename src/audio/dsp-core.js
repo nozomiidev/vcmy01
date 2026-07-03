@@ -99,6 +99,8 @@ export function analyzeBuffer(buffer, sampleRate) {
     pitchMedianHz: pitch.medianHz,
     voicedRatio: pitch.voicedRatio,
     pitchConfidence: pitch.confidence,
+    pitchMethod: pitch.method,
+    pitchOctaveCorrections: pitch.octaveCorrections,
     brightnessRatio: brightness.highRatio,
     crestDb,
     clipped: p >= 0.985
@@ -123,6 +125,8 @@ export function estimatePitch(buffer, sampleRate, options = {}) {
   const pitches = [];
   let confidenceSum = 0;
   let totalFrames = 0;
+  let previousHz = 0;
+  let octaveCorrections = 0;
 
   for (let start = 0; start + frameSize < buffer.length; start += hop) {
     totalFrames++;
@@ -131,27 +135,17 @@ export function estimatePitch(buffer, sampleRate, options = {}) {
     frameRms = Math.sqrt(frameRms / frameSize);
     if (frameRms < 0.01) continue;
 
-    let bestLag = -1;
-    let bestScore = 0;
-    for (let lag = minLag; lag <= maxLag; lag++) {
-      const score = autocorrScore(buffer, start, frameSize, lag);
-      if (score > bestScore) {
-        bestScore = score;
-        bestLag = lag;
+    const candidate = pitchFrameHybrid(buffer, start, frameSize, sampleRate, minLag, maxLag, options);
+    if (candidate.lag > 0 && candidate.confidence > 0.38) {
+      let hz = sampleRate / candidate.lag;
+      const corrected = smoothOctaveJump(hz, previousHz);
+      if (corrected !== hz) {
+        hz = corrected;
+        octaveCorrections++;
       }
-    }
-    for (let divisor = 2; divisor <= 4 && bestLag > 0; divisor++) {
-      const candidate = Math.round(bestLag / divisor);
-      if (candidate < minLag) continue;
-      const candidateScore = autocorrScore(buffer, start, frameSize, candidate);
-      if (candidateScore > bestScore * 0.62) {
-        bestLag = candidate;
-        bestScore = candidateScore;
-      }
-    }
-    if (bestLag > 0 && bestScore > 0.38) {
-      pitches.push(sampleRate / bestLag);
-      confidenceSum += bestScore;
+      previousHz = hz;
+      pitches.push(hz);
+      confidenceSum += candidate.confidence;
     }
   }
 
@@ -162,8 +156,91 @@ export function estimatePitch(buffer, sampleRate, options = {}) {
     voicedRatio: totalFrames ? pitches.length / totalFrames : 0,
     confidence: pitches.length ? confidenceSum / pitches.length : 0,
     frames: totalFrames,
-    voicedFrames: pitches.length
+    voicedFrames: pitches.length,
+    octaveCorrections,
+    method: "yin-autocorr-hybrid"
   };
+}
+
+function pitchFrameHybrid(buffer, start, frameSize, sampleRate, minLag, maxLag, options = {}) {
+  const yin = yinPitchCandidate(buffer, start, frameSize, minLag, maxLag, options.yinThreshold || 0.18);
+  if (yin.lag > 0 && yin.confidence >= 0.52) return yin;
+  const auto = autocorrPitchCandidate(buffer, start, frameSize, minLag, maxLag);
+  if (yin.lag > 0 && yin.confidence > auto.confidence * 0.84) return yin;
+  return auto;
+}
+
+function autocorrPitchCandidate(buffer, start, frameSize, minLag, maxLag) {
+  let bestLag = -1;
+  let bestScore = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    const score = autocorrScore(buffer, start, frameSize, lag);
+    if (score > bestScore) {
+      bestScore = score;
+      bestLag = lag;
+    }
+  }
+  for (let divisor = 2; divisor <= 4 && bestLag > 0; divisor++) {
+    const candidate = Math.round(bestLag / divisor);
+    if (candidate < minLag) continue;
+    const candidateScore = autocorrScore(buffer, start, frameSize, candidate);
+    if (candidateScore > bestScore * 0.62) {
+      bestLag = candidate;
+      bestScore = candidateScore;
+    }
+  }
+  return { lag: bestLag, confidence: bestScore, method: "autocorr" };
+}
+
+function yinPitchCandidate(buffer, start, frameSize, minLag, maxLag, threshold) {
+  const diff = new Float32Array(maxLag + 1);
+  let running = 0;
+  let bestLag = -1;
+  let bestCmnd = Infinity;
+  for (let lag = 1; lag <= maxLag; lag++) {
+    let sum = 0;
+    for (let i = 0; i < frameSize - maxLag; i += 2) {
+      const d = buffer[start + i] - buffer[start + i + lag];
+      sum += d * d;
+    }
+    running += sum;
+    const cmnd = lag === 0 || running <= 1e-12 ? 1 : sum * lag / running;
+    diff[lag] = cmnd;
+    if (lag >= minLag && cmnd < bestCmnd) {
+      bestCmnd = cmnd;
+      bestLag = lag;
+    }
+    if (lag >= minLag && cmnd < threshold) {
+      bestLag = lag;
+      bestCmnd = cmnd;
+      break;
+    }
+  }
+  if (bestLag <= 0 || !Number.isFinite(bestCmnd)) return { lag: -1, confidence: 0, method: "yin" };
+  const refined = parabolicLag(diff, bestLag, minLag, maxLag);
+  return {
+    lag: refined,
+    confidence: clamp(1 - bestCmnd, 0, 1),
+    method: "yin"
+  };
+}
+
+function parabolicLag(values, lag, minLag, maxLag) {
+  if (lag <= minLag || lag >= maxLag) return lag;
+  const left = values[lag - 1];
+  const center = values[lag];
+  const right = values[lag + 1];
+  const denom = left - 2 * center + right;
+  if (Math.abs(denom) < 1e-9) return lag;
+  return clamp(lag + 0.5 * (left - right) / denom, minLag, maxLag);
+}
+
+function smoothOctaveJump(hz, previousHz) {
+  if (!previousHz || !hz) return hz;
+  const candidates = [hz, hz * 0.5, hz * 2];
+  return candidates
+    .filter((candidate) => candidate >= 55 && candidate <= 620)
+    .sort((a, b) => Math.abs(Math.log2(a / previousHz)) - Math.abs(Math.log2(b / previousHz)))[0] || hz;
 }
 
 function autocorrScore(buffer, start, frameSize, lag) {

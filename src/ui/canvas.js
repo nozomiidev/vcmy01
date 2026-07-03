@@ -49,6 +49,7 @@ export function drawAnalysisCards(host, source, rendered) {
     entries.push(["Source Loudness", formatLoudness(source.analysis)]);
     entries.push(["Source True Peak", formatTruePeak(source.analysis)]);
     entries.push(["Source F0", formatHz(source.analysis.pitchMedianHz)]);
+    if (source.analysis?.pitchMethod) entries.push(["Pitch Tracker", source.analysis.pitchMethod]);
     entries.push(["Voiced", formatPct(source.analysis.voicedRatio)]);
     entries.push(["Brightness", formatPct(source.analysis.brightnessRatio)]);
     if (source.studioAnalysis) {
