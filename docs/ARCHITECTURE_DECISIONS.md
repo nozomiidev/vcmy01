@@ -112,3 +112,290 @@ Decision:
   signal metrics with completing the product vision.
 - When adding DSP controls, connect them back to user-facing character intent
   instead of only exposing more technical knobs.
+
+## ADR 008 - Voice Design Needs Stage Diagnostics
+
+A character preset cannot be treated as a flat bag of values. If an otome,
+kawaii, anime, or ikemen target misses, the user needs to know whether the gap
+is in range/mouth, tone, breath texture, performance, dynamics, space, or source
+guardrails.
+
+Decision:
+
+- Maintain a Character Chain report that groups the active parameters into
+  Voice Core, Tone, Texture, Performance, Dynamics, Space, and Guardrail stages.
+- Compare every stage against the active Line Read target rather than only
+  against a generic preset name.
+- Expose one-step patches from the weakest stage so tuning becomes a workflow,
+  not slider guessing.
+- Keep the Guardrail stage aware of source calibration and render review so
+  source-fit and post-render evidence can affect the next correction.
+
+## ADR 009 - Performance Needs Time-Axis Evidence
+
+Average F0, RMS, brightness, and ZCR can pass while the read still feels flat,
+stiff, or unlike a character performance. Otome, kawaii, anime, ASMR, and ikemen
+targets depend on phrase lift, ending release, breath placement, and changing
+delivery over time.
+
+Decision:
+
+- Maintain a Performance Trace report for offline source/render regions.
+- Bound the frame count so long uploaded files do not make tracing slow or
+  memory-heavy.
+- Overlay source and rendered traces for frame-level pitch and energy rather
+  than only showing aggregate analysis cards.
+- Surface deltas for phrase lift, ending motion, tail air, delivery motion, and
+  active coverage so subjective listening has repeatable time-axis evidence.
+
+## ADR 010 - Diagnostics Need A Production Plan
+
+Source Fit, Voice Route, Character Chain, Performance Trace, and Render Deck can
+all be correct while still forcing the user to decide which panel matters next.
+That creates a "dashboard" rather than a character voice production session.
+
+Decision:
+
+- Add a Studio Plan layer that keeps the whole production flow visible.
+- Let the plan choose one next action from the current state instead of making
+  users mentally stitch separate diagnostics together.
+- Keep the plan data-driven and testable so the UI does not become a pile of
+  hard-coded button shortcuts.
+- Treat the plan as orchestration only: it should call existing source, route,
+  chain, preview, trace, and deck workflows rather than replacing them.
+
+## ADR 011 - Character Acting Needs Scene Beats
+
+Single Line Read targets are useful for calibration, but otome-game, kawaii,
+ikemen, and ASMR delivery depend on context across several lines: invitation,
+confession, tease, reassurance, release, and similar acting beats. A single
+slider state cannot communicate that arc well enough.
+
+Decision:
+
+- Add Scene Kits as grouped acting beats above Line Reads.
+- Represent every beat as a real target with script, direction, source profile,
+  and macro/director goals so existing diagnostics and render workflows can
+  evaluate it.
+- Keep Scene Kits local and static so they work on GitHub Pages and can grow
+  into larger reference phrase packs without requiring AI or a backend.
+- Use Scene Kits as the bridge between subjective acting direction and the
+  measurable DSP workflow: Source Fit, Voice Route, Character Chain, Studio
+  Plan, Performance Trace, and Render Deck should all understand them.
+
+## ADR 012 - Acting Intent Needs A Pre-Render Script
+
+Performance Trace shows what happened after rendering, but it does not tell the
+user what the read was supposed to do. Without a pre-render plan, the app can
+score source fit, route choice, and render quality while still missing the
+actual acting gesture: close entry, phrase lift, breath tail, tease, confession,
+release, or protective landing.
+
+Decision:
+
+- Add a Performance Script layer generated from the active Line Read or Scene
+  Beat.
+- Represent the script as time-axis lanes for lift, energy, distance, breath,
+  and release, plus concise acting cues.
+- Keep the script static and deterministic so it works on GitHub Pages, remains
+  testable, and does not require AI.
+- Add Script Match after rendering so Performance Trace deltas are judged
+  against the planned acting intent rather than generic signal movement alone.
+- Include Script as a Studio Plan step between chain shaping and audition, so
+  the production flow becomes target -> route -> shape -> script -> render ->
+  trace -> choose.
+
+## ADR 013 - Acting Scripts Should Drive Offline Automation
+
+Performance Script is useful as a planning and scoring layer, but a character
+voice studio also needs the plan to affect the rendered take. If lift, breath,
+distance, and release stay as only cards or charts, the product still behaves
+like a fixed DSP preset with better documentation.
+
+Decision:
+
+- Let offline rendering optionally use Performance Script lanes as automation
+  sources.
+- Render scripted takes in overlapping chunks, sampling the script timeline for
+  each chunk and mapping lane deltas into existing Director, macro, and DSP
+  parameters.
+- Preserve automation frame metadata and summaries on rendered takes so Studio
+  Plan, Script Match, tests, and the UI can distinguish scripted renders from
+  static chain renders.
+- Keep this layer deterministic and local-first. It is a non-AI prosody
+  approximation and should remain replaceable by stronger DSP or future browser
+  VC later.
+
+## ADR 014 - Character Voices Need Variant Auditioning
+
+Character voice design is partly subjective. A single "best" DSP chain is often
+less useful than several nearby candidates that explore sweetness, intimacy,
+body, mix safety, and script motion. Without variant auditioning, users must
+guess one slider move at a time and cannot quickly compare plausible character
+directions.
+
+Decision:
+
+- Add a Variant Lab that builds deterministic parameter candidates from the
+  active preset, Line Read, Source Fit, and Director/Macro state.
+- Make every variant a real renderable chain with patch evidence, axis
+  visualization, and optional script automation intensity.
+- Render single variants or a bounded set into the same Render Deck so A/B
+  comparison, review metrics, and Studio Plan can treat them as normal takes.
+- Keep variants local and static. They are a DSP/product workflow layer, not AI
+  generation and not a substitute for future high-quality VC.
+
+## ADR 015 - Render Decks Need Keeper Decisions
+
+Variant Lab can produce multiple plausible takes, but a deck without a decision
+layer still leaves the user doing all production judgment manually. Generic
+render-review cards are useful, but they do not combine the actual character
+target, the planned acting script, safety checks, and variant intent into one
+keeper recommendation.
+
+Decision:
+
+- Add a Take Decision layer above Render Deck.
+- Rank every retained take with target macro/director fit, Script Match or
+  planned script evidence, render safety, and variant intent.
+- Keep the ranking deterministic and local so tests, Studio Plan, and UI all
+  use the same evidence model.
+- Treat the result as an evidence-backed keeper recommendation, not an
+  objective judgment of acting beauty or speaker identity.
+
+## ADR 016 - Keeper Decisions Need A Refinement Loop
+
+Choosing a keeper is still incomplete if the app cannot turn weak evidence into
+the next render move. A product-level character voice workflow needs an audition
+loop: render candidates, choose the best one, identify the weakest evidence, and
+apply a focused patch before rendering again.
+
+Decision:
+
+- Add Keeper Refinement after Take Decision.
+- Start refinement from the selected take's own base parameters so variant
+  winners do not lose their actual voice design.
+- Convert target drift, Script Match misses, and render-safety weaknesses into
+  bounded parameter patch moves.
+- Let Studio Plan surface refinement before final deck comparison when the
+  keeper is not ready.
+- Keep the loop deterministic, static, local, and replaceable by stronger DSP
+  or future browser VC later.
+
+## ADR 017 - Voice Design Needs A Signal Stack
+
+Character Chain explains target drift, but it does not show the actual
+signal-path operation. A user can match the target layers and still end up with
+an overloaded breath stack, too much close-mic ambience, weak render headroom,
+or a source-compensation move that should be treated as input prep rather than
+as character taste.
+
+Decision:
+
+- Add a Signal Stack layer separate from Character Chain.
+- Keep the stack ordered like the DSP path: input prep, core shift, voice
+  tract, tone, texture, performance motion, dynamics, space, and guardrails.
+- Compute per-stage intensity, evidence notes, live/offline mode, and bounded
+  patch moves from current params, Source Fit, Script Match, Keeper Refinement,
+  and Render Review.
+- Let Studio Plan surface `stack-fix` before auditioning when the signal path is
+  risky even if the target-facing Character Chain is already locked.
+- Treat this as the first non-destructive effect-stack design layer. Future work
+  can add per-layer bypass, snapshots, plugin slots, and offline-only high
+  quality processors without changing the static GitHub Pages constraint.
+
+## ADR 018 - Character Voice Work Needs Design Memory
+
+The product gap is not solved by adding more presets. Character voices are
+found through iteration: a user may discover a promising kawaii lift, otome
+close-breath balance, ikemen body/presence shape, or ASMR texture, then lose it
+while testing another route. If the app cannot capture, compare, and restore
+those voice designs, it remains a fragile effect box rather than a production
+workspace.
+
+Decision:
+
+- Add a local Design Board that stores bounded voice-design snapshots in browser
+  preferences.
+- Store the active macro/director/DSP parameter state plus evidence from Line
+  Read target fit, Source Fit, Character Chain, Signal Stack, Render Review, and
+  Take Decision where available.
+- Score saved designs against the active Line Read target, not just by recency.
+- Expose restore deltas as meaningful patch moves so users can see what would
+  change before applying a saved design.
+- Let Studio Plan surface design capture after an audition and design recall
+  when a saved same-target design is stronger than the current chain.
+- Keep the feature static, local, bounded, and compatible with later per-layer
+  bypass, named design collections, plugin workflows, or optional model-backed
+  engines.
+
+## ADR 019 - Signal Layers Need Audible Audition Takes
+
+Signal Stack shows which DSP layer is active, risky, or overloaded, but a
+diagnostic card is still not enough for a character voice product. Users need to
+hear whether the breath layer, voice-tract layer, dynamics layer, or performance
+motion layer is actually helping the read. Otherwise the app can identify a
+problem while still forcing users to guess from sliders.
+
+Decision:
+
+- Add Stack Audition as a workflow layer between Signal Stack and the Render
+  Deck.
+- Generate Fix candidates from each stage's bounded next patch.
+- Generate Bypass-style candidates by pulling only that stage's parameters
+  toward neutral, acknowledging that the current DSP graph is parameter-chain
+  based rather than a physically separate insert rack.
+- Render selected layer candidates through the same offline renderer,
+  Performance Script automation, Auto Tune, Render Review, and Render Deck
+  path as normal previews.
+- Preserve the distinction between character-direction Variant Lab takes and
+  signal-layer Stack Audition takes in UI labels and Take Decision evidence.
+- Keep the feature deterministic, local, and static so deeper per-layer bypass,
+  plugin insert slots, or offline-only processors can replace the approximation
+  later without changing the GitHub Pages constraint.
+
+## ADR 020 - Scene Kits Need Production Coverage
+
+Scene Kits define multi-beat acting arcs, but a list of beats is not yet a
+production workflow. A user needs to know which beats have a matched target,
+which have recoverable voice-design memory, and which have enough rendered
+takes to trust before moving through an otome, ikemen, kawaii, or ASMR scene.
+Without that layer, the app still behaves like isolated Line Reads rather than
+a character voice studio.
+
+Decision:
+
+- Add Scene Session as the coverage layer above Scene Kits.
+- Derive beat coverage from active Line Read match, Design Board snapshots,
+  Render Deck takes, and Take Decision evidence.
+- Attach target and scene metadata to newly rendered deck takes so later
+  workflow layers can tell which beat a take belongs to.
+- Expose target/design/take coverage in the live Line Read area instead of
+  hiding it in a separate report.
+- Let Studio Plan advance to the next uncovered Scene Beat after the current
+  beat has enough design and take evidence.
+- Keep the layer deterministic and local so named scene collections, longer
+  upload workflows, and future plugin/AI render paths can build on it without
+  changing the static GitHub Pages architecture.
+
+## ADR 021 - Character Work Needs Project Persistence
+
+Design Board saves a useful voice design, but it does not save the production
+context around that design. A product-level character voice studio needs to
+resume a scene with its source, active target, saved designs, audition takes,
+and keeper evidence intact. Otherwise the user still has to reconstruct a
+session from loose sliders and cards.
+
+Decision:
+
+- Add Project Vault as a local persistence layer above Scene Session and Render
+  Deck.
+- Store bounded named project snapshots in IndexedDB rather than a backend, so
+  GitHub Pages deployment and local-first audio privacy remain intact.
+- Save the active source, Line Read, scene coverage, design-memory references,
+  Render Deck artifacts, Take Decision evidence, and restore deltas.
+- Let Studio Plan restore a relevant saved project before generating a fresh
+  source, and save the current project once it has meaningful source/design/take
+  evidence.
+- Keep the data shape replaceable so longer upload workflows, export bundles,
+  plugin chains, and optional browser AI render paths can extend it later.

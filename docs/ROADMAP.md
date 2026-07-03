@@ -48,16 +48,51 @@ GitHub Pages.
   placement.
 - Expand the first repeatable Line Read targets so presets can be judged
   against acting intent, not just signal movement.
+- Add Scene Kits so character targets can be tested as multi-beat acting arcs,
+  not only isolated one-line checks.
+- Add Scene Session coverage so each Scene Kit beat is tracked across target
+  match, saved design memory, render takes, and next-beat handoff.
 - Expand Line Read target visualizations so users can see macro/director drift
   before rendering or recording another take.
 - Turn Line Read target drift into coaching and one-step corrections so users
   can shape a read progressively instead of only applying a full preset.
+- Add Performance Script timelines so every Line Read or Scene Beat has planned
+  lift, energy, distance, breath, and release gestures before rendering.
 - Add Source Fit scoring for generated/uploaded audio so calibration becomes an
   explicit render decision with visible patch deltas.
 - Add Voice Route planning so users can rank likely character targets for the
   current source and apply preset, Line Read, and source tuning together.
+- Add Character Chain staging so Core, Tone, Texture, Performance, Dynamics,
+  Space, and Guardrail layers expose their drift and one-step fixes.
+- Add Signal Stack staging so input prep, core shift, voice tract, tone,
+  texture, performance motion, dynamics, space, and guardrails expose actual
+  signal-path activity, overload risk, and bounded stack fixes.
+- Add Stack Audition rendering so active or weak signal-path stages can produce
+  Fix and Bypass-style preview takes for audible A/B comparison in the Render
+  Deck.
+- Add Design Board memory so promising voice designs can be captured, scored
+  against the active Line Read target, and restored as meaningful
+  macro/director/DSP deltas instead of being lost slider states.
+- Add Project Vault persistence so named scene/source/design/render sessions can
+  be saved locally with audio artifacts and restored as production projects
+  instead of loose control states.
+- Add Studio Plan orchestration so source, route, chain, signal stack, design
+  memory, script, preview, trace, scene coverage, project persistence, and deck
+  decisions are connected by a single next-step production flow.
+- Add Performance Trace visualization so phrase lift, ending release, tail air,
+  and delivery motion can be compared before and after offline rendering.
+- Add Script Match scoring so rendered motion is judged against the planned
+  acting script, not only generic signal quality.
+- Add Acting Automation so Performance Script lanes drive time-varying offline
+  DSP frames instead of remaining only planning and scoring data.
+- Add Variant Lab so nearby macro/director candidates can be rendered as a set
+  and compared in the deck instead of requiring one-slider-at-a-time guessing.
 - Add a bounded Render Deck so multiple offline previews/full renders can be
   compared by audible output and measured deltas without leaking memory.
+- Add Take Decision ranking so the deck can recommend a keeper from target fit,
+  script-match evidence, render safety, and variant intent.
+- Add Keeper Refinement so the chosen take can produce a concrete next-render
+  patch instead of leaving weak evidence as a passive score.
 - Build target voices:
   - kawaii / anime bright
   - otome romantic

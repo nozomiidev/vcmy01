@@ -29,18 +29,62 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
 - Repeatable Line Read targets that apply character-specific performance
   settings for otome, kawaii, anime, ikemen, ASMR, streamer, narrator, and
   calibration reads.
+- Scene Kits that turn single reads into multi-beat acting workflows for
+  otome, ikemen, kawaii, and ASMR scenes, with each beat applying real
+  macro/director target changes.
+- Scene Session coverage that tracks each active Scene Kit beat across target
+  match, saved design memory, render takes, and next-beat handoff so a scene can
+  be produced as an arc rather than isolated reads.
 - Line Read target visualization with radar and per-axis gap bars for lift,
   softness, energy, distance, breath placement, confidence, and related macros.
 - Line Read coaching that turns target drift into recipe-group scores and a
   focused Apply Next Fix workflow before committing to a full target.
+- Performance Script timelines that turn a Line Read or Scene Beat into
+  planned lift, energy, distance, breath, and release gestures before rendering.
 - Offline generated/uploaded source processing with analysis, A/B compare,
   preview-region rendering, source-aware Auto Tune, and WAV export.
 - Source Fit scoring for generated or uploaded audio, including target range,
   level, tone, texture, and the calibration patch that Tune to Source would add.
 - Voice Route planning that ranks character targets for the current source and
   applies the preset, Line Read, and source-tuned chain as one workflow.
+- Character Chain staging that breaks the active voice into Core, Tone,
+  Texture, Performance, Dynamics, Space, and Guardrail layers with measured
+  drift and one-step chain fixes.
+- Signal Stack staging that shows the actual DSP signal-path layers, their
+  intensity, live/offline mode, source/render evidence, and bounded stack fixes
+  for input prep, voice tract, tone, texture, performance, dynamics, space, and
+  guardrails.
+- Stack Audition rendering that turns risky or active Signal Stack stages into
+  layer-specific Fix and Bypass-style preview takes, then sends those takes to
+  the Render Deck for audible A/B comparison.
+- Design Board memory that captures local voice-design snapshots, scores saved
+  designs against the active Line Read target, and restores the highest-impact
+  macro/director/DSP deltas when a previous design fits better than the current
+  chain.
+- Project Vault persistence that saves named local production sessions with the
+  active source, scene, Line Read, voice-design memory, Render Deck artifacts,
+  Take Decision evidence, and restore deltas so a character scene can be
+  resumed as a project instead of rebuilt from loose sliders.
+- Studio Plan production flow that connects source loading, route choice,
+  chain shaping, signal-stack balance, design memory, script planning, preview
+  audition, trace evidence, scene coverage, project save/restore, and
+  render-deck comparison into a single next-step workflow.
+- Performance Trace visualization for source/render timing, F0 motion, ending
+  movement, tail breath/frication, and delivery dynamics across the region.
+- Script Match scoring that compares rendered phrase motion against the planned
+  performance script, so traces can be judged against acting intent.
+- Acting Automation for offline renders, which maps Performance Script lanes
+  into time-varying DSP parameters so lift, energy, distance, breath, and
+  release are rendered as automation frames instead of staying as notes.
+- Variant Lab auditions that generate nearby character directions such as
+  sweet lift, close breath, body gloss, broadcast cleanup, and script focus,
+  then render them into the same deck for A/B comparison.
 - Render Deck auditions for offline previews/full renders with F0, level, tone,
   texture, and review-score deltas for comparing multiple takes.
+- Take Decision ranking that recommends a keeper from the deck using target
+  fit, script-match evidence, render safety, and variant intent.
+- Keeper Refinement that converts the selected take's weakest evidence into a
+  concrete next-render patch for target axes, acting motion, and mix safety.
 - EQ, dynamics, ambience, delay, robot/creature effects, monitoring, meters,
   local take storage, and diagnostics.
 
@@ -54,9 +98,11 @@ Known product capability gap:
 - The Character Director layer is now functional, but still uses DSP
   approximations rather than real phrase understanding, emotion transfer, or
   actor-style timing conversion.
-- Offline post-processing has region preview, but still needs a fuller
-  production workflow for takes, batches, non-destructive effect stacks, and
-  longer uploaded files.
+- Offline post-processing has region preview, script-driven automation,
+  audition variant batches, Signal Stack, Stack Audition, Design Board, Project
+  Vault persistence, and Render Deck comparison, but still needs a stronger
+  long-file workflow, deeper offline-only high-quality render modes, and richer
+  scene/export packaging.
 - The app still needs richer performance targets, repeatable line-read tests,
   phrase/ending behavior, distance, emotion, and delivery workflows beyond the
   first Director controls and first Line Read target set.

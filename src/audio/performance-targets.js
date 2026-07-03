@@ -331,8 +331,169 @@ export const LINE_READ_TARGETS = Object.freeze([
   }
 ]);
 
+export const SCENE_KITS = Object.freeze([
+  {
+    id: "otome_close_scene",
+    presetId: "otome",
+    name: "Otome Close Scene",
+    description: "A three-beat romantic distance read: hold, confess, then release.",
+    tags: ["otome", "romance", "near"],
+    beats: [
+      {
+        id: "hold",
+        name: "Hold The Moment",
+        lineReadId: "otome_promise",
+        line: "Stay with me a little longer. I am not ready to let this moment end.",
+        direction: "Gentle close distance, restrained lift, soft falling tail.",
+        params: { intimacy: 94, phraseLift: 34, endingSoftness: 94, deliveryEnergy: 34, closeMic: 88, romanticBreath: 92, confidence: 32, breath: 64, whisper: 18 }
+      },
+      {
+        id: "confess",
+        name: "Fragile Confession",
+        lineReadId: "otome_promise",
+        line: "I tried to say it lightly, but my heart keeps giving me away.",
+        direction: "More vulnerable breath placement with a warmer, lower-energy finish.",
+        params: { intimacy: 96, phraseLift: 40, endingSoftness: 96, deliveryEnergy: 30, closeMic: 90, romanticBreath: 98, confidence: 26, breath: 70, whisper: 22, consonantSoftness: 76 }
+      },
+      {
+        id: "release",
+        name: "Whisper Promise",
+        lineReadId: "otome_promise",
+        line: "If this is a dream, then let me be selfish for one more breath.",
+        direction: "Very close whisper color, longer tail air, soft consonants.",
+        params: { intimacy: 98, phraseLift: 26, endingSoftness: 98, deliveryEnergy: 24, closeMic: 96, romanticBreath: 100, confidence: 22, breath: 76, whisper: 30, consonantSoftness: 82 }
+      }
+    ]
+  },
+  {
+    id: "ikemen_midnight_scene",
+    presetId: "ikemen",
+    name: "Ikemen Midnight Scene",
+    description: "Low invitation, amused tease, then protective close finish.",
+    tags: ["ikemen", "low", "sultry"],
+    beats: [
+      {
+        id: "invite",
+        name: "Low Invite",
+        lineReadId: "ikemen_low",
+        line: "Come closer. I will keep my voice low enough for only you.",
+        direction: "Near-mic low body, relaxed confidence, restrained motion.",
+        params: { body: 86, intimacy: 82, phraseLift: 12, endingSoftness: 66, deliveryEnergy: 36, closeMic: 88, romanticBreath: 70, confidence: 78, breath: 34, air: 40, saturation: 20 }
+      },
+      {
+        id: "tease",
+        name: "Amused Tease",
+        lineReadId: "ikemen_low",
+        line: "You noticed? Good. I was hoping you would.",
+        direction: "Slight smile, more presence, controlled upward phrase gesture.",
+        params: { body: 78, intimacy: 74, phraseLift: 28, endingSoftness: 54, deliveryEnergy: 50, closeMic: 78, romanticBreath: 56, confidence: 86, presence: 48, air: 36, saturation: 22 }
+      },
+      {
+        id: "protect",
+        name: "Protective Vow",
+        lineReadId: "ikemen_low",
+        line: "Do not be afraid. I am already standing between you and the dark.",
+        direction: "Warmer authority, lower lift, firm but soft landing.",
+        params: { body: 90, intimacy: 72, phraseLift: 8, endingSoftness: 58, deliveryEnergy: 52, closeMic: 70, romanticBreath: 44, confidence: 92, compression: 66, saturation: 18 }
+      }
+    ]
+  },
+  {
+    id: "kawaii_spark_scene",
+    presetId: "kawaii",
+    name: "Kawaii Spark Scene",
+    description: "Playful lift, flustered breath, then tiny brave finish.",
+    tags: ["kawaii", "anime", "bright"],
+    beats: [
+      {
+        id: "spark",
+        name: "Spark",
+        lineReadId: "kawaii_spark",
+        line: "Ehehe, did I sound a little cooler just now?",
+        direction: "Small bright mouth, playful lift, soft consonants.",
+        params: { cuteness: 90, anime: 58, phraseLift: 86, endingSoftness: 46, deliveryEnergy: 66, closeMic: 30, romanticBreath: 30, confidence: 54, breath: 24, consonantSoftness: 62 }
+      },
+      {
+        id: "fluster",
+        name: "Fluster Pop",
+        lineReadId: "kawaii_spark",
+        line: "W-wait, do not smile like that. I will forget what I practiced.",
+        direction: "Higher animated lift, softer consonants, lighter confidence.",
+        params: { cuteness: 96, anime: 72, phraseLift: 94, endingSoftness: 58, deliveryEnergy: 58, closeMic: 34, romanticBreath: 42, confidence: 34, breath: 34, consonantSoftness: 78 }
+      },
+      {
+        id: "brave",
+        name: "Tiny Brave",
+        lineReadId: "anime_charge",
+        line: "Okay. I am small, but I can still shine brighter than anyone.",
+        direction: "Cute but confident, clearer attack, stronger phrase arc.",
+        params: { cuteness: 88, anime: 84, phraseLift: 92, endingSoftness: 28, deliveryEnergy: 78, closeMic: 26, romanticBreath: 18, confidence: 74, breath: 18, consonantSoftness: 42 }
+      }
+    ]
+  },
+  {
+    id: "asmr_secret_scene",
+    presetId: "asmr",
+    name: "ASMR Secret Scene",
+    description: "Soft entry, breath-tail secret, and clean close reassurance.",
+    tags: ["asmr", "whisper", "close"],
+    beats: [
+      {
+        id: "still",
+        name: "Stay Still",
+        lineReadId: "asmr_secret",
+        line: "Stay still for a second. I have a tiny secret for you.",
+        direction: "Very close, low energy, soft consonants, breath on tails.",
+        params: { intimacy: 100, phraseLift: 10, endingSoftness: 98, deliveryEnergy: 18, closeMic: 98, romanticBreath: 100, confidence: 16, breath: 82, whisper: 58, consonantSoftness: 90 }
+      },
+      {
+        id: "trace",
+        name: "Breath Trace",
+        lineReadId: "asmr_secret",
+        line: "There. Hear that little pause? That part is just for you.",
+        direction: "Placed pauses, tail air, less pitch lift, intimate distance.",
+        params: { intimacy: 100, phraseLift: 6, endingSoftness: 100, deliveryEnergy: 16, closeMic: 100, romanticBreath: 100, confidence: 12, breath: 88, whisper: 66, consonantSoftness: 92 }
+      },
+      {
+        id: "safe",
+        name: "Soft Safe",
+        lineReadId: "asmr_secret",
+        line: "You can relax now. I will keep everything quiet.",
+        direction: "Softer reassurance with cleaner consonants and controlled breath.",
+        params: { intimacy: 96, phraseLift: 8, endingSoftness: 96, deliveryEnergy: 20, closeMic: 94, romanticBreath: 88, confidence: 30, breath: 70, whisper: 46, consonantSoftness: 84, deEss: 86 }
+      }
+    ]
+  }
+]);
+
+export const ALL_LINE_READ_TARGETS = Object.freeze([
+  ...LINE_READ_TARGETS,
+  ...sceneBeatTargets()
+]);
+
+export function sceneKitById(id) {
+  return SCENE_KITS.find((kit) => kit.id === id) || SCENE_KITS[0];
+}
+
+export function sceneKitForTargetId(targetId) {
+  return SCENE_KITS.find((kit) => kit.beats.some((beat) => sceneBeatTargetId(kit, beat) === targetId)) || null;
+}
+
+export function sceneBeatByTargetId(targetId) {
+  for (const kit of SCENE_KITS) {
+    const beat = kit.beats.find((candidate) => sceneBeatTargetId(kit, candidate) === targetId);
+    if (beat) return { kit, beat, target: sceneBeatTarget(kit, beat) };
+  }
+  return null;
+}
+
+export function sceneBeatTargetsForKit(kitId) {
+  const kit = sceneKitById(kitId);
+  return kit.beats.map((beat) => sceneBeatTarget(kit, beat));
+}
+
 export function lineReadById(id) {
-  return LINE_READ_TARGETS.find((target) => target.id === id) || LINE_READ_TARGETS[0];
+  return ALL_LINE_READ_TARGETS.find((target) => target.id === id) || LINE_READ_TARGETS[0];
 }
 
 export function firstLineReadForPreset(presetId) {
@@ -346,11 +507,40 @@ export function paramsForLineReadTarget(id) {
 
 export function validateLineReadTargets() {
   const presetIds = new Set(FACTORY_PRESETS.map((preset) => preset.id));
-  return LINE_READ_TARGETS.map((target) => ({
+  return ALL_LINE_READ_TARGETS.map((target) => ({
     id: target.id,
     ok: presetIds.has(target.presetId) && Boolean(target.line) && Boolean(target.direction),
     presetId: target.presetId
   }));
+}
+
+function sceneBeatTargets() {
+  return SCENE_KITS.flatMap((kit) => kit.beats.map((beat) => sceneBeatTarget(kit, beat)));
+}
+
+function sceneBeatTarget(kit, beat) {
+  const base = lineReadBaseById(beat.lineReadId) || firstLineReadForPreset(kit.presetId);
+  return {
+    id: sceneBeatTargetId(kit, beat),
+    presetId: beat.presetId || kit.presetId,
+    name: beat.name,
+    line: beat.line,
+    direction: beat.direction,
+    tags: [...kit.tags, beat.id],
+    sourceProfileId: beat.sourceProfileId || base.sourceProfileId,
+    params: { ...base.params, ...beat.params },
+    sceneKitId: kit.id,
+    sceneBeatId: beat.id,
+    sceneName: kit.name
+  };
+}
+
+function sceneBeatTargetId(kit, beat) {
+  return `scene_${kit.id}_${beat.id}`;
+}
+
+function lineReadBaseById(id) {
+  return LINE_READ_TARGETS.find((target) => target.id === id) || null;
 }
 
 export function scoreLineReadTarget(params, targetOrId) {

@@ -122,6 +122,23 @@ action that moves only the highest-priority missing axis. This keeps the full
 Apply Target path for fast setup while also supporting iterative shaping, which
 is closer to how a user would tune an acted character read.
 
+Scene Kits extend the repeatable-read concept from a single target line into a
+short acting arc. Each kit contains multiple beats for one character direction,
+such as otome hold/confess/release or ikemen invite/tease/protect. A beat is
+not just script copy: it becomes a real Line Read target with preset, source
+profile, and macro/director parameter goals, so Source Fit, Voice Route,
+Character Chain, Studio Plan, Performance Trace, and Render Deck can all judge
+it the same way they judge the base targets. This is the non-AI bridge toward
+"otome-game voice" and "ikemen scene" workflows: the app gives the user a
+performable scene structure while DSP handles the measurable voice shaping.
+
+Performance Script is the next bridge between acting intent and DSP evidence.
+It converts the active Line Read or Scene Beat into a planned time-axis shape:
+lift, energy, distance, breath, and release lanes, with concrete cues such as
+near-mic entry, upward phrase gesture, soft tail, or breath placement. This is
+not AI prosody transfer. It is a local, static, testable plan that lets the user
+see how the read should move before recording or offline rendering.
+
 ## Calibration
 
 Presets should eventually ask for or infer:
@@ -158,11 +175,113 @@ match, patch load, and explicit source-profile hints, then lets the user apply
 the route as preset + Line Read + source-tuned parameters. This turns
 calibration from a corrective button into a route-selection workflow.
 
+Character Chain is the stage view of the active voice design. It breaks the
+current chain into Voice Core, Tone, Texture, Performance, Dynamics, Space, and
+Guardrail stages, compares each stage against the active Line Read target, and
+exposes the next meaningful patch. This is intentionally a production workflow
+layer: users should be able to see which part of the character voice is missing
+instead of guessing from a flat preset name or a wall of sliders.
+
+Signal Stack is the signal-path view of the active processing design. Character
+Chain asks "which target layer is missing?" while Signal Stack asks "which DSP
+layer is currently active, risky, or overloaded?" It keeps input prep, core
+shift, voice tract, tone, texture, performance motion, dynamics, space, and
+guardrails in processing order, then surfaces bounded stack fixes from source
+fit, script match, keeper refinement, and render safety evidence. This is the
+first non-destructive effect-stack layer: it does not replace the DSP chain,
+but it makes the chain inspectable and gives Studio Plan an operational stack
+step before auditioning.
+
+Stack Audition turns that diagnosis into listening evidence. For active or weak
+Signal Stack stages, it creates renderable Fix and Bypass-style candidates:
+Fix candidates apply the next bounded stage moves, while Bypass candidates pull
+only that stage's parameters toward neutral so the user can hear what the layer
+is contributing. The output goes into the same Render Deck as normal previews
+and Variant Lab takes, which keeps subjective A/B comparison connected to
+measured review, Script Match, and Take Decision evidence.
+
+Design Board is the recoverability layer above the active chain. A character
+voice studio cannot rely on one fragile slider state: users need to capture a
+promising kawaii, otome, ikemen, or ASMR design, compare it against the current
+Line Read target, and restore the meaningful macro/director/DSP deltas later.
+The board keeps local snapshots bounded, scores them with target and evidence
+signals, and lets Studio Plan recall a stronger saved design before asking the
+user to render more takes. This is still static and local, but it moves the app
+from "effect box" toward an iterative voice-design workspace.
+
+Scene Session is the multi-beat production layer above Scene Kits. A Scene Kit
+defines the acting arc, but the session answers the working question: which
+beats already have a matched target, a recoverable design, and enough audition
+takes to trust? It derives coverage from the active Line Read, Design Board
+snapshots, Render Deck takes, and Take Decision evidence, then offers the next
+beat handoff when the current beat is covered. This keeps character acting from
+collapsing back into isolated one-line presets.
+
+Project Vault is the persistence layer above Scene Session and Design Board.
+Design Board remembers a useful voice shape; Project Vault remembers the
+production unit around it: source audio, active Line Read, scene coverage,
+saved designs, Render Deck artifacts, Take Decision evidence, and the restore
+deltas needed to return to that project later. It uses local IndexedDB instead
+of a backend, keeps projects bounded, and lets Studio Plan restore a saved
+scene before starting a fresh source. This matters because a character voice
+studio is not just a realtime effect; it is an iterative production workspace.
+
+Studio Plan is the workflow coordinator above those panels. Source Fit, Voice
+Route, Character Chain, Signal Stack, Stack Audition, Design Board, Performance
+Script, Performance Trace, Scene Session, Project Vault, and Render Deck are
+useful evidence, but they can still leave a user asking what to do next.
+Studio Plan keeps every production step visible and chooses the next action in
+order: load or analyze a source, apply a stronger route, fix the weakest chain
+stage, balance or audition the signal stack, save or recall a design, inspect
+the acting script, render a preview, compare performance evidence, cover or
+advance the scene beat, save or restore the project, then choose from the deck.
+This makes the app feel like a voice-production session instead of a collection
+of unrelated widgets.
+
+Performance Trace is the time-axis evidence layer. It analyzes source and
+rendered regions into bounded frames for energy, frame-level F0, ending motion,
+tail breath/frication, and delivery range, then overlays source/render curves.
+This cannot prove emotional acting quality, but it makes phrase lift, tail
+release, breath placement, and over-flattened delivery visible instead of hidden
+inside average F0 or loudness metrics.
+
+Script Match connects Performance Script to Performance Trace. After a preview
+or full render, the trace deltas are scored against the planned lift, release,
+tail-air, energy, and coverage moves. This does not claim to judge beauty or
+acting truth, but it prevents a render from looking "good" only because generic
+signal metrics passed while the intended scene gesture was missed.
+
+Acting Automation is the first point where Performance Script changes the
+offline render itself. The renderer chunks the source, samples the planned lift,
+energy, distance, breath, and release lanes over time, maps those lanes into
+Director/Macro/DSP parameters, and overlap-adds the processed chunks back into a
+single take. This is still non-AI approximation, but it makes the script an
+active render control rather than a passive note card.
+
+Variant Lab is the subjective-audition layer above that renderer. Character
+voices are rarely found by a single perfect slider move, so the app should
+generate nearby candidate directions: sweet lift, close breath, body gloss,
+broadcast cleanup, and script focus. Each candidate is still a real parameter
+chain, not a label. Rendering the set into the same deck turns taste and acting
+judgment into a repeatable A/B workflow instead of isolated guessing.
+
 Render Deck is the audition layer after rendering. Every offline preview or full
 render can be kept as a bounded in-memory take with F0 movement, level delta,
 tone delta, texture delta, and a review score. The deck is intentionally capped
 by item count and total seconds so comparison does not become an unbounded audio
 buffer leak.
+
+Take Decision is the keeper-selection layer above the deck. It ranks retained
+takes by target macro/director fit, Script Match evidence, render safety, and
+variant intent. This still does not claim to judge taste or acting beauty, but
+it turns "which one should I keep?" into an evidence-backed workflow instead of
+forcing the user to infer everything from isolated cards.
+
+Keeper Refinement closes that loop. After a keeper is selected, the app should
+convert the weakest evidence into a next-render patch: target axis corrections
+when the character recipe drifted, performance moves when Script Match missed
+lift/release/breath/energy, and mix guards when safety evidence is weak. This
+keeps auditioning from becoming a dead-end score display.
 
 ## Prosody And Performance
 
@@ -191,6 +310,9 @@ Recorded and uploaded audio needs a dedicated workflow:
 - A/B original vs processed
 - adjust the region and character macros without committing a full render
 - optionally apply render-time source calibration
+- optionally apply Performance Script / Acting Automation to time-vary the
+  offline DSP chain
+- generate audition variants for nearby macro/director directions
 - render full processed output
 - export WAV/WebM
 - keep processing local

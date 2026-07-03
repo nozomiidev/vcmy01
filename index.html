@@ -126,6 +126,31 @@
                 <div class="coach-list" id="lineReadCoachList"></div>
                 <button class="command" id="applyNextLineReadFix" type="button">Apply Next Fix</button>
               </div>
+              <div class="performance-script-panel">
+                <div class="performance-script-head">
+                  <span>Performance Script</span>
+                  <strong id="performanceScriptStatus">No script</strong>
+                </div>
+                <canvas id="performanceScriptCanvas" class="performance-script-canvas" width="520" height="150" aria-label="Performance script timeline"></canvas>
+                <div class="performance-script-grid" id="performanceScriptCards"></div>
+                <div class="performance-script-cues" id="performanceScriptCues"></div>
+              </div>
+              <div class="scene-kit-panel">
+                <div class="scene-kit-head">
+                  <span>Scene Kit</span>
+                  <strong id="activeSceneKitName">No scene</strong>
+                </div>
+                <div class="scene-beat-list" id="sceneBeatList"></div>
+              </div>
+              <div class="scene-session-panel" id="sceneSessionPanel">
+                <div class="scene-session-head">
+                  <span>Scene Session</span>
+                  <strong id="sceneSessionStatus">No session</strong>
+                </div>
+                <div class="scene-session-grid" id="sceneSessionGrid"></div>
+                <div class="scene-session-next" id="sceneSessionNext">Select a Scene Beat to build a production session.</div>
+                <button class="command" id="applySceneSessionStep" type="button" disabled>Session Ready</button>
+              </div>
             </section>
 
             <section class="panel visual-panel">
@@ -187,6 +212,58 @@
                 </div>
                 <div class="voice-route-list" id="voiceRouteList"></div>
               </div>
+              <div class="character-chain" id="characterChainPanel">
+                <div class="character-chain-head">
+                  <span>Character Chain</span>
+                  <div>
+                    <strong id="characterChainScore">No target</strong>
+                    <button class="text-action" id="applyChainFix" type="button" disabled>Chain Locked</button>
+                  </div>
+                </div>
+                <div class="character-chain-flow" id="characterChainFlow"></div>
+                <div class="character-chain-patches" id="characterChainPatches"></div>
+              </div>
+              <div class="effect-stack" id="effectStackPanel">
+                <div class="effect-stack-head">
+                  <span>Signal Stack</span>
+                  <div>
+                    <strong id="effectStackStatus">No stack</strong>
+                    <button class="text-action" id="applyStackFix" type="button" disabled>Stack Locked</button>
+                  </div>
+                </div>
+                <div class="effect-stack-flow" id="effectStackFlow"></div>
+                <div class="effect-stack-patches" id="effectStackPatches"></div>
+              </div>
+              <div class="stack-audition" id="stackAuditionPanel">
+                <div class="stack-audition-head">
+                  <span>Stack Audition</span>
+                  <strong id="stackAuditionStatus">No source</strong>
+                </div>
+                <div class="stack-audition-grid" id="stackAuditionGrid"></div>
+              </div>
+              <div class="voice-memory" id="voiceMemoryPanel">
+                <div class="voice-memory-head">
+                  <span>Design Board</span>
+                  <div>
+                    <strong id="voiceMemoryStatus">No designs</strong>
+                    <button class="text-action" id="captureVoiceMemory" type="button">Capture Design</button>
+                    <button class="text-action" id="clearVoiceMemory" type="button" disabled>Clear</button>
+                  </div>
+                </div>
+                <div class="voice-memory-list" id="voiceMemoryList"></div>
+                <div class="voice-memory-patches" id="voiceMemoryPatches"></div>
+              </div>
+              <div class="studio-plan" id="studioPlanPanel">
+                <div class="studio-plan-head">
+                  <span>Studio Plan</span>
+                  <div>
+                    <strong id="studioPlanStatus">No source</strong>
+                    <button class="text-action" id="applyStudioPlanStep" type="button">Generate Target Source</button>
+                  </div>
+                </div>
+                <div class="studio-plan-flow" id="studioPlanFlow"></div>
+                <div class="studio-plan-next" id="studioPlanNext">Load or generate a source to begin.</div>
+              </div>
               <canvas id="sourceWave" class="scope" height="120" aria-label="Source waveform"></canvas>
               <div class="region-controls" aria-label="Offline preview region">
                 <div class="region-head">
@@ -216,10 +293,16 @@
               </div>
               <div class="source-actions">
                 <button class="command primary" id="previewOffline" type="button">Preview Region</button>
+                <button class="command" id="renderVariantSet" type="button" disabled>Render Variants</button>
+                <button class="command" id="renderStackAuditions" type="button" disabled>Render Stack</button>
                 <button class="command" id="renderOffline" type="button">Render Full Voice</button>
                 <label class="toggle-command">
                   <input id="autoTuneRender" type="checkbox" checked>
                   <span>Auto Tune</span>
+                </label>
+                <label class="toggle-command">
+                  <input id="scriptAutomationRender" type="checkbox" checked>
+                  <span>Script Auto</span>
                 </label>
                 <button class="command" id="playCompare" type="button" disabled>A/B Compare</button>
                 <button class="command" id="downloadRender" type="button" disabled>Download WAV</button>
@@ -227,12 +310,59 @@
               <canvas id="renderWave" class="scope" height="120" aria-label="Rendered waveform"></canvas>
               <audio id="renderAudio" controls></audio>
               <div class="analysis-grid" id="offlineAnalysis"></div>
+              <div class="variant-lab" id="variantLabPanel">
+                <div class="variant-lab-head">
+                  <span>Variant Lab</span>
+                  <strong id="variantLabStatus">No source</strong>
+                </div>
+                <div class="variant-lab-grid" id="variantLabGrid"></div>
+              </div>
+              <div class="performance-trace" id="performanceTracePanel">
+                <div class="performance-trace-head">
+                  <span>Performance Trace</span>
+                  <strong id="performanceTraceStatus">No source</strong>
+                </div>
+                <canvas id="performanceTraceCanvas" class="performance-trace-canvas" height="150" aria-label="Performance trace"></canvas>
+                <div class="script-match" id="scriptMatchPanel">
+                  <div class="script-match-head">
+                    <span>Script Match</span>
+                    <strong id="scriptMatchStatus">No render</strong>
+                  </div>
+                  <div class="script-match-grid" id="scriptMatchGrid"></div>
+                </div>
+                <div class="automation-panel" id="automationPanel">
+                  <div class="automation-head">
+                    <span>Acting Automation</span>
+                    <strong id="automationStatus">Idle</strong>
+                  </div>
+                  <div class="automation-grid" id="automationGrid"></div>
+                </div>
+                <div class="performance-trace-grid" id="performanceTraceMetrics"></div>
+              </div>
               <div class="render-deck" id="renderDeckPanel">
                 <div class="render-deck-head">
                   <span>Render Deck</span>
                   <strong id="renderDeckStatus">No renders</strong>
                 </div>
                 <div class="render-deck-list" id="renderDeckList"></div>
+              </div>
+              <div class="take-decision" id="takeDecisionPanel">
+                <div class="take-decision-head">
+                  <span>Take Decision</span>
+                  <strong id="takeDecisionStatus">No takes</strong>
+                </div>
+                <div class="take-decision-list" id="takeDecisionList"></div>
+                <div class="take-refinement" id="takeRefinementPanel">
+                  <div class="take-refinement-head">
+                    <span>Keeper Refinement</span>
+                    <div>
+                      <strong id="takeRefinementStatus">No keeper</strong>
+                      <button class="text-action" id="applyKeeperRefinement" type="button" disabled>Patch Locked</button>
+                    </div>
+                  </div>
+                  <div class="take-refinement-grid" id="takeRefinementGrid"></div>
+                  <div class="take-refinement-patches" id="takeRefinementPatches"></div>
+                </div>
               </div>
             </section>
           </div>
@@ -245,6 +375,30 @@
               <span>Performance Targets</span>
             </div>
             <div class="line-read-grid" id="lineReadLibrary"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Scene Kits</h2>
+              <span>Acting Beats</span>
+            </div>
+            <div class="scene-kit-grid" id="sceneKitLibrary"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Project Vault</h2>
+              <div class="panel-actions">
+                <span id="projectVaultStatus">No projects</span>
+                <input class="project-title-input" id="projectTitleInput" type="text" maxlength="60" placeholder="Project name" aria-label="Project name">
+                <button class="text-action" id="captureProject" type="button">Save Project</button>
+                <button class="text-action" id="clearProjectVault" type="button" disabled>Clear</button>
+              </div>
+            </div>
+            <div class="project-vault" id="projectVaultPanel">
+              <div class="project-vault-list" id="projectVaultList"></div>
+              <div class="project-vault-patches" id="projectVaultPatches"></div>
+            </div>
           </section>
 
           <section class="panel">

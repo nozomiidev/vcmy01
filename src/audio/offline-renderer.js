@@ -7,6 +7,7 @@ import {
   processVoiceBuffer,
   referenceVoiceProfileById
 } from "./dsp-core.js";
+import { automationSummary, renderScriptAutomation } from "./performance-script.js";
 
 export class OfflineRenderer {
   constructor() {
@@ -71,7 +72,12 @@ export class OfflineRenderer {
     const sourceSamples = region.isFull
       ? this.source.samples
       : this.source.samples.slice(region.startSample, region.endSample);
-    const samples = processVoiceBuffer(sourceSamples, this.source.sampleRate, appliedParams);
+    const automation = options.automatePerformance && options.performanceScript
+      ? renderScriptAutomation(sourceSamples, this.source.sampleRate, appliedParams, options.performanceScript, options.automationOptions)
+      : null;
+    const samples = automation
+      ? automation.samples
+      : processVoiceBuffer(sourceSamples, this.source.sampleRate, appliedParams);
     const blob = encodeWavMono(samples, this.source.sampleRate);
     const mode = options.mode || (region.isFull ? "full" : "preview");
     this.rendered = {
@@ -83,6 +89,16 @@ export class OfflineRenderer {
       region,
       mode,
       autoCalibrated: !!options.autoCalibrate,
+      scriptAutomated: !!automation,
+      performanceScript: options.performanceScript ? {
+        targetId: options.performanceScript.targetId,
+        targetName: options.performanceScript.targetName,
+        status: options.performanceScript.status,
+        score: options.performanceScript.score
+      } : null,
+      performanceScriptPlan: options.performanceScript || null,
+      scriptAutomation: automation?.plan || null,
+      scriptAutomationSummary: automationSummary(automation?.plan),
       baseParams,
       appliedParams,
       calibrationDelta: paramDeltas(baseParams, appliedParams)
