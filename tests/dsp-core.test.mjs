@@ -1076,6 +1076,39 @@ assert.equal(allRiskDecision.winnerId, null, "take decision should hold keeper s
 assert.equal(allRiskDecision.candidateId, "only-risk", "take decision should still expose the best QC candidate for repair");
 const qcRefinement = buildKeeperRefinement(allRiskDecision, kawaii, kawaiiSpark);
 assert.ok(qcRefinement.patch.length > 0, "QC-held candidates should produce repair moves before keeper lock");
+const singleQcHoldStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
+  renderReview: qcBlockedReview,
+  auditionVariantCount: kawaiiVariants.length,
+  renderDeckCount: 1,
+  takeDecision: allRiskDecision,
+  keeperRefinement: qcRefinement
+});
+assert.equal(singleQcHoldStudioPlan.nextAction.id, "keeper-refine", "studio plan should repair a single QC-held take before rendering variants");
+assert.equal(singleQcHoldStudioPlan.nextAction.label, "Fix QC Take", "studio plan should name the QC repair action clearly");
+const qcHoldPriorityStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "check", score: 76, stages: [{ id: "prosody", label: "Phrase Lift" }], nextStageId: "prosody", nextPatch: { phraseLift: 6 } },
+  effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
+  renderReview: qcBlockedReview,
+  auditionVariantCount: kawaiiVariants.length,
+  renderDeckCount: 1,
+  takeDecision: allRiskDecision,
+  keeperRefinement: qcRefinement
+});
+assert.equal(qcHoldPriorityStudioPlan.nextAction.id, "keeper-refine", "studio plan should prioritize QC-held take repair over upstream character-shape tweaks");
 const keeperRefinement = buildKeeperRefinement(takeDecision, kawaii, kawaiiSpark);
 assert.ok(keeperRefinement.patch.length > 0, "keeper refinement should turn weak decision evidence into patch moves");
 assert.ok(keeperRefinement.cards.some((card) => card.id === "script"), "keeper refinement should expose script refinement evidence");

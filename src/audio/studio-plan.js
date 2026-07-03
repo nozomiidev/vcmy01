@@ -49,12 +49,13 @@ export function buildStudioPlan(options = {}) {
     stackStep(hasSource, effectStack, stackAuditionCount),
     memoryStep(hasSource, voiceMemory, review),
     scriptStep(script, scriptMatch, scriptAutomation),
-    auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, sourceTimeline),
+    auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, sourceTimeline, takeDecision, keeperRefinement),
     traceStep(hasSource, review, trace),
     sceneStep(hasSource, sceneSession),
     deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision, keeperRefinement)
   ];
-  const nextAction = steps.find((step) => step.action)?.action || null;
+  const firstAction = steps.find((step) => step.action)?.action || null;
+  const nextAction = selectNextAction(steps, firstAction, { review, takeDecision, keeperRefinement });
   const scored = steps.filter((step) => Number.isFinite(step.score));
   const score = scored.length
     ? Math.round(scored.reduce((sum, step) => sum + step.score, 0) / scored.length)
@@ -65,6 +66,23 @@ export function buildStudioPlan(options = {}) {
     steps,
     nextAction
   };
+}
+
+function selectNextAction(steps, fallback, context = {}) {
+  const takeDecision = context.takeDecision || null;
+  const qcHold = !takeDecision?.winner && !!takeDecision?.candidate && takeDecision?.status === "risk";
+  if (qcHold && context.keeperRefinement?.patch?.length) {
+    const qcRepair = steps.find((step) =>
+      (step.id === "audition" || step.id === "deck") &&
+      step.action?.id === "keeper-refine"
+    )?.action;
+    if (qcRepair) return qcRepair;
+  }
+  if (context.review?.comfort?.status === "risk") {
+    const comfortRepair = steps.find((step) => step.id === "stack" && step.action)?.action;
+    if (comfortRepair) return comfortRepair;
+  }
+  return fallback;
 }
 
 function timelineStep(hasSource, sourceTimeline) {
@@ -408,7 +426,7 @@ function shapeStep(hasSource, chain) {
   });
 }
 
-function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, sourceTimeline = null) {
+function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, sourceTimeline = null, takeDecision = null, keeperRefinement = null) {
   if (!hasSource) {
     return waitingStep("audition", "Audition", "Waiting for source");
   }
@@ -426,6 +444,10 @@ function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, 
   }
   const performanceBudget = review.performanceBudget || null;
   const slowRender = performanceBudget?.status === "risk";
+  const qcCandidate = takeDecision?.winner || takeDecision?.candidate || null;
+  const qcHold = !takeDecision?.winner && !!qcCandidate && takeDecision?.status === "risk";
+  const qcPatchCount = keeperRefinement?.patch?.length || 0;
+  const needsQcRepair = qcHold && qcPatchCount > 0;
   return step({
     id: "audition",
     label: "Audition",
@@ -434,6 +456,8 @@ function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, 
     summary: `${review.score}% ${labelForStatus(review.status)}`,
     detail: slowRender
       ? performanceBudget.detail
+      : needsQcRepair
+        ? `QC candidate ${qcCandidate.label || "Take"} needs ${qcPatchCount} repair moves before more variants.`
       : renderDeckCount > 1
       ? "Multiple takes are ready for comparison."
       : auditionVariantCount
@@ -441,6 +465,8 @@ function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, 
         : "One take is ready; another take improves choice.",
     action: slowRender
       ? { id: "preview-region", label: "Use Short Preview", cueId: previewCueId }
+      : needsQcRepair
+        ? { id: "keeper-refine", label: "Fix QC Take" }
       : review.status !== "ready" || renderDeckCount < 2
         ? auditionVariantCount && renderDeckCount
         ? { id: "render-variants", label: "Render Variants" }
@@ -484,6 +510,24 @@ function deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision, k
     return waitingStep("deck", "Deck", "No takes yet");
   }
   if (renderDeckCount < 2) {
+    const candidate = takeDecision?.winner || takeDecision?.candidate || null;
+    const qcHold = !takeDecision?.winner && !!candidate && takeDecision?.status === "risk";
+    const patchCount = keeperRefinement?.patch?.length || 0;
+    if (qcHold) {
+      return step({
+        id: "deck",
+        label: "Deck",
+        status: "risk",
+        score: Number.isFinite(takeDecision?.score) ? takeDecision.score : 64,
+        summary: "1 QC hold",
+        detail: patchCount
+          ? `QC candidate: ${candidate.label || "Take"}; ${patchCount} repair moves are ready.`
+          : `QC candidate: ${candidate.label || "Take"} is blocked by ${candidate.qc?.summary || "render QC"}.`,
+        action: patchCount
+          ? { id: "keeper-refine", label: "Fix QC Take" }
+          : { id: "preview-region", label: "Add Another Take" }
+      });
+    }
     return step({
       id: "deck",
       label: "Deck",
