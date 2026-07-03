@@ -836,12 +836,13 @@ Implementation response:
 
 - `processStudioPolish()` now accepts a supplied plan plus supplied input analysis, so `OfflineRenderer` can reuse the analysis it just built instead of rebuilding the same Studio Polish plan path.
 - Preview renders now use a shorter Director optimization budget, while full renders keep the production-quality iteration count.
+- `OfflineRenderer.render()` now reuses Studio Analysis as the render analysis payload and reuses Studio Polish input/output analysis for audition comparison, avoiding duplicate `analyzeBuffer()` passes around an already richer Studio Analysis result.
 - The optimization metadata still records the actual iteration count, so Render Review, ZIP exports, and Project Vault snapshots remain honest about what happened.
 
 Verification:
 
 - Unit regression confirms supplied input analysis is reused with supplied plans and preview renders keep Director optimization to the shorter budget.
-- Private-fixture browser smoke remains the required listening/workflow check for this loop, because synthetic tests cannot expose whether the interaction is too slow for a real user voice. The local Yamada fixture polish preview improved from the previous `RT 3.1x / 3.85 s for 1.25 s` observation to `RT 1.1x / 1.39 s for 1.25 s`, with WAV/WebM/ZIP still enabled and no console errors.
+- Private-fixture browser smoke remains the required listening/workflow check for this loop, because synthetic tests cannot expose whether the interaction is too slow for a real user voice. The local Yamada fixture polish preview improved from the previous `RT 3.1x / 3.85 s for 1.25 s` observation to `RT 1.00x / 1.25 s for 1.25 s`, with WAV/WebM/ZIP still enabled and no console errors.
 
 Sources:
 https://developer.mozilla.org/en-US/docs/Web/API/OfflineAudioContext

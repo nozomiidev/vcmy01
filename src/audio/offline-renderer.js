@@ -143,11 +143,13 @@ export class OfflineRenderer {
     });
     const samples = mastering.samples;
     const blob = encodeWavMono(samples, this.source.sampleRate);
-    const analysis = analyzeBuffer(samples, this.source.sampleRate);
     const studioAnalysis = analyzeStudioVoice(samples, this.source.sampleRate);
+    const analysis = studioAnalysis;
+    const sourceAuditionAnalysis = studioPolish?.inputAnalysis || analyzeBuffer(sourceSamples, this.source.sampleRate);
+    const polishAuditionAnalysis = studioPolish?.outputAnalysis || (studioPolish ? analyzeBuffer(studioPolish.samples, this.source.sampleRate) : null);
     const audition = buildAuditionSummary({
-      sourceAnalysis: analyzeBuffer(sourceSamples, this.source.sampleRate),
-      polishAnalysis: studioPolish ? analyzeBuffer(studioPolish.samples, this.source.sampleRate) : null,
+      sourceAnalysis: sourceAuditionAnalysis,
+      polishAnalysis: polishAuditionAnalysis,
       renderAnalysis: analysis,
       mastering
     });
