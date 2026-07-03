@@ -108,13 +108,15 @@ export class OfflineRenderer {
     const sourceSamples = region.isFull
       ? this.source.samples
       : this.source.samples.slice(region.startSample, region.endSample);
+    const stage = options.stage || "character";
+    const mode = options.mode || (region.isFull ? "full" : "preview");
     const studioPolish = renderStudioPolish(sourceSamples, this.source.sampleRate, {
       intensity: options.studioPolish,
       target: options.studioTarget,
-      optimize: options.directorOptimize
+      optimize: options.directorOptimize,
+      iterations: options.directorIterations || directorIterationsForMode(mode)
     });
     const characterInput = studioPolish ? studioPolish.samples : sourceSamples;
-    const stage = options.stage || "character";
     const characterSafety = stage === "polish" ? null : applyCharacterSafety(appliedParams, {
       sourceProfile: this.profile,
       source: this.source,
@@ -141,7 +143,6 @@ export class OfflineRenderer {
     });
     const samples = mastering.samples;
     const blob = encodeWavMono(samples, this.source.sampleRate);
-    const mode = options.mode || (region.isFull ? "full" : "preview");
     const analysis = analyzeBuffer(samples, this.source.sampleRate);
     const studioAnalysis = analyzeStudioVoice(samples, this.source.sampleRate);
     const audition = buildAuditionSummary({
@@ -283,11 +284,17 @@ function renderStudioPolish(sourceSamples, sampleRate, option = "standard") {
   const inputAnalysis = analyzeStudioVoice(sourceSamples, sampleRate);
   const plan = buildStudioPolishPlan(inputAnalysis, intensity, target);
   return processStudioPolish(sourceSamples, sampleRate, optimize ? {
+    plan,
+    inputAnalysis,
     intensity,
     target,
     optimize: true,
     iterations: option.iterations || 22
   } : plan);
+}
+
+function directorIterationsForMode(mode = "full") {
+  return mode === "preview" ? 6 : 22;
 }
 
 export function sourceFitReport(params = {}, profile = {}, target = null, source = {}) {

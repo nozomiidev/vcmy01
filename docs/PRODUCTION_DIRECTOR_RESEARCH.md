@@ -822,6 +822,33 @@ https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
 https://web.dev/articles/off-main-thread
 https://web.dev/articles/profiling-web-audio-apps-in-chrome
 
+## Preview Performance Budget Loop
+
+The next production-director pass uses the private-fixture browser smoke as performance evidence. The first short preview became faster after limiting the automatic region, but Studio Polish with Director optimization still spent multiple seconds on a 1.25 s cue. That is a workflow problem: a user exploring kawaii/ikemen directions should hear many safe short previews before committing a keeper render.
+
+Research decisions:
+
+- MDN describes `OfflineAudioContext` as an offline graph that renders "as fast as it can"; VoiceForge's slow preview is therefore not a Web Audio promise problem but mostly local JavaScript DSP, analysis, and optimization cost.
+- Chrome's AudioWorklet design guidance and web.dev profiling guidance point to a next-stage architecture: profile DSP hot paths and move real-time/long-running processing toward worker/worklet boundaries where appropriate.
+- Product-wise, preview and final render should have different budgets. A preview needs quick, source-reactive direction; a final keeper can spend more iterations on polish optimization.
+
+Implementation response:
+
+- `processStudioPolish()` now accepts a supplied plan plus supplied input analysis, so `OfflineRenderer` can reuse the analysis it just built instead of rebuilding the same Studio Polish plan path.
+- Preview renders now use a shorter Director optimization budget, while full renders keep the production-quality iteration count.
+- The optimization metadata still records the actual iteration count, so Render Review, ZIP exports, and Project Vault snapshots remain honest about what happened.
+
+Verification:
+
+- Unit regression confirms supplied input analysis is reused with supplied plans and preview renders keep Director optimization to the shorter budget.
+- Private-fixture browser smoke remains the required listening/workflow check for this loop, because synthetic tests cannot expose whether the interaction is too slow for a real user voice. The local Yamada fixture polish preview improved from the previous `RT 3.1x / 3.85 s for 1.25 s` observation to `RT 1.1x / 1.39 s for 1.25 s`, with WAV/WebM/ZIP still enabled and no console errors.
+
+Sources:
+https://developer.mozilla.org/en-US/docs/Web/API/OfflineAudioContext
+https://developer.mozilla.org/en-US/docs/Web/API/OfflineAudioContext/startRendering
+https://developer.chrome.com/blog/audio-worklet-design-pattern
+https://web.dev/articles/profiling-web-audio-apps-in-chrome
+
 ## Take QC Gate Loop
 
 The next production-director pass separates "best candidate" from "keeper." A render can match the character target and acting script but still be wrong to preserve if it clips, fails comfort review, is too slow to iterate, or violates delivery headroom. Professional audio workflows treat loudness and true peak as measurable QC gates; VoiceForge should not let a high-scoring but broken take become the recommended keeper.

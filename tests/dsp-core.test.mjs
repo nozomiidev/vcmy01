@@ -183,6 +183,13 @@ const directorPolished = processStudioPolish(dirtyStudioSource, sampleRate, {
   optimize: true,
   iterations: 10
 });
+const directorPolishedFromPlan = processStudioPolish(dirtyStudioSource, sampleRate, {
+  plan: kawaiiPolishPlan,
+  inputAnalysis: dirtyStudioAnalysis,
+  target: "kawaii",
+  optimize: true,
+  iterations: 6
+});
 assert.equal(studioPolished.samples.length, dirtyStudioSource.length, "studio polish preserves source length");
 assert.ok(dirtyMicroRepair.eventCount > 0, "micro repair should detect local artifact events");
 assert.equal(dirtyMicroRepair.topEvent.shape.method, "multiscale-pulse-envelope", "micro repair should expose pulse-shape evidence");
@@ -224,6 +231,8 @@ assert.ok(peak(studioPolished.samples) <= 1, "studio polish output should be lim
 assert.equal(directorPolished.samples.length, dirtyStudioSource.length, "director polish should preserve source length");
 assert.equal(directorPolished.plan.target.id, "kawaii", "director polish should preserve target metadata");
 assert.equal(directorPolished.plan.optimization.enabled, true, "director polish should run bounded optimization");
+assert.equal(directorPolishedFromPlan.inputAnalysis, dirtyStudioAnalysis, "director polish should reuse supplied input analysis with supplied plans");
+assert.equal(directorPolishedFromPlan.plan.optimization.iterations, 6, "director polish should optimize supplied plans with requested preview iteration counts");
 assert.ok(peak(directorPolished.samples) <= 1, "director polish output should be limited");
 assert.ok(studioPolished.outputAnalysis.problemScores.sibilance <= dirtyStudioAnalysis.problemScores.sibilance + 16, "studio polish should not create a sibilance regression");
 assert.ok(studioPolished.outputAnalysis.problemScores.harsh <= dirtyStudioAnalysis.problemScores.harsh + 18, "studio polish should not create a harshness regression");
@@ -828,6 +837,7 @@ const polishOnlyRender = offline.render(kawaii, { stage: "polish", studioPolish:
 assert.equal(polishOnlyRender.stage, "polish", "offline render should support polish-only preview");
 assert.equal(polishOnlyRender.studioPolish.target.id, "ikemen", "offline render should retain production target");
 assert.equal(polishOnlyRender.studioPolish.optimized, true, "offline render should retain director optimization state");
+assert.ok(polishOnlyRender.studioPolish.plan.optimization.iterations <= 6, "preview renders should use a shorter director optimization budget");
 assert.equal(polishOnlyRender.scriptAutomated, false, "polish-only render should not apply acting automation");
 assert.equal(polishOnlyRender.characterSafety, null, "polish-only render should not run character safety");
 assert.equal(polishOnlyRender.samples.length, Math.round(sampleRate * 0.6), "polish-only render should preserve region length");

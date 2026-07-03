@@ -549,7 +549,7 @@ export function buildSourceReactivePlan(analysis, target = DEFAULT_TARGET, facto
 export function processStudioPolish(input, sampleRate, planOrOptions = "standard") {
   const samples = toFloat32(input);
   const options = normalizePolishOptions(planOrOptions);
-  const analysis = options.plan ? null : analyzeStudioVoice(samples, sampleRate);
+  const analysis = options.inputAnalysis || (options.plan ? null : analyzeStudioVoice(samples, sampleRate));
   const basePlan = options.plan || buildStudioPolishPlan(analysis, options.intensity, options.target);
   const plan = options.optimize
     ? optimizeStudioPolishPlan(samples, sampleRate, basePlan, { inputAnalysis: analysis, target: options.target, iterations: options.iterations })
@@ -780,10 +780,21 @@ function planNotes(analysis, intensity, target) {
 
 function normalizePolishOptions(planOrOptions) {
   if (planOrOptions?.stages) return { plan: planOrOptions, optimize: false };
+  if (planOrOptions?.plan?.stages) {
+    return {
+      plan: planOrOptions.plan,
+      inputAnalysis: planOrOptions.inputAnalysis || null,
+      intensity: planOrOptions.intensity || planOrOptions.plan.intensity || DEFAULT_INTENSITY.id,
+      target: planOrOptions.target || planOrOptions.plan.target?.id || DEFAULT_TARGET.id,
+      optimize: !!planOrOptions.optimize,
+      iterations: planOrOptions.iterations || 22
+    };
+  }
   if (typeof planOrOptions === "string") {
     return { intensity: planOrOptions, target: DEFAULT_TARGET.id, optimize: false, iterations: 0 };
   }
   return {
+    inputAnalysis: planOrOptions?.inputAnalysis || null,
     intensity: planOrOptions?.intensity || DEFAULT_INTENSITY.id,
     target: planOrOptions?.target || DEFAULT_TARGET.id,
     optimize: !!planOrOptions?.optimize,
