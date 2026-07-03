@@ -456,6 +456,7 @@ function sanitizeStudioAnalysis(analysis = null) {
     loudnessProxyDb: finiteNumber(analysis.loudnessProxyDb),
     dynamicRangeDb: finiteNumber(analysis.dynamicRangeDb),
     problemScores: sanitizeProblemScores(analysis.problemScores),
+    microRepair: sanitizeMicroRepair(analysis.microRepair),
     repairMap: sanitizeRepairMap(analysis.repairMap)
   };
 }
@@ -481,6 +482,7 @@ function sanitizeStudioPolish(polish = null) {
       } : null,
       targetRmsDb: finiteNumber(polish.plan.targetRmsDb),
       stages: sanitizeProblemScores(polish.plan.stages),
+      microRepair: sanitizeMicroRepair(polish.plan.microRepair),
       repairMap: sanitizeRepairMap(polish.plan.repairMap),
       optimization: polish.plan.optimization ? {
         enabled: !!polish.plan.optimization.enabled,
@@ -526,6 +528,36 @@ function sanitizeCharacterSafety(plan = null) {
       after: finiteNumber(move.after),
       reason: cleanText(move.reason || "", 180)
     })) : []
+  };
+}
+
+function sanitizeMicroRepair(timeline = null) {
+  if (!timeline) return null;
+  return {
+    status: cleanText(timeline.status || "", 32),
+    score: clampScore(timeline.score),
+    eventCount: Math.max(0, Number(timeline.eventCount || 0)),
+    eventsPerMinute: Math.max(0, Number(timeline.eventsPerMinute || 0)),
+    counts: {
+      mouth: Math.max(0, Number(timeline.counts?.mouth || 0)),
+      plosive: Math.max(0, Number(timeline.counts?.plosive || 0)),
+      sibilance: Math.max(0, Number(timeline.counts?.sibilance || 0))
+    },
+    topEvent: sanitizeMicroEvent(timeline.topEvent),
+    events: (Array.isArray(timeline.events) ? timeline.events : []).slice(0, 12).map(sanitizeMicroEvent).filter(Boolean)
+  };
+}
+
+function sanitizeMicroEvent(event = null) {
+  if (!event) return null;
+  return {
+    id: cleanText(event.id || "", 80),
+    type: cleanText(event.type || "", 32),
+    label: cleanText(event.label || "", 80),
+    action: cleanText(event.action || "", 140),
+    startSec: finiteNumber(event.startSec),
+    endSec: finiteNumber(event.endSec),
+    risk: clampScore(event.risk)
   };
 }
 

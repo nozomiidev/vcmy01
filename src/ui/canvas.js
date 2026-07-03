@@ -54,6 +54,7 @@ export function drawAnalysisCards(host, source, rendered) {
     if (source.studioAnalysis) {
       entries.push(["Studio Score", `${source.studioAnalysis.score}%`]);
       entries.push(["Noise Floor", `${source.studioAnalysis.noiseFloorDb.toFixed(1)} dB`]);
+      if (source.studioAnalysis.microRepair) entries.push(["Micro Repair", formatMicroRepair(source.studioAnalysis.microRepair)]);
     }
   }
   if (rendered) {
@@ -62,6 +63,7 @@ export function drawAnalysisCards(host, source, rendered) {
     if (rendered.studioPolish?.enabled) {
       const target = rendered.studioPolish.target?.label || rendered.studioPolish.plan?.target?.label || rendered.studioPolish.intensity;
       entries.push(["Studio Polish", rendered.studioPolish.optimized ? `${target} + Director` : `${target} / ${rendered.studioPolish.intensity}`]);
+      if (rendered.studioPolish.plan?.microRepair) entries.push(["Polish Events", formatMicroRepair(rendered.studioPolish.plan.microRepair)]);
     }
     if (rendered.region && !rendered.region.isFull) entries.push(["Region", `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)} s`]);
     entries.push(["Render RMS", `${rendered.analysis.rmsDb.toFixed(1)} dB`]);
@@ -86,6 +88,13 @@ function formatTune(delta = []) {
   return delta.length
     ? delta.slice(0, 3).map((item) => `${tuneName(item.key)} ${signed(item.delta)}`).join(" / ")
     : "Fit";
+}
+
+function formatMicroRepair(timeline) {
+  const count = Number(timeline?.eventCount || 0);
+  if (!count) return "0 events";
+  const c = timeline.counts || {};
+  return `${count} events / M${c.mouth || 0} P${c.plosive || 0} S${c.sibilance || 0}`;
 }
 
 function signed(value) {

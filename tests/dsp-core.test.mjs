@@ -32,6 +32,7 @@ import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectPa
 import { buildSourceTimeline, cueRegion, nearestCueIdForRegion, sourceTimelineSummary } from "../src/audio/source-timeline.js";
 import {
   analyzeStudioVoice,
+  buildMicroRepairTimeline,
   buildStudioRepairMap,
   buildStudioPolishPlan,
   optimizeStudioPolishPlan,
@@ -119,6 +120,7 @@ assert.ok(sourceAnalysis.pitchMedianHz > 90 && sourceAnalysis.pitchMedianHz < 24
 assert.ok(Number.isFinite(sourceAnalysis.brightnessRatio), "generated sample exposes brightness analysis");
 const dirtyStudioSource = studioPolishFixture(source, sampleRate);
 const dirtyStudioAnalysis = analyzeStudioVoice(dirtyStudioSource, sampleRate);
+const dirtyMicroRepair = buildMicroRepairTimeline(dirtyStudioSource, sampleRate);
 const studioPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard");
 const studioPolished = processStudioPolish(dirtyStudioSource, sampleRate, studioPolishPlan);
 const kawaiiPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard", "kawaii");
@@ -131,6 +133,10 @@ const directorPolished = processStudioPolish(dirtyStudioSource, sampleRate, {
   iterations: 10
 });
 assert.equal(studioPolished.samples.length, dirtyStudioSource.length, "studio polish preserves source length");
+assert.ok(dirtyMicroRepair.eventCount > 0, "micro repair should detect local artifact events");
+assert.ok(dirtyMicroRepair.counts.mouth > 0 || dirtyMicroRepair.counts.plosive > 0, "micro repair should classify click or plosive events");
+assert.equal(studioPolishPlan.microRepair.eventCount, dirtyStudioAnalysis.microRepair.eventCount, "studio polish plan should retain micro-repair timeline");
+assert.equal(studioPolished.plan.microRepair.eventCount, dirtyStudioAnalysis.microRepair.eventCount, "studio polish render should carry micro-repair evidence");
 assert.equal(studioPolishPlan.stages.highPassHz >= 54, true, "studio polish plan should choose a valid adaptive high-pass");
 assert.equal(kawaiiPolishPlan.target.id, "kawaii", "studio polish should support production targets");
 assert.equal(kawaiiRepairMap.steps[1].id, "deplosive", "repair map should put de-plosive before high-pass/tone work");
@@ -151,6 +157,7 @@ assert.equal(directorPolished.plan.optimization.enabled, true, "director polish 
 assert.ok(peak(directorPolished.samples) <= 1, "director polish output should be limited");
 assert.ok(studioPolished.outputAnalysis.problemScores.sibilance <= dirtyStudioAnalysis.problemScores.sibilance + 16, "studio polish should not create a sibilance regression");
 assert.ok(studioPolished.outputAnalysis.problemScores.harsh <= dirtyStudioAnalysis.problemScores.harsh + 18, "studio polish should not create a harshness regression");
+assert.ok(studioPolished.outputAnalysis.microRepair.eventCount <= dirtyStudioAnalysis.microRepair.eventCount + 4, "studio polish should not create many new micro-repair events");
 const studioPolishQuality = runStudioPolishQualitySuite({ sampleRate, duration: 0.36 });
 assert.equal(studioPolishQuality.ok, true, "studio polish quality suite should pass");
 assert.equal(studioPolishQuality.results.length, REFERENCE_VOICE_PROFILES.length, "studio polish suite should cover reference profiles");
@@ -684,6 +691,7 @@ const exportManifest = buildExportManifest({
 });
 assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest should retain Studio Polish metadata");
 assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
+assert.equal(exportManifest.render.studioPolish.microRepair.eventCount >= 0, true, "export manifest should retain micro-repair metadata");
 assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
 assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");
 assert.equal(exportManifest.source.sourceKind, "generated", "export manifest should retain source import kind");
@@ -691,6 +699,7 @@ assert.equal(exportManifest.files.webm.endsWith(".webm"), true, "export manifest
 assert.equal(renderedBaseName(autoRendered).includes("VoiceForge"), true, "export base name should derive from render name");
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Studio Polish First"), "export research notes should document the polish workflow");
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Repair map:"), "export research notes should include repair-map rationale");
+assert.ok(studioPolishResearchNotes(autoRendered).includes("Micro repair events:"), "export research notes should include micro-repair rationale");
 assert.ok(studioPolishResearchNotes(extremeRender).includes("Character safety:"), "export research notes should include character-safety rationale");
 const safetyProject = createProjectSnapshot({
   presetId: "kawaii",
@@ -701,6 +710,7 @@ const safetyProject = createProjectSnapshot({
   renderDeck: [{ id: "safety-render", title: "Safety Render", target: kawaiiSpark.name, targetId: kawaiiSpark.id, review: autoReview, rendered: autoRendered }]
 }, { id: "project-safety", title: "Safety metadata project", includeAudio: false });
 assert.equal(safetyProject.renderDeck[0].rendered.characterSafety.enabled, true, "project snapshot should retain character-safety metadata");
+assert.equal(safetyProject.renderDeck[0].rendered.studioPolish.plan.microRepair.eventCount >= 0, true, "project snapshot should retain micro-repair metadata");
 assert.equal(Array.isArray(safetyProject.renderDeck[0].rendered.safetyDelta), true, "project snapshot should retain safety deltas");
 const memoryStudioPlan = buildStudioPlan({
   hasSource: true,

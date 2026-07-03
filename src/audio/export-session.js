@@ -130,6 +130,10 @@ export function studioPolishResearchNotes(rendered = null) {
       const opt = polish.plan?.optimization;
       notes.push(`- Director optimize: ${opt?.scoreBefore ?? "?"} -> ${opt?.scoreAfter ?? "?"}`);
     }
+    if (polish.plan?.microRepair) {
+      const micro = polish.plan.microRepair;
+      notes.push(`- Micro repair events: ${micro.eventCount} (${micro.counts?.mouth || 0} mouth, ${micro.counts?.plosive || 0} plosive, ${micro.counts?.sibilance || 0} sibilance)`);
+    }
     notes.push(`- Label: ${polish.label}`);
     for (const note of polish.plan?.notes || []) notes.push(`- ${note}`);
     if (polish.plan?.repairMap?.steps?.length) {
@@ -291,6 +295,7 @@ function compactStudioAnalysis(analysis = null) {
     loudnessProxyDb: round(analysis.loudnessProxyDb, 2),
     dynamicRangeDb: round(analysis.dynamicRangeDb, 2),
     problemScores: analysis.problemScores || null,
+    microRepair: compactMicroRepair(analysis.microRepair),
     repairMap: compactRepairMap(analysis.repairMap)
   };
 }
@@ -305,6 +310,7 @@ function compactStudioPolish(polish = null) {
     label: polish.label || "",
     notes: polish.plan?.notes || [],
     optimization: polish.plan?.optimization || null,
+    microRepair: compactMicroRepair(polish.plan?.microRepair),
     repairMap: compactRepairMap(polish.plan?.repairMap),
     stages: polish.plan?.stages || null,
     input: compactStudioAnalysis(polish.inputAnalysis),
@@ -327,6 +333,27 @@ function compactCharacterSafety(plan = null) {
       before: round(move.before, 3),
       after: round(move.after, 3),
       reason: move.reason
+    }))
+  };
+}
+
+function compactMicroRepair(timeline = null) {
+  if (!timeline) return null;
+  return {
+    status: timeline.status || "",
+    score: Math.round(timeline.score || 0),
+    eventCount: Math.max(0, Number(timeline.eventCount || 0)),
+    eventsPerMinute: Math.max(0, Number(timeline.eventsPerMinute || 0)),
+    counts: timeline.counts || null,
+    topEvent: timeline.topEvent || null,
+    events: (timeline.events || []).slice(0, 12).map((event) => ({
+      id: event.id,
+      type: event.type,
+      label: event.label,
+      action: event.action,
+      startSec: round(event.startSec, 3),
+      endSec: round(event.endSec, 3),
+      risk: Math.round(event.risk || 0)
     }))
   };
 }

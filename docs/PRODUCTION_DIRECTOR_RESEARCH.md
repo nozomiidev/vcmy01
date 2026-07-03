@@ -93,6 +93,29 @@ https://helpcenter.celemony.com/M5/doc/melodyneStudio5/en/M5tour_ToolFormants?en
 https://www.sonarworks.com/blog/learn/can-you-stretch-or-shift-vocals-without-artifacts-using-plugins
 https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
 
+## Micro Repair Timeline Loop
+
+The fifth production-director pass moves Studio Polish further away from static global processing. Mouth clicks, plosives, and sibilance are now detected as local waveform events before the broad polish chain runs.
+
+Research decisions:
+
+- RX De-click and Mouth De-click expose sensitivity as a detector threshold, and iZotope warns that excessive sensitivity can damage plosives or the original signal. VoiceForge therefore records detected repair events and applies bounded local work before the broader de-click/de-ess stages.
+- Plosive guidance from Transom and production-engineering practice treats P-pops as short low-frequency air bursts. A high-pass or low shelf can reduce them, but broad EQ can thin the whole voice. VoiceForge therefore uses short low-band event subtraction before the general high-pass.
+- De-essing workflow is inherently dynamic: find the problematic high band, reduce only when sibilance appears, and avoid dulling the whole voice. VoiceForge therefore adds short high-band event ducking before its existing lookahead de-esser.
+- This is still classical DSP, not AI restoration. The product claim is now stronger because the engine can say which time-local events it touched.
+
+Implementation response:
+
+- `buildMicroRepairTimeline()` detects mouth-click, plosive, and sibilance events with band-limited envelopes, event spacing, and bounded risk scores.
+- `applyStudioPolishPlan()` now runs event-local interpolation/low-band/high-band subtraction before the existing global repair chain.
+- Source analysis, polish plans, export metadata, Project Vault snapshots, Guided Studio pills, analysis cards, tests, and quality reports all retain micro-repair evidence.
+
+Sources:
+https://downloads.izotope.com/docs/rx6/21-de-click/index.html
+https://s3.amazonaws.com/izotopedownloads/docs/rx8/en/mouth-de-click/index.html
+https://transom.org/2016/p-pops-plosives/
+https://www.production-expert.com/production-expert-1/how-to-reduce-plosive-thumps-in-vocal-recordings
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
@@ -162,6 +185,7 @@ https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/de
 - The repair-map loop was verified in the in-app Browser with generated source, Talk Radio target, and Render Polish. The UI showed ordered repair steps such as Mouth De-click, Room Noise, Tone Surgery, and Production Target, and WAV/WebM/ZIP became enabled after render.
 - URL import was verified in the in-app Browser with the private local fixture `/tests/data/konichiwabokunonamaewayamadatarodesu.webm`. The app decoded a 7.0s source locally, analyzed it as a medium source, showed repair steps for Mouth De-click, Tone Surgery, De-ess, and Level / Dynamics, then completed Polish -> Character render with WAV/WebM/ZIP enabled.
 - Character Safety was verified in the in-app Browser with the same private fixture and Kawaii / Anime target. The Guided Studio and Render Deck showed `Safety Guarded` with pitch, formant-like, and air clamps, while WAV, WebM, and ZIP export controls became available.
+- Micro Repair Timeline was verified in the in-app Browser with the same private fixture. The source analysis showed `43 events / M27 P3 S13`, Guided Studio showed the same micro count before rendering, and the rendered analysis preserved `Polish Events` with WAV/WebM/ZIP enabled.
 
 Open follow-up:
 

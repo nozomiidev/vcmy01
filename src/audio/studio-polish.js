@@ -147,11 +147,15 @@ export function analyzeStudioVoice(input, sampleRate) {
   const p85 = percentile(frameValues, 0.85);
   const dynamicRangeDb = linToDb(p85) - linToDb(p15);
   const band = bandProfile(samples, sampleRate);
-  const mouthClick = mouthClickScore(samples, sampleRate, band);
-  const plosive = plosiveScore(samples, sampleRate);
+  const microRepair = buildMicroRepairTimeline(samples, sampleRate, { band });
+  const mouthClick = Math.max(mouthClickScore(samples, sampleRate, band), microRepair.problemScores.mouthClick);
+  const plosive = Math.max(plosiveScore(samples, sampleRate), microRepair.problemScores.plosive);
   const levelScore = levelProblemScore(base);
   const noiseScore = noiseProblemScore(base, noiseFloor, activeRatio);
-  const sibilance = clamp((band.sibilanceRatio - 0.045) * 1050 + Math.max(0, base.zeroCrossingsPerSecond - 3200) * 0.018, 0, 100);
+  const sibilance = Math.max(
+    clamp((band.sibilanceRatio - 0.045) * 1050 + Math.max(0, base.zeroCrossingsPerSecond - 3200) * 0.018, 0, 100),
+    microRepair.problemScores.sibilance
+  );
   const mud = clamp((band.mudRatio - 0.22) * 360, 0, 100);
   const nasal = clamp((band.nasalRatio - 0.2) * 410, 0, 100);
   const harsh = clamp((band.harshRatio - 0.13) * 620, 0, 100);
@@ -188,6 +192,7 @@ export function analyzeStudioVoice(input, sampleRate) {
     activeRatio,
     dynamicRangeDb,
     band,
+    microRepair,
     levelScore,
     noiseScore,
     mouthClick,
@@ -208,6 +213,7 @@ export function analyzeStudioVoice(input, sampleRate) {
     brightnessRatio: base.brightnessRatio,
     dynamicRangeDb,
     band,
+    microRepair,
     problemScores,
     items
   });
@@ -222,6 +228,7 @@ export function analyzeStudioVoice(input, sampleRate) {
     loudnessProxyDb: base.rmsDb + clamp(activeRatio - 0.55, -0.18, 0.18) * 4,
     dynamicRangeDb,
     band,
+    microRepair,
     problemScores,
     items,
     repairMap
@@ -289,6 +296,7 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard", target
     label: `Studio Polish ${intensity.label}`,
     target: { id: target.id, label: target.label },
     repairMap,
+    microRepair: analysis.microRepair || null,
     targetRmsDb,
     stages: {
       inputGainDb: clamp((analysis.rmsDb < -34 ? 4 : 0) - (analysis.peakDb > -2 ? 3 : 0), -6, 6),
@@ -556,6 +564,7 @@ function applyStudioPolishPlan(samples, sampleRate, plan) {
   const p = plan.stages;
   let work = new Float32Array(samples);
   work = applyGain(work, p.inputGainDb);
+  work = applyMicroRepairEvents(work, sampleRate, plan.microRepair, p);
   work = reducePlosives(work, sampleRate, p.deplosive);
   work = reduceMouthClicks(work, sampleRate, p.mouthClick, p.mouthClickPasses);
   work = reduceRoomNoise(work, p.noiseReduction);
@@ -680,6 +689,7 @@ function clonePlan(plan) {
     ...plan,
     target: plan.target ? { ...plan.target } : null,
     repairMap: plan.repairMap ? cloneRepairMap(plan.repairMap) : null,
+    microRepair: plan.microRepair ? cloneMicroRepair(plan.microRepair) : null,
     stages: { ...(plan.stages || {}) },
     notes: [...(plan.notes || [])],
     optimization: plan.optimization ? { ...plan.optimization } : undefined
@@ -694,6 +704,212 @@ function cloneRepairMap(map) {
     nextAction: map.nextAction ? { ...map.nextAction } : null,
     steps: (map.steps || []).map((step) => ({ ...step })),
     overprocessRisks: (map.overprocessRisks || []).map((risk) => ({ ...risk }))
+  };
+}
+
+export function buildMicroRepairTimeline(input, sampleRate, options = {}) {
+  const samples = toFloat32(input);
+  const events = [
+    ...detectMouthClickEvents(samples, sampleRate),
+    ...detectPlosiveEvents(samples, sampleRate),
+    ...detectSibilanceEvents(samples, sampleRate)
+  ].sort((a, b) => b.risk - a.risk || a.startSample - b.startSample);
+  const maxEvents = Math.max(8, Math.min(96, Number(options.maxEvents || 72)));
+  const counts = events.reduce((acc, event) => {
+    acc[event.type] = (acc[event.type] || 0) + 1;
+    return acc;
+  }, { mouth: 0, plosive: 0, sibilance: 0 });
+  const seconds = samples.length / Math.max(1, sampleRate || 1);
+  const risk = clamp(
+    counts.mouth * 7 +
+      counts.plosive * 18 +
+      counts.sibilance * 8 +
+      (events[0]?.risk || 0) * 0.32,
+    0,
+    100
+  );
+  return {
+    status: risk < 18 ? "ready" : risk < 48 ? "polish" : "repair",
+    score: Math.round(100 - risk),
+    eventCount: events.length,
+    counts,
+    eventsPerMinute: seconds > 0 ? Math.round(events.length / seconds * 60) : 0,
+    topEvent: compactMicroEvent(events[0]),
+    problemScores: {
+      mouthClick: clamp(counts.mouth * 9 + Math.max(0, maxRisk(events, "mouth") - 42) * 0.55, 0, 100),
+      plosive: clamp(counts.plosive * 22 + Math.max(0, maxRisk(events, "plosive") - 35) * 0.7, 0, 100),
+      sibilance: clamp(counts.sibilance * 8 + Math.max(0, maxRisk(events, "sibilance") - 38) * 0.48, 0, 100)
+    },
+    events: events.slice(0, maxEvents).map(compactMicroEvent)
+  };
+}
+
+function detectMouthClickEvents(samples, sampleRate) {
+  const high = applyBiquad(samples, sampleRate, "highpass", 1800, 0.72, 0);
+  const events = [];
+  let fast = 0;
+  let slow = 0;
+  const minGap = Math.round(sampleRate * 0.012);
+  let last = -minGap;
+  for (let i = 1; i < high.length - 1; i++) {
+    const h = Math.abs(high[i]);
+    fast += (h - fast) * 0.48;
+    slow += (h - slow) * 0.014;
+    const risk = clamp((fast - slow * 4.3) * 1300, 0, 100);
+    if (risk >= 22 && i - last >= minGap) {
+      events.push(microEvent("mouth", i, i, risk, sampleRate));
+      last = i;
+    }
+  }
+  return events;
+}
+
+function detectPlosiveEvents(samples, sampleRate) {
+  const low = applyBiquad(samples, sampleRate, "lowpass", 180, 0.72, 0);
+  const frame = Math.max(256, Math.round(sampleRate * 0.026));
+  const hop = Math.max(128, Math.round(frame / 2));
+  const events = [];
+  let last = -Math.round(sampleRate * 0.08);
+  for (let start = 0; start + frame <= samples.length; start += hop) {
+    let fullEnergy = 0;
+    let lowEnergy = 0;
+    for (let i = 0; i < frame; i++) {
+      const full = samples[start + i];
+      const lo = low[start + i];
+      fullEnergy += full * full;
+      lowEnergy += lo * lo;
+    }
+    const fullRms = Math.sqrt(fullEnergy / frame);
+    const lowRms = Math.sqrt(lowEnergy / frame);
+    const ratio = lowRms / Math.max(1e-8, fullRms);
+    const risk = clamp((ratio - 0.5) * 165 + (lowRms - 0.012) * 1500, 0, 100);
+    if (fullRms > 0.006 && risk >= 24 && start - last >= sampleRate * 0.075) {
+      events.push(microEvent("plosive", start, start + frame, risk, sampleRate));
+      last = start;
+    }
+  }
+  return events;
+}
+
+function detectSibilanceEvents(samples, sampleRate) {
+  const high = applyBiquad(samples, sampleRate, "highpass", 5200, 0.72, 0);
+  const events = [];
+  let fast = 0;
+  let slow = 0;
+  const minGap = Math.round(sampleRate * 0.045);
+  let last = -minGap;
+  for (let i = 0; i < high.length; i++) {
+    const h = Math.abs(high[i]);
+    fast += (h - fast) * 0.12;
+    slow += (h - slow) * 0.004;
+    const risk = clamp((fast - slow * 1.55) * 980 + Math.max(0, fast - 0.012) * 720, 0, 100);
+    if (risk >= 28 && i - last >= minGap) {
+      const start = Math.max(0, i - Math.round(sampleRate * 0.018));
+      const end = Math.min(samples.length, i + Math.round(sampleRate * 0.055));
+      events.push(microEvent("sibilance", start, end, risk, sampleRate));
+      last = i;
+    }
+  }
+  return events;
+}
+
+function microEvent(type, startSample, endSample, risk, sampleRate) {
+  const label = ({
+    mouth: "Mouth click",
+    plosive: "Plosive burst",
+    sibilance: "Sibilance edge"
+  })[type] || "Repair event";
+  const action = ({
+    mouth: "Interpolate short high-band spike",
+    plosive: "Duck local low-frequency burst",
+    sibilance: "Duck local high-band edge"
+  })[type] || "Repair locally";
+  const safeStart = Math.max(0, Math.round(startSample));
+  const safeEnd = Math.max(safeStart + 1, Math.round(endSample));
+  return {
+    id: `${type}-${safeStart}`,
+    type,
+    label,
+    action,
+    startSample: safeStart,
+    endSample: safeEnd,
+    startSec: safeStart / sampleRate,
+    endSec: safeEnd / sampleRate,
+    risk: Math.round(clamp(risk, 0, 100))
+  };
+}
+
+function compactMicroEvent(event) {
+  if (!event) return null;
+  return {
+    id: event.id,
+    type: event.type,
+    label: event.label,
+    action: event.action,
+    startSample: event.startSample,
+    endSample: event.endSample,
+    startSec: Number(event.startSec.toFixed(3)),
+    endSec: Number(event.endSec.toFixed(3)),
+    risk: Math.round(event.risk)
+  };
+}
+
+function maxRisk(events, type) {
+  return events
+    .filter((event) => event.type === type)
+    .reduce((max, event) => Math.max(max, event.risk || 0), 0);
+}
+
+function applyMicroRepairEvents(input, sampleRate, timeline, stages = {}) {
+  if (!timeline?.events?.length) return input;
+  const out = new Float32Array(input);
+  const low = applyBiquad(input, sampleRate, "lowpass", 180, 0.72, 0);
+  const highClick = applyBiquad(input, sampleRate, "highpass", 1800, 0.72, 0);
+  const highEss = applyBiquad(input, sampleRate, "highpass", 5200, 0.72, 0);
+  const maxEvents = Math.min(96, timeline.events.length);
+  for (let n = 0; n < maxEvents; n++) {
+    const event = timeline.events[n];
+    const strength = clamp((event.risk || 0) / 100, 0, 1);
+    if (event.type === "mouth") {
+      const radius = Math.max(2, Math.round(sampleRate * 0.0018));
+      const center = clamp(Math.round(event.startSample || 0), radius, out.length - radius - 1);
+      const amount = clamp((stages.mouthClick || 0) / 100, 0, 1) * strength * 0.82;
+      for (let i = center - radius; i <= center + radius; i++) {
+        const local = (out[Math.max(0, i - radius)] + out[Math.min(out.length - 1, i + radius)]) * 0.5;
+        const win = 1 - Math.abs(i - center) / Math.max(1, radius + 1);
+        const highBias = clamp(Math.abs(highClick[i]) * 32, 0.25, 1);
+        out[i] = out[i] * (1 - amount * win * highBias) + local * amount * win * highBias;
+      }
+    } else if (event.type === "plosive") {
+      const amount = clamp((stages.deplosive || 0) / 100, 0, 1) * strength * 0.9;
+      applyWindowedSubtraction(out, low, event, sampleRate, 0.018, 0.045, amount);
+    } else if (event.type === "sibilance") {
+      const amount = clamp((stages.deEss || 0) / 100, 0, 1) * strength * 0.72;
+      applyWindowedSubtraction(out, highEss, event, sampleRate, 0.012, 0.028, amount);
+    }
+  }
+  return out;
+}
+
+function applyWindowedSubtraction(out, band, event, sampleRate, preSec, postSec, amount) {
+  if (amount <= 0.001) return;
+  const start = Math.max(0, Math.round((event.startSample || 0) - sampleRate * preSec));
+  const end = Math.min(out.length, Math.round((event.endSample || event.startSample || 0) + sampleRate * postSec));
+  const len = Math.max(1, end - start);
+  for (let i = start; i < end; i++) {
+    const x = (i - start) / len;
+    const win = Math.sin(Math.PI * x);
+    out[i] -= band[i] * amount * win;
+  }
+}
+
+function cloneMicroRepair(timeline) {
+  return {
+    ...timeline,
+    counts: { ...(timeline.counts || {}) },
+    problemScores: { ...(timeline.problemScores || {}) },
+    topEvent: timeline.topEvent ? { ...timeline.topEvent } : null,
+    events: (timeline.events || []).map((event) => ({ ...event }))
   };
 }
 

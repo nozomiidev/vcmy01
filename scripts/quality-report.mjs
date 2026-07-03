@@ -31,6 +31,7 @@ console.table(polishSuite.results.map((item) => ({
   rms: `${item.after.rmsDb.toFixed(1)} dB`,
   peak: `${item.after.peakDb.toFixed(1)} dB`,
   polish: item.plan.intensity,
+  micro: `${item.plan.microRepair?.eventCount || 0} ev`,
   repair: item.plan.repairMap?.topIssue?.label || "none",
   notes: item.issues.map((issue) => issue.text).join(", ") || "stable"
 })));
@@ -43,6 +44,7 @@ console.table(directorSuite.results.map((item) => ({
   opt: item.plan.optimization ? `${item.plan.optimization.scoreBefore}->${item.plan.optimization.scoreAfter}` : "off",
   rms: `${item.after.rmsDb.toFixed(1)} dB`,
   peak: `${item.after.peakDb.toFixed(1)} dB`,
+  micro: `${item.plan.microRepair?.eventCount || 0} ev`,
   repair: item.plan.repairMap?.topIssue?.label || "none",
   notes: item.issues.map((issue) => issue.text).join(", ") || "stable"
 })));

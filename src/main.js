@@ -210,6 +210,7 @@ function renderGuidedStudio() {
   `).join("");
   const stagePills = [
     ["Target", plan.target?.label || "Podcast"],
+    ["Micro", formatMicroRepairPill(rendered?.studioPolish?.plan?.microRepair || plan.microRepair || analysis.microRepair)],
     ["De-plosive", `${Math.round(plan.stages.deplosive)}%`],
     ["Mouth", `${Math.round(plan.stages.mouthClick)}%`],
     ["Noise", `${Math.round(plan.stages.noiseReduction)}%`],
@@ -247,6 +248,13 @@ function studioRepairCardKey(id) {
   if (id === "level") return "dynamics";
   if (id === "target") return "tone";
   return id;
+}
+
+function formatMicroRepairPill(timeline = null) {
+  const count = Number(timeline?.eventCount || 0);
+  if (!count) return "0 events";
+  const c = timeline.counts || {};
+  return `${count} / M${c.mouth || 0} P${c.plosive || 0} S${c.sibilance || 0}`;
 }
 
 function renderPresets() {
