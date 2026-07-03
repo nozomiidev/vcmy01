@@ -18,8 +18,69 @@ export const STUDIO_POLISH_INTENSITIES = Object.freeze([
 
 const DEFAULT_INTENSITY = STUDIO_POLISH_INTENSITIES[1];
 
+export const STUDIO_PRODUCTION_TARGETS = Object.freeze([
+  {
+    id: "podcast",
+    label: "Podcast Studio",
+    targetRmsDb: -18.5,
+    ceilingDb: -1,
+    brightnessRange: [0.18, 0.34],
+    bandLimits: { mudRatio: 0.25, nasalRatio: 0.21, harshRatio: 0.14, sibilanceRatio: 0.052 },
+    highPassBias: 2,
+    compressionBias: 6,
+    presenceBias: 0.45,
+    airBias: 0.25,
+    saturationBias: 0.8
+  },
+  {
+    id: "radio",
+    label: "Talk Radio",
+    targetRmsDb: -16.8,
+    ceilingDb: -1,
+    brightnessRange: [0.15, 0.3],
+    bandLimits: { mudRatio: 0.28, nasalRatio: 0.22, harshRatio: 0.135, sibilanceRatio: 0.048 },
+    highPassBias: 8,
+    compressionBias: 12,
+    presenceBias: 0.75,
+    airBias: -0.15,
+    saturationBias: 2.6
+  },
+  {
+    id: "ikemen",
+    label: "Ikemen Body",
+    targetRmsDb: -18.2,
+    ceilingDb: -1,
+    brightnessRange: [0.16, 0.31],
+    bandLimits: { mudRatio: 0.3, nasalRatio: 0.19, harshRatio: 0.13, sibilanceRatio: 0.047 },
+    highPassBias: -8,
+    compressionBias: 7,
+    presenceBias: 0.55,
+    airBias: 0.3,
+    saturationBias: 1.8
+  },
+  {
+    id: "kawaii",
+    label: "Kawaii / Anime",
+    targetRmsDb: -19.2,
+    ceilingDb: -1.2,
+    brightnessRange: [0.25, 0.43],
+    bandLimits: { mudRatio: 0.2, nasalRatio: 0.18, harshRatio: 0.145, sibilanceRatio: 0.058 },
+    highPassBias: 10,
+    compressionBias: 4,
+    presenceBias: 0.85,
+    airBias: 1.15,
+    saturationBias: 0.5
+  }
+]);
+
+const DEFAULT_TARGET = STUDIO_PRODUCTION_TARGETS[0];
+
 export function studioPolishIntensityById(id) {
   return STUDIO_POLISH_INTENSITIES.find((item) => item.id === id) || DEFAULT_INTENSITY;
+}
+
+export function studioProductionTargetById(id) {
+  return STUDIO_PRODUCTION_TARGETS.find((item) => item.id === id) || DEFAULT_TARGET;
 }
 
 export function analyzeStudioVoice(input, sampleRate) {
@@ -100,19 +161,21 @@ export function analyzeStudioVoice(input, sampleRate) {
   };
 }
 
-export function buildStudioPolishPlan(analysis, intensityId = "standard") {
+export function buildStudioPolishPlan(analysis, intensityId = "standard", targetId = "podcast") {
   const intensity = studioPolishIntensityById(intensityId);
+  const target = studioProductionTargetById(targetId);
   const f = intensity.factor;
   const scores = analysis.problemScores || {};
   const lowPitch = Number(analysis.pitchMedianHz || 0) > 0 && analysis.pitchMedianHz < 125;
   const highPassHz = clamp(
     (lowPitch ? 62 : 78) +
       Math.max(0, scores.plosive || 0) * 0.28 * f +
-      Math.max(0, scores.mud || 0) * 0.18 * f,
+      Math.max(0, scores.mud || 0) * 0.18 * f +
+      target.highPassBias,
     lowPitch ? 54 : 68,
     135
   );
-  const targetRmsDb = intensity.targetRmsDb;
+  const targetRmsDb = target.targetRmsDb || intensity.targetRmsDb;
   const gainToTarget = targetRmsDb - Number(analysis.rmsDb || targetRmsDb);
   const headroomLimit = Math.max(-8, Number(analysis.headroomDb || 0) - 2.2);
   const outputGainDb = clamp(Math.min(gainToTarget, headroomLimit), -9, 8);
@@ -120,6 +183,7 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard") {
     id: `studio-polish-${intensity.id}`,
     intensity: intensity.id,
     label: `Studio Polish ${intensity.label}`,
+    target: { id: target.id, label: target.label },
     targetRmsDb,
     stages: {
       inputGainDb: clamp((analysis.rmsDb < -34 ? 4 : 0) - (analysis.peakDb > -2 ? 3 : 0), -6, 6),
@@ -131,42 +195,27 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard") {
       nasalDb: -clamp(((scores.nasal || 0) - 8) * 0.068 * f, 0, 4.8),
       harshDb: -clamp(((scores.harsh || 0) - 8) * 0.058 * f, 0, 4.8),
       deEss: clamp((scores.sibilance || 0) * 0.9 * f + (scores.harsh || 0) * 0.22 * f, 0, 82),
-      leveler: clamp(22 + Math.max(0, analysis.dynamicRangeDb - 13) * 2.4 + f * 24, 12, 74),
-      compression: clamp(20 + Math.max(0, analysis.dynamicRangeDb - 12) * 1.5 + f * 20, 12, 70),
-      presenceDb: clamp((analysis.brightnessRatio < 0.18 ? 1.2 : analysis.brightnessRatio > 0.36 ? -0.65 : 0.4) * f - Math.max(0, scores.harsh || 0) * 0.01, -1.4, 2.8),
-      airDb: clamp((analysis.brightnessRatio < 0.2 ? 1.4 : analysis.brightnessRatio > 0.36 ? -0.9 : 0.5) * f - Math.max(0, scores.sibilance || 0) * 0.018, -1.8, 2.4),
-      saturation: clamp(4 + f * 8 - Math.max(0, scores.harsh || 0) * 0.04, 0, 12),
+      leveler: clamp(22 + Math.max(0, analysis.dynamicRangeDb - 13) * 2.4 + f * 24 + target.compressionBias * 0.45, 12, 78),
+      compression: clamp(20 + Math.max(0, analysis.dynamicRangeDb - 12) * 1.5 + f * 20 + target.compressionBias, 12, 78),
+      presenceDb: clamp((analysis.brightnessRatio < 0.18 ? 1.2 : analysis.brightnessRatio > 0.36 ? -0.65 : 0.4) * f - Math.max(0, scores.harsh || 0) * 0.01 + target.presenceBias, -1.8, 3.2),
+      airDb: clamp((analysis.brightnessRatio < 0.2 ? 1.4 : analysis.brightnessRatio > 0.36 ? -0.9 : 0.5) * f - Math.max(0, scores.sibilance || 0) * 0.018 + target.airBias, -2.1, 3.1),
+      saturation: clamp(4 + f * 8 - Math.max(0, scores.harsh || 0) * 0.04 + target.saturationBias, 0, 16),
       outputGainDb,
-      limiterDb: -1
+      limiterDb: target.ceilingDb
     },
-    notes: planNotes(analysis, intensity.id)
+    notes: planNotes(analysis, intensity.id, target)
   };
 }
 
 export function processStudioPolish(input, sampleRate, planOrOptions = "standard") {
   const samples = toFloat32(input);
-  const analysis = planOrOptions?.stages ? null : analyzeStudioVoice(samples, sampleRate);
-  const plan = planOrOptions?.stages
-    ? planOrOptions
-    : buildStudioPolishPlan(analysis, typeof planOrOptions === "string" ? planOrOptions : planOrOptions?.intensity || "standard");
-  const p = plan.stages;
-  let work = new Float32Array(samples);
-  work = applyGain(work, p.inputGainDb);
-  work = reducePlosives(work, sampleRate, p.deplosive);
-  work = reduceMouthClicks(work, sampleRate, p.mouthClick);
-  work = reduceRoomNoise(work, p.noiseReduction);
-  work = applyBiquad(work, sampleRate, "highpass", p.highPassHz, 0.72, 0);
-  work = applyBiquad(work, sampleRate, "peaking", 245, 0.9, p.mudDb);
-  work = applyBiquad(work, sampleRate, "peaking", 930, 1.05, p.nasalDb);
-  work = applyBiquad(work, sampleRate, "peaking", 3300, 1.1, p.harshDb);
-  work = dynamicDeEss(work, sampleRate, p.deEss);
-  work = speechLeveler(work, p.leveler);
-  work = speechCompressor(work, p.compression);
-  work = applyBiquad(work, sampleRate, "peaking", 2300, 0.8, p.presenceDb);
-  work = applyBiquad(work, sampleRate, "highshelf", 7200, 0.72, p.airDb);
-  work = lightSaturation(work, p.saturation);
-  work = applyGain(work, p.outputGainDb);
-  work = limiter(work, p.limiterDb);
+  const options = normalizePolishOptions(planOrOptions);
+  const analysis = options.plan ? null : analyzeStudioVoice(samples, sampleRate);
+  const basePlan = options.plan || buildStudioPolishPlan(analysis, options.intensity, options.target);
+  const plan = options.optimize
+    ? optimizeStudioPolishPlan(samples, sampleRate, basePlan, { inputAnalysis: analysis, target: options.target, iterations: options.iterations })
+    : basePlan;
+  const work = applyStudioPolishPlan(samples, sampleRate, plan);
   return {
     samples: work,
     plan,
@@ -175,17 +224,81 @@ export function processStudioPolish(input, sampleRate, planOrOptions = "standard
   };
 }
 
+export function optimizeStudioPolishPlan(input, sampleRate, basePlan, {
+  inputAnalysis = null,
+  target = null,
+  iterations = 22,
+  seed = 49157
+} = {}) {
+  const samples = toFloat32(input);
+  const targetDef = studioProductionTargetById(target || basePlan?.target?.id);
+  const maxIterations = Math.max(4, Math.min(40, Math.round(iterations)));
+  const rng = seededRandom(seed + Math.round(samples.length / Math.max(1, sampleRate)));
+  let current = clonePlan(basePlan);
+  let currentScore = scoreStudioPolishPlan(samples, sampleRate, current, targetDef, basePlan);
+  let best = clonePlan(current);
+  let bestScore = currentScore;
+  let accepted = 0;
+
+  for (let i = 0; i < maxIterations; i++) {
+    const temp = 1 - i / Math.max(1, maxIterations - 1);
+    const candidate = mutatePlan(current, targetDef, temp, rng);
+    const candidateScore = scoreStudioPolishPlan(samples, sampleRate, candidate, targetDef, basePlan);
+    const delta = candidateScore.score - currentScore.score;
+    const accept = delta >= 0 || Math.exp(delta / Math.max(0.08, temp * 16)) > rng();
+    if (accept) {
+      current = candidate;
+      currentScore = candidateScore;
+      accepted++;
+    }
+    if (candidateScore.score > bestScore.score) {
+      best = clonePlan(candidate);
+      bestScore = candidateScore;
+    }
+  }
+
+  const optimized = clonePlan(best);
+  const before = scoreStudioPolishPlan(samples, sampleRate, basePlan, targetDef, basePlan);
+  optimized.id = `${basePlan.id}-director`;
+  optimized.label = `${basePlan.label} + Director`;
+  optimized.target = { id: targetDef.id, label: targetDef.label };
+  optimized.optimization = {
+    enabled: true,
+    algorithm: "deterministic simulated annealing",
+    target: { id: targetDef.id, label: targetDef.label },
+    iterations: maxIterations,
+    accepted,
+    scoreBefore: Math.round(before.score),
+    scoreAfter: Math.round(bestScore.score),
+    objective: bestScore.objective,
+    inputScore: inputAnalysis?.score ?? null
+  };
+  optimized.notes = [
+    `director target: ${targetDef.label}`,
+    `optimizer ${Math.round(bestScore.score - before.score)} pt`,
+    ...(basePlan.notes || [])
+  ].slice(0, 5);
+  return optimized;
+}
+
 export function runStudioPolishQualitySuite({
   sampleRate = 48000,
   duration = 0.52,
   profiles = REFERENCE_VOICE_PROFILES,
-  intensity = "standard"
+  intensity = "standard",
+  target = "podcast",
+  optimize = false
 } = {}) {
   const started = nowMs();
   const results = profiles.map((profile) => {
     const source = generateReferenceVoice(profile.id, { sampleRate, duration });
     const before = analyzeStudioVoice(source.samples, sampleRate);
-    const processed = processStudioPolish(source.samples, sampleRate, intensity);
+    const processed = processStudioPolish(source.samples, sampleRate, optimize ? {
+      intensity,
+      target,
+      optimize: true,
+      iterations: 10
+    } : { intensity, target });
     const after = processed.outputAnalysis;
     const issues = studioPolishIssues(before, after, processed.samples.length, source.samples.length);
     const status = issues.some((issue) => issue.level === "fail") ? "fail" :
@@ -212,6 +325,8 @@ export function runStudioPolishQualitySuite({
     results,
     sampleRate,
     duration,
+    target,
+    optimized: !!optimize,
     renderedSeconds,
     elapsedMs,
     realtimeFactor: elapsedMs / Math.max(1, renderedSeconds * 1000)
@@ -256,8 +371,8 @@ function studioScore(scores) {
   return Math.max(0, Math.min(100, Math.round(100 - penalty)));
 }
 
-function planNotes(analysis, intensity) {
-  const notes = [`${intensity} polish`];
+function planNotes(analysis, intensity, target) {
+  const notes = [`${target.label}`, `${intensity} polish`];
   const scores = analysis.problemScores || {};
   if (scores.plosive > 18) notes.push("de-plosive before high-pass");
   if (scores.mouthClick > 18) notes.push("mouth click smoothing");
@@ -265,6 +380,158 @@ function planNotes(analysis, intensity) {
   if (scores.sibilance > 18) notes.push("dynamic de-ess");
   if (Math.max(scores.mud || 0, scores.nasal || 0, scores.harsh || 0) > 18) notes.push("source-adaptive tone cleanup");
   return notes;
+}
+
+function normalizePolishOptions(planOrOptions) {
+  if (planOrOptions?.stages) return { plan: planOrOptions, optimize: false };
+  if (typeof planOrOptions === "string") {
+    return { intensity: planOrOptions, target: DEFAULT_TARGET.id, optimize: false, iterations: 0 };
+  }
+  return {
+    intensity: planOrOptions?.intensity || DEFAULT_INTENSITY.id,
+    target: planOrOptions?.target || DEFAULT_TARGET.id,
+    optimize: !!planOrOptions?.optimize,
+    iterations: planOrOptions?.iterations || 22
+  };
+}
+
+function applyStudioPolishPlan(samples, sampleRate, plan) {
+  const p = plan.stages;
+  let work = new Float32Array(samples);
+  work = applyGain(work, p.inputGainDb);
+  work = reducePlosives(work, sampleRate, p.deplosive);
+  work = reduceMouthClicks(work, sampleRate, p.mouthClick);
+  work = reduceRoomNoise(work, p.noiseReduction);
+  work = applyBiquad(work, sampleRate, "highpass", p.highPassHz, 0.72, 0);
+  work = applyBiquad(work, sampleRate, "peaking", 245, 0.9, p.mudDb);
+  work = applyBiquad(work, sampleRate, "peaking", 930, 1.05, p.nasalDb);
+  work = applyBiquad(work, sampleRate, "peaking", 3300, 1.1, p.harshDb);
+  work = dynamicDeEss(work, sampleRate, p.deEss);
+  work = speechLeveler(work, p.leveler);
+  work = speechCompressor(work, p.compression);
+  work = applyBiquad(work, sampleRate, "peaking", 2300, 0.8, p.presenceDb);
+  work = applyBiquad(work, sampleRate, "highshelf", 7200, 0.72, p.airDb);
+  work = lightSaturation(work, p.saturation);
+  work = applyGain(work, p.outputGainDb);
+  work = limiter(work, p.limiterDb);
+  return work;
+}
+
+function scoreStudioPolishPlan(samples, sampleRate, plan, target, basePlan) {
+  const out = applyStudioPolishPlan(samples, sampleRate, plan);
+  const analysis = analyzeStudioVoice(out, sampleRate);
+  const scores = analysis.problemScores || {};
+  const band = analysis.band || {};
+  const [minBright, maxBright] = target.brightnessRange;
+  const bandLimits = target.bandLimits || {};
+  const residual =
+    scores.level * 0.85 +
+    scores.noise * 0.55 +
+    scores.mouthClick * 0.35 +
+    scores.plosive * 0.58 +
+    scores.sibilance * 0.75 +
+    scores.mud * 0.55 +
+    scores.nasal * 0.9 +
+    scores.harsh * 0.95 +
+    scores.brightness * 0.5;
+  const loudness = Math.abs((analysis.loudnessProxyDb || analysis.rmsDb) - target.targetRmsDb) * 3.5;
+  const peakRisk = analysis.peakDb > target.ceilingDb
+    ? Math.pow((analysis.peakDb - target.ceilingDb) * 4, 2)
+    : Math.max(0, -9 - analysis.peakDb) * 0.6;
+  const brightnessRisk = analysis.brightnessRatio < minBright
+    ? (minBright - analysis.brightnessRatio) * 170
+    : analysis.brightnessRatio > maxBright
+      ? (analysis.brightnessRatio - maxBright) * 155
+      : 0;
+  const bandRisk = Object.entries(bandLimits).reduce((sum, [key, limit]) => {
+    const value = Number(band[key] || 0);
+    return sum + Math.max(0, value - limit) * 220;
+  }, 0);
+  const deviation = planDistance(plan, basePlan) * 7.5;
+  const invalid = out.length !== samples.length || !Number.isFinite(analysis.rms) || analysis.rms <= 0 || analysis.peak > 1 ? 999 : 0;
+  const targetPenalty = residual * 0.04 +
+    loudness * 0.55 +
+    peakRisk +
+    brightnessRisk * 0.2 +
+    bandRisk * 0.08 +
+    deviation +
+    invalid;
+  return {
+    score: clamp(analysis.score - targetPenalty, 0, 100),
+    analysis,
+    objective: {
+      residual: Number(residual.toFixed(2)),
+      loudness: Number(loudness.toFixed(2)),
+      peakRisk: Number(peakRisk.toFixed(2)),
+      brightnessRisk: Number(brightnessRisk.toFixed(2)),
+      bandRisk: Number(bandRisk.toFixed(2)),
+      deviation: Number(deviation.toFixed(2)),
+      targetPenalty: Number(targetPenalty.toFixed(2))
+    }
+  };
+}
+
+function mutatePlan(plan, target, temperature, rng) {
+  const out = clonePlan(plan);
+  const p = out.stages;
+  const scale = 0.35 + temperature * 0.9;
+  const moves = [
+    ["highPassHz", 16 + Math.abs(target.highPassBias || 0) * 0.4, 45, 150],
+    ["mudDb", 1.2, -7, 0.6],
+    ["nasalDb", 1.1, -6.5, 0.4],
+    ["harshDb", 1, -6.5, 0.4],
+    ["deEss", 13, 0, 88],
+    ["leveler", 12, 8, 84],
+    ["compression", 12, 8, 84],
+    ["presenceDb", 0.9, -2.4, 3.8],
+    ["airDb", 0.9, -2.6, 3.4],
+    ["saturation", 3, 0, 18],
+    ["outputGainDb", 1.5, -9, 9]
+  ];
+  const [key, step, min, max] = moves[Math.floor(rng() * moves.length)];
+  p[key] = clamp(p[key] + (rng() * 2 - 1) * step * scale, min, max);
+  if (target.id === "ikemen") p.highPassHz = Math.min(p.highPassHz, 112);
+  if (target.id === "kawaii") p.highPassHz = Math.max(p.highPassHz, 78);
+  return out;
+}
+
+function planDistance(plan, basePlan) {
+  const p = plan.stages || {};
+  const b = basePlan.stages || {};
+  const weights = {
+    highPassHz: 35,
+    mudDb: 4,
+    nasalDb: 4,
+    harshDb: 4,
+    deEss: 45,
+    leveler: 45,
+    compression: 45,
+    presenceDb: 4,
+    airDb: 4,
+    saturation: 12,
+    outputGainDb: 6
+  };
+  return Object.entries(weights).reduce((sum, [key, range]) => {
+    return sum + Math.abs((p[key] || 0) - (b[key] || 0)) / range;
+  }, 0);
+}
+
+function clonePlan(plan) {
+  return {
+    ...plan,
+    target: plan.target ? { ...plan.target } : null,
+    stages: { ...(plan.stages || {}) },
+    notes: [...(plan.notes || [])],
+    optimization: plan.optimization ? { ...plan.optimization } : undefined
+  };
+}
+
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0xffffffff;
+  };
 }
 
 function bandProfile(samples, sampleRate) {

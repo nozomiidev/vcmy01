@@ -30,7 +30,14 @@ import { buildSceneSession, sceneSessionSummary } from "../src/audio/scene-sessi
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, snapshotParamPatch } from "../src/audio/voice-memory.js";
 import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectParamPatch } from "../src/audio/project-vault.js";
 import { buildSourceTimeline, cueRegion, nearestCueIdForRegion, sourceTimelineSummary } from "../src/audio/source-timeline.js";
-import { analyzeStudioVoice, buildStudioPolishPlan, processStudioPolish, runStudioPolishQualitySuite } from "../src/audio/studio-polish.js";
+import {
+  analyzeStudioVoice,
+  buildStudioPolishPlan,
+  optimizeStudioPolishPlan,
+  processStudioPolish,
+  runStudioPolishQualitySuite,
+  STUDIO_PRODUCTION_TARGETS
+} from "../src/audio/studio-polish.js";
 import { buildExportManifest, renderedBaseName, studioPolishResearchNotes } from "../src/audio/export-session.js";
 import {
   analyzeBuffer,
@@ -112,16 +119,33 @@ const dirtyStudioSource = studioPolishFixture(source, sampleRate);
 const dirtyStudioAnalysis = analyzeStudioVoice(dirtyStudioSource, sampleRate);
 const studioPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard");
 const studioPolished = processStudioPolish(dirtyStudioSource, sampleRate, studioPolishPlan);
+const kawaiiPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard", "kawaii");
+const directorPlan = optimizeStudioPolishPlan(dirtyStudioSource, sampleRate, kawaiiPolishPlan, { target: "kawaii", iterations: 10 });
+const directorPolished = processStudioPolish(dirtyStudioSource, sampleRate, {
+  intensity: "standard",
+  target: "kawaii",
+  optimize: true,
+  iterations: 10
+});
 assert.equal(studioPolished.samples.length, dirtyStudioSource.length, "studio polish preserves source length");
 assert.equal(studioPolishPlan.stages.highPassHz >= 54, true, "studio polish plan should choose a valid adaptive high-pass");
+assert.equal(kawaiiPolishPlan.target.id, "kawaii", "studio polish should support production targets");
+assert.ok(kawaiiPolishPlan.stages.highPassHz >= studioPolishPlan.stages.highPassHz, "kawaii target should lift the cleanup high-pass boundary");
+assert.equal(directorPlan.optimization.enabled, true, "director optimizer should add optimization metadata");
+assert.ok(directorPlan.optimization.scoreAfter >= directorPlan.optimization.scoreBefore - 8, "director optimizer should avoid large objective regressions");
 assert.ok(studioPolishPlan.stages.deplosive > 0 || studioPolishPlan.stages.mouthClick > 0, "studio polish plan should react to dirty speech artifacts");
 assert.ok(Number.isFinite(studioPolished.outputAnalysis.rms), "studio polish output should have finite rms");
 assert.ok(peak(studioPolished.samples) <= 1, "studio polish output should be limited");
+assert.equal(directorPolished.samples.length, dirtyStudioSource.length, "director polish should preserve source length");
+assert.equal(directorPolished.plan.target.id, "kawaii", "director polish should preserve target metadata");
+assert.equal(directorPolished.plan.optimization.enabled, true, "director polish should run bounded optimization");
+assert.ok(peak(directorPolished.samples) <= 1, "director polish output should be limited");
 assert.ok(studioPolished.outputAnalysis.problemScores.sibilance <= dirtyStudioAnalysis.problemScores.sibilance + 16, "studio polish should not create a sibilance regression");
 assert.ok(studioPolished.outputAnalysis.problemScores.harsh <= dirtyStudioAnalysis.problemScores.harsh + 18, "studio polish should not create a harshness regression");
 const studioPolishQuality = runStudioPolishQualitySuite({ sampleRate, duration: 0.36 });
 assert.equal(studioPolishQuality.ok, true, "studio polish quality suite should pass");
 assert.equal(studioPolishQuality.results.length, REFERENCE_VOICE_PROFILES.length, "studio polish suite should cover reference profiles");
+assert.ok(STUDIO_PRODUCTION_TARGETS.some((target) => target.id === "ikemen"), "production targets should include ikemen-oriented polish");
 const sourceTrace = analyzePerformanceTrace(source, sampleRate);
 assert.ok(sourceTrace.frames.length > 10, "performance trace should create time frames");
 assert.ok(sourceTrace.summary.pitchMedianHz > 90 && sourceTrace.summary.pitchMedianHz < 240, "performance trace should expose frame-level F0");
@@ -585,8 +609,10 @@ const autoReview = renderReview(offline.source, autoRendered);
 assert.ok(autoReview.score >= 70, "render review should score usable offline renders");
 assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.includes("+")), "render review should expose apparent F0 movement");
 assert.ok(autoReview.items.some((item) => item.id === "studio-polish"), "render review should expose Studio Polish evidence");
-const polishOnlyRender = offline.render(kawaii, { stage: "polish", studioPolish: "light", mode: "preview", region: { startSec: 0, durationSec: 0.6 } });
+const polishOnlyRender = offline.render(kawaii, { stage: "polish", studioPolish: "light", studioTarget: "ikemen", directorOptimize: true, mode: "preview", region: { startSec: 0, durationSec: 0.6 } });
 assert.equal(polishOnlyRender.stage, "polish", "offline render should support polish-only preview");
+assert.equal(polishOnlyRender.studioPolish.target.id, "ikemen", "offline render should retain production target");
+assert.equal(polishOnlyRender.studioPolish.optimized, true, "offline render should retain director optimization state");
 assert.equal(polishOnlyRender.scriptAutomated, false, "polish-only render should not apply acting automation");
 assert.equal(polishOnlyRender.samples.length, Math.round(sampleRate * 0.6), "polish-only render should preserve region length");
 const extremeRender = offline.render(paramsForPreset("kawaii", {

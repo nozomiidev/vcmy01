@@ -59,7 +59,10 @@ export function drawAnalysisCards(host, source, rendered) {
   if (rendered) {
     entries.push(["Render Mode", rendered.region?.isFull ? "Full" : "Preview"]);
     entries.push(["Render Stage", rendered.stage === "polish" ? "Polish" : "Character"]);
-    if (rendered.studioPolish?.enabled) entries.push(["Studio Polish", rendered.studioPolish.intensity]);
+    if (rendered.studioPolish?.enabled) {
+      const target = rendered.studioPolish.target?.label || rendered.studioPolish.plan?.target?.label || rendered.studioPolish.intensity;
+      entries.push(["Studio Polish", rendered.studioPolish.optimized ? `${target} + Director` : `${target} / ${rendered.studioPolish.intensity}`]);
+    }
     if (rendered.region && !rendered.region.isFull) entries.push(["Region", `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)} s`]);
     entries.push(["Render RMS", `${rendered.analysis.rmsDb.toFixed(1)} dB`]);
     entries.push(["Render Peak", `${rendered.analysis.peakDb.toFixed(1)} dB`]);

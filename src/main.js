@@ -32,7 +32,7 @@ import { buildSceneSession, sceneSessionSummary } from "./audio/scene-session.js
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, sanitizeVoiceSnapshots } from "./audio/voice-memory.js";
 import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectParamPatch, sanitizeProjectSnapshots } from "./audio/project-vault.js";
 import { buildSourceTimeline, cueRegion, nearestCueIdForRegion, sourceTimelineSummary } from "./audio/source-timeline.js";
-import { buildStudioPolishPlan, STUDIO_POLISH_INTENSITIES } from "./audio/studio-polish.js";
+import { buildStudioPolishPlan, STUDIO_POLISH_INTENSITIES, STUDIO_PRODUCTION_TARGETS } from "./audio/studio-polish.js";
 import { ProjectStore, TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
@@ -46,6 +46,8 @@ const state = {
   params: prefs.get("params", null),
   theme: prefs.get("theme", "dark"),
   polishIntensity: prefs.get("polishIntensity", "standard"),
+  productionTarget: prefs.get("productionTarget", "podcast"),
+  directorOptimize: prefs.get("directorOptimize", true),
   monitor: false,
   bypass: false,
   takes: [],
@@ -81,6 +83,8 @@ function persist() {
   prefs.set("params", state.params);
   prefs.set("lineReadId", state.lineReadId);
   prefs.set("polishIntensity", state.polishIntensity);
+  prefs.set("productionTarget", state.productionTarget);
+  prefs.set("directorOptimize", state.directorOptimize);
 }
 
 function persistVoiceSnapshots() {
@@ -149,6 +153,11 @@ function renderReferenceSelectors() {
     `<option value="${item.id}">${item.label}</option>`
   )).join("");
   $("polishIntensity").value = state.polishIntensity;
+  $("productionTarget").innerHTML = STUDIO_PRODUCTION_TARGETS.map((item) => (
+    `<option value="${item.id}">${item.label}</option>`
+  )).join("");
+  $("productionTarget").value = state.productionTarget;
+  $("directorOptimize").checked = !!state.directorOptimize;
   $("qualityProfile").innerHTML = [
     `<option value="all">All Sources</option>`,
     ...REFERENCE_VOICE_PROFILES.map((profile) => `<option value="${profile.id}">${profile.name}</option>`)
@@ -161,12 +170,12 @@ function renderGuidedStudio() {
   const source = offline.source;
   const rendered = offline.rendered;
   const analysis = source?.studioAnalysis || null;
-  const plan = analysis ? buildStudioPolishPlan(analysis, state.polishIntensity) : null;
+  const plan = analysis ? buildStudioPolishPlan(analysis, state.polishIntensity, state.productionTarget) : null;
   const opusType = preferredOpusMimeType();
   const steps = [
     { id: "source", label: "Source", status: source ? "ready" : "waiting", value: source ? source.name : "No source" },
     { id: "clean", label: "Clean", status: analysis ? analysis.status : "waiting", value: analysis ? `${analysis.score}%` : "Waiting" },
-    { id: "polish", label: "Polish", status: rendered?.studioPolish?.enabled ? "ready" : source ? "polish" : "waiting", value: rendered?.studioPolish?.enabled ? rendered.studioPolish.intensity : state.polishIntensity },
+    { id: "polish", label: "Polish", status: rendered?.studioPolish?.enabled ? "ready" : source ? "polish" : "waiting", value: rendered?.studioPolish?.enabled ? `${rendered.studioPolish.intensity}${rendered.studioPolish.optimized ? "+dir" : ""}` : state.polishIntensity },
     { id: "character", label: "Character", status: rendered?.stage === "character" ? "ready" : source ? "polish" : "waiting", value: rendered?.stage === "character" ? presetById(state.presetId).name : "Pending" },
     { id: "export", label: "Export", status: rendered ? "ready" : "waiting", value: rendered ? (opusType ? "WAV/WebM/ZIP" : "WAV/ZIP") : "Pending" }
   ];
@@ -194,6 +203,7 @@ function renderGuidedStudio() {
     </div>
   `).join("");
   const stagePills = [
+    ["Target", plan.target?.label || "Podcast"],
     ["De-plosive", `${Math.round(plan.stages.deplosive)}%`],
     ["Mouth", `${Math.round(plan.stages.mouthClick)}%`],
     ["Noise", `${Math.round(plan.stages.noiseReduction)}%`],
@@ -202,6 +212,10 @@ function renderGuidedStudio() {
     ["Level", `${Math.round(plan.stages.leveler)}%`],
     ["Out", `${plan.stages.outputGainDb > 0 ? "+" : ""}${plan.stages.outputGainDb.toFixed(1)} dB`]
   ];
+  if (rendered?.studioPolish?.plan?.optimization?.enabled) {
+    const opt = rendered.studioPolish.plan.optimization;
+    stagePills.push(["Director", `${opt.scoreBefore}->${opt.scoreAfter}`]);
+  }
   $("studioPolishPatches").innerHTML = [
     ...stagePills.map(([label, value]) => `<span>${escapeHtml(label)} <b>${escapeHtml(value)}</b></span>`),
     ...plan.notes.slice(0, 3).map((note) => `<span>${escapeHtml(note)} <b>on</b></span>`)
@@ -969,6 +983,19 @@ function bindOffline() {
     renderStudioPlan();
   });
 
+  $("productionTarget").addEventListener("change", () => {
+    state.productionTarget = $("productionTarget").value;
+    persist();
+    renderGuidedStudio();
+    renderStudioPlan();
+  });
+
+  $("directorOptimize").addEventListener("change", () => {
+    state.directorOptimize = $("directorOptimize").checked;
+    persist();
+    renderGuidedStudio();
+  });
+
   $("renderPolishOnly").addEventListener("click", () => renderOfflineToPreview(true, { stage: "polish" }));
 
   $("previewOffline").addEventListener("click", () => renderOfflineToPreview(true));
@@ -1189,7 +1216,9 @@ function renderOfflineToPreview(preview, renderOptions = {}) {
       region: preview ? currentRegion() : null,
       mode: preview ? "preview" : "full",
       stage,
-      studioPolish: state.polishIntensity
+      studioPolish: state.polishIntensity,
+      studioTarget: state.productionTarget,
+      directorOptimize: state.directorOptimize
     });
     state.lastWebmBlob = null;
     setAudioPreview("renderAudio", "render", rendered.blob, rendered.samples, rendered.sampleRate);
@@ -1457,7 +1486,9 @@ function renderStackAuditionSet(auditionId = null) {
       automationOptions: { intensity: audition.automationIntensity },
       region,
       mode: "preview",
-      studioPolish: state.polishIntensity
+      studioPolish: state.polishIntensity,
+      studioTarget: state.productionTarget,
+      directorOptimize: state.directorOptimize
     });
     rendered.stackAudition = {
       id: audition.id,
@@ -1525,7 +1556,9 @@ function renderAuditionVariantSet(variantId = null) {
       automationOptions: { intensity: variant.automationIntensity },
       region,
       mode: "preview",
-      studioPolish: state.polishIntensity
+      studioPolish: state.polishIntensity,
+      studioTarget: state.productionTarget,
+      directorOptimize: state.directorOptimize
     });
     rendered.auditionVariant = {
       id: variant.id,

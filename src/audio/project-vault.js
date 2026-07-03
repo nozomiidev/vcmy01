@@ -455,13 +455,35 @@ function sanitizeStudioPolish(polish = null) {
   return {
     enabled: !!polish.enabled,
     intensity: cleanText(polish.intensity || "off", 32),
+    target: polish.target ? {
+      id: cleanText(polish.target.id || "", 48),
+      label: cleanText(polish.target.label || "", 80)
+    } : null,
+    optimized: !!polish.optimized,
     label: cleanText(polish.label || "", 80),
     plan: polish.plan ? {
       id: cleanText(polish.plan.id || "", 80),
       intensity: cleanText(polish.plan.intensity || "", 32),
       label: cleanText(polish.plan.label || "", 80),
+      target: polish.plan.target ? {
+        id: cleanText(polish.plan.target.id || "", 48),
+        label: cleanText(polish.plan.target.label || "", 80)
+      } : null,
       targetRmsDb: finiteNumber(polish.plan.targetRmsDb),
       stages: sanitizeProblemScores(polish.plan.stages),
+      optimization: polish.plan.optimization ? {
+        enabled: !!polish.plan.optimization.enabled,
+        algorithm: cleanText(polish.plan.optimization.algorithm || "", 80),
+        iterations: finiteNumber(polish.plan.optimization.iterations),
+        accepted: finiteNumber(polish.plan.optimization.accepted),
+        scoreBefore: finiteNumber(polish.plan.optimization.scoreBefore),
+        scoreAfter: finiteNumber(polish.plan.optimization.scoreAfter),
+        objective: sanitizeProblemScores(polish.plan.optimization.objective),
+        target: polish.plan.optimization.target ? {
+          id: cleanText(polish.plan.optimization.target.id || "", 48),
+          label: cleanText(polish.plan.optimization.target.label || "", 80)
+        } : null
+      } : null,
       notes: Array.isArray(polish.plan.notes) ? polish.plan.notes.slice(0, 8).map((note) => cleanText(note, 120)) : []
     } : null,
     inputAnalysis: sanitizeStudioAnalysis(polish.inputAnalysis),

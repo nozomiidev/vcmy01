@@ -120,6 +120,11 @@ export function studioPolishResearchNotes(rendered = null) {
   if (polish?.enabled) {
     notes.push("Applied Studio Polish:", "");
     notes.push(`- Intensity: ${polish.intensity}`);
+    if (polish.target?.label || polish.plan?.target?.label) notes.push(`- Production target: ${polish.target?.label || polish.plan.target.label}`);
+    if (polish.optimized || polish.plan?.optimization?.enabled) {
+      const opt = polish.plan?.optimization;
+      notes.push(`- Director optimize: ${opt?.scoreBefore ?? "?"} -> ${opt?.scoreAfter ?? "?"}`);
+    }
     notes.push(`- Label: ${polish.label}`);
     for (const note of polish.plan?.notes || []) notes.push(`- ${note}`);
   } else {
@@ -270,8 +275,11 @@ function compactStudioPolish(polish = null) {
   return {
     enabled: !!polish.enabled,
     intensity: polish.intensity || "off",
+    target: polish.target || polish.plan?.target || null,
+    optimized: !!(polish.optimized || polish.plan?.optimization?.enabled),
     label: polish.label || "",
     notes: polish.plan?.notes || [],
+    optimization: polish.plan?.optimization || null,
     stages: polish.plan?.stages || null,
     input: compactStudioAnalysis(polish.inputAnalysis),
     output: compactStudioAnalysis(polish.outputAnalysis)

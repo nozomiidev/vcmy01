@@ -76,7 +76,11 @@ export class OfflineRenderer {
     const sourceSamples = region.isFull
       ? this.source.samples
       : this.source.samples.slice(region.startSample, region.endSample);
-    const studioPolish = renderStudioPolish(sourceSamples, this.source.sampleRate, options.studioPolish);
+    const studioPolish = renderStudioPolish(sourceSamples, this.source.sampleRate, {
+      intensity: options.studioPolish,
+      target: options.studioTarget,
+      optimize: options.directorOptimize
+    });
     const characterInput = studioPolish ? studioPolish.samples : sourceSamples;
     const stage = options.stage || "character";
     const automation = stage !== "polish" && options.automatePerformance && options.performanceScript
@@ -102,6 +106,8 @@ export class OfflineRenderer {
       studioPolish: studioPolish ? {
         enabled: true,
         intensity: studioPolish.plan.intensity,
+        target: studioPolish.plan.target || null,
+        optimized: !!studioPolish.plan.optimization?.enabled,
         label: studioPolish.plan.label,
         plan: studioPolish.plan,
         inputAnalysis: studioPolish.inputAnalysis,
@@ -140,11 +146,19 @@ export class OfflineRenderer {
 }
 
 function renderStudioPolish(sourceSamples, sampleRate, option = "standard") {
-  if (option === false || option === "off") return null;
-  const intensity = typeof option === "string" ? option : option?.intensity || "standard";
+  const requested = typeof option === "object" && option ? option.intensity : option;
+  if (requested === false || requested === "off") return null;
+  const intensity = typeof requested === "string" ? requested : "standard";
+  const target = typeof option === "object" && option ? option.target || "podcast" : "podcast";
+  const optimize = typeof option === "object" && option ? !!option.optimize : false;
   const inputAnalysis = analyzeStudioVoice(sourceSamples, sampleRate);
-  const plan = buildStudioPolishPlan(inputAnalysis, intensity);
-  return processStudioPolish(sourceSamples, sampleRate, plan);
+  const plan = buildStudioPolishPlan(inputAnalysis, intensity, target);
+  return processStudioPolish(sourceSamples, sampleRate, optimize ? {
+    intensity,
+    target,
+    optimize: true,
+    iterations: option.iterations || 22
+  } : plan);
 }
 
 export function sourceFitReport(params = {}, profile = {}, target = null, source = {}) {

@@ -204,7 +204,12 @@
                 </div>
                 <div class="guided-studio-flow" id="guidedStudioFlow"></div>
                 <div class="guided-studio-controls">
+                  <select class="select-command" id="productionTarget" aria-label="Production target"></select>
                   <select class="select-command" id="polishIntensity" aria-label="Studio polish intensity"></select>
+                  <label class="toggle-command">
+                    <input id="directorOptimize" type="checkbox" checked>
+                    Director Optimize
+                  </label>
                   <button class="command" id="renderPolishOnly" type="button" disabled>Render Polish</button>
                 </div>
                 <div class="studio-polish-grid" id="studioPolishGrid"></div>
