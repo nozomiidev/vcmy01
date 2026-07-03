@@ -1118,6 +1118,10 @@ function bindOffline() {
   $("downloadWebm").addEventListener("click", downloadCurrentWebm);
   $("downloadZip").addEventListener("click", downloadCurrentZip);
   $("directorBriefAction")?.addEventListener("click", applyStudioPlanStep);
+  $("currentReviewPanel")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-current-review-action]");
+    if (button) applyCurrentReviewAction(button.dataset.currentReviewAction);
+  });
 
   $("playCompare").addEventListener("click", async () => {
     if (!offline.source || !offline.rendered) return;
@@ -1433,11 +1437,15 @@ function renderCurrentReviewPanel() {
     ...preferred.map((id) => reviewItemsById.get(id)).filter(Boolean),
     ...review.items.filter((item) => !preferredSet.has(item.id))
   ].slice(0, 5);
+  const action = currentReviewAction(review);
   host.className = `current-review is-${review.status}`;
   host.innerHTML = `
     <div class="current-review-head">
       <span>Current Review</span>
-      <strong>${review.score}% ${escapeHtml(renderReviewStatusLabel(review.status))}</strong>
+      <div class="current-review-actions">
+        <strong>${review.score}% ${escapeHtml(renderReviewStatusLabel(review.status))}</strong>
+        ${action ? `<button class="text-action" data-current-review-action="${escapeHtml(action.id)}" type="button">${escapeHtml(action.label)}</button>` : ""}
+      </div>
     </div>
     <div class="current-review-grid">
       ${items.map((item) => `
@@ -1449,6 +1457,31 @@ function renderCurrentReviewPanel() {
       `).join("")}
     </div>
   `;
+}
+
+function currentReviewAction(review = null) {
+  if (!review) return null;
+  if (review.comfort?.status === "risk") {
+    const stack = currentEffectStackReport();
+    const patch = bestEffectStackPatch(stack);
+    const hasPatch = Object.keys(patch).some((key) => !key.startsWith("_"));
+    if (hasPatch) return { id: "stack-fix-preview", label: "Fix & Preview" };
+  }
+  if (review.performanceBudget?.status === "risk") {
+    return { id: "preview-region", label: "Use Short Preview" };
+  }
+  return null;
+}
+
+function applyCurrentReviewAction(actionId = "") {
+  if (actionId === "stack-fix-preview") {
+    applyNextEffectStackFix();
+    renderOfflineToPreview(true);
+    return;
+  }
+  if (actionId === "preview-region") {
+    renderOfflineToPreview(true);
+  }
 }
 
 function downloadCurrentWav() {

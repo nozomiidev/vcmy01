@@ -653,12 +653,14 @@ Implementation response:
 - Effect Stack context patches now read `renderReview.comfort.reasons`.
 - `sibilance` routes to de-ess and air reduction, `micro` routes to consonant softness and breath/whisper reduction, `mud` routes to input low-cut, `flat`/`jumpy` routes to compression, `true-peak` routes to limiter/output safety, and low comfort adds a guard blend move.
 - Tone and texture stages now show `Comfort NN%` notes when comfort evidence is active, keeping the diagnosis visible in the normal guided workflow.
+- Current Review now exposes a `Fix & Preview` action when comfort risk has an Effect Stack patch, applying the bounded repair and immediately rendering a short preview so the user can hear the change without hunting through lower-level panels.
 
 Verification:
 
 - `npm test` passed with a comfort-guidance stack test that converts `micro`/`sibilance` reasons into cleanup patches.
 - `npm run quality` passed 44/0/0 with Studio Polish 4/0/0 and Director Polish 4/0/0.
 - In-app Browser verification with the private Yamada Taro fixture showed `Comfort 15%` in the signal stack, Tone/Texture comfort notes, comfort-driven De-esser/Soft Consonants candidates, WAV/WebM/ZIP actions, and zero console errors.
+- A later private-fixture browser pass showed `Fix & Preview` in Current Review, clicked it, and moved the current take from `87% Risk` to `98% Check` while keeping WAV/WebM/ZIP available and console errors empty.
 
 Sources:
 https://auphonic.com/help/algorithms/singletrack.html

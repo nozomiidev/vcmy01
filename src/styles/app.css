@@ -2454,6 +2454,19 @@ input[type="range"] {
   white-space: nowrap;
 }
 
+.current-review-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.current-review-actions .text-action {
+  min-height: 28px;
+  padding: 0 10px;
+}
+
 .current-review-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
