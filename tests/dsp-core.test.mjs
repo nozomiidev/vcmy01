@@ -1005,9 +1005,52 @@ assert.ok(takeDecision.winnerId, "take decision should select a keeper candidate
 assert.ok(takeDecision.items[0].items.some((item) => item.id === "target"), "take decision should include target-fit evidence");
 assert.ok(takeDecision.items[0].items.some((item) => item.id === "script"), "take decision should include script-match evidence");
 assert.ok(takeDecision.items[0].items.some((item) => item.id === "safety"), "take decision should include render-safety evidence");
+assert.ok(takeDecision.items[0].items.some((item) => item.id === "qc"), "take decision should include delivery-QC evidence");
 assert.ok(takeDecision.score >= 0 && takeDecision.score <= 100, "take decision score should be bounded");
 assert.ok(takeDecision.items[0].baseParams, "take decision should preserve the render base params for refinement");
 assert.equal(sourceSamplesForRenderedRegion(offline.source, previewRendered).length, previewRendered.samples.length, "take decision should compare matching source/render regions");
+const qcBlockedReview = {
+  ...renderReview(offline.source, variantPreview),
+  status: "risk",
+  score: 96,
+  comfort: { status: "risk", score: 38, reasons: ["micro"], issues: [], detail: "Mouth artifacts are fatiguing." },
+  performanceBudget: { status: "ready", score: 91, recommendation: "full-render-ok" }
+};
+const qcSafeReview = {
+  ...renderReview(offline.source, previewRendered),
+  status: "check",
+  score: 80,
+  comfort: { status: "check", score: 78, reasons: ["nasal"], issues: [], detail: "Audible but still needs a final QC listen." },
+  performanceBudget: { status: "ready", score: 92, recommendation: "full-render-ok" }
+};
+const qcGateDecision = rankRenderDeckTakes([
+  {
+    id: "unsafe-but-cute",
+    title: "Unsafe Cute",
+    target: kawaiiSpark.name,
+    mode: "Preview Scripted Variant",
+    variant: { label: "Unsafe Cute", score: 100, intent: "Strong target read with audible QC problems." },
+    rendered: variantPreview,
+    review: qcBlockedReview
+  },
+  { id: "safe-take", title: "Safe Take", target: kawaiiSpark.name, mode: "Preview", rendered: previewRendered, review: qcSafeReview }
+], offline.source, kawaiiSpark);
+assert.equal(qcGateDecision.winnerId, "safe-take", "take decision should not name a QC-risk take as keeper when a safer take exists");
+assert.equal(qcGateDecision.items.find((item) => item.id === "unsafe-but-cute").keeperEligible, false, "QC-risk takes should be marked ineligible for keeper selection");
+const allRiskDecision = rankRenderDeckTakes([
+  {
+    id: "only-risk",
+    title: "Only Risk",
+    target: kawaiiSpark.name,
+    mode: "Preview",
+    rendered: variantPreview,
+    review: qcBlockedReview
+  }
+], offline.source, kawaiiSpark);
+assert.equal(allRiskDecision.winnerId, null, "take decision should hold keeper selection when every take fails QC");
+assert.equal(allRiskDecision.candidateId, "only-risk", "take decision should still expose the best QC candidate for repair");
+const qcRefinement = buildKeeperRefinement(allRiskDecision, kawaii, kawaiiSpark);
+assert.ok(qcRefinement.patch.length > 0, "QC-held candidates should produce repair moves before keeper lock");
 const keeperRefinement = buildKeeperRefinement(takeDecision, kawaii, kawaiiSpark);
 assert.ok(keeperRefinement.patch.length > 0, "keeper refinement should turn weak decision evidence into patch moves");
 assert.ok(keeperRefinement.cards.some((card) => card.id === "script"), "keeper refinement should expose script refinement evidence");
@@ -1080,6 +1123,23 @@ const refineStudioPlan = buildStudioPlan({
 });
 assert.equal(refineStudioPlan.nextAction.id, "keeper-refine", "studio plan should refine a weak keeper before final comparison");
 assert.ok(refineStudioPlan.steps.find((step) => step.id === "deck").detail.includes("keeper patch"), "studio plan should expose keeper patch evidence");
+const qcHoldStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
+  renderReview: autoReview,
+  renderDeckCount: 2,
+  renderDeckSeconds: totalDeckSeconds(deck),
+  takeDecision: allRiskDecision,
+  keeperRefinement: qcRefinement
+});
+assert.equal(qcHoldStudioPlan.nextAction.id, "keeper-refine", "studio plan should refine a QC-held candidate before A/B comparison");
+assert.ok(qcHoldStudioPlan.steps.find((step) => step.id === "deck").detail.includes("QC candidate"), "studio plan should explain QC-held candidates");
 
 offline.generateSample(sampleRate, "high_bright");
 const highRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });

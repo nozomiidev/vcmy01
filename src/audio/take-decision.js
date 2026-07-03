@@ -10,6 +10,12 @@ const DEFAULT_WEIGHTS = Object.freeze({
   variant: 0.06
 });
 
+const QC_SCORE_CAPS = Object.freeze({
+  ready: 100,
+  check: 84,
+  risk: 68
+});
+
 export function rankRenderDeckTakes(deck = [], source = null, targetOrId = null, options = {}) {
   const takes = Array.isArray(deck) ? deck.filter((item) => item?.rendered) : [];
   if (!takes.length) {
@@ -27,14 +33,21 @@ export function rankRenderDeckTakes(deck = [], source = null, targetOrId = null,
   const weights = { ...DEFAULT_WEIGHTS, ...(options.weights || {}) };
   const items = takes.map((item, index) => scoreTake(item, index, source, target, weights, options))
     .sort((a, b) => b.score - a.score || a.deckIndex - b.deckIndex);
-  const winner = items[0] || null;
+  const winner = items.find((item) => item.keeperEligible) || null;
+  const candidate = winner || items[0] || null;
   return {
-    score: winner?.score || 0,
-    status: winner ? decisionStatus(winner.score) : "waiting",
+    score: candidate?.score || 0,
+    status: winner ? decisionStatus(winner.score) : "risk",
     winnerId: winner?.id || null,
     winner,
+    candidateId: candidate?.id || null,
+    candidate,
     items,
-    summary: winner ? `Keeper: ${winner.label} at ${winner.score}%` : "No takes"
+    summary: winner
+      ? `Keeper: ${winner.label} at ${winner.score}%`
+      : candidate
+        ? `QC hold: ${candidate.label} needs ${candidate.qc?.summary || "review"}`
+        : "No takes"
   };
 }
 
@@ -44,25 +57,28 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
   const targetScore = scoreLineReadTarget(params, target);
   const review = item.review || renderReview(source, rendered);
   const safetyScore = Number.isFinite(review?.score) ? review.score : fallbackSafetyScore(rendered);
+  const qc = takeQualityGate(review, rendered, safetyScore);
   const comparison = compareTakePerformance(source, rendered, options.traceOptions);
   const script = rendered.performanceScriptPlan || buildPerformanceScript(target, params);
   const scriptMatch = compareScriptToPerformance(script, comparison);
   const scriptScore = Number.isFinite(scriptMatch?.score) ? scriptMatch.score : Number(script?.score || 0);
   const audition = item.variant || item.stackAudition || null;
   const variantScore = Number.isFinite(audition?.score) ? audition.score : 76;
-  const score = clampScore(
+  const weightedScore = clampScore(
     targetScore * weights.target +
     scriptScore * weights.script +
     safetyScore * weights.safety +
     variantScore * weights.variant
   );
+  const score = Math.min(weightedScore, QC_SCORE_CAPS[qc.status] ?? QC_SCORE_CAPS.risk);
 
   const label = audition?.label || item.title || `Take ${deckIndex + 1}`;
   const status = decisionStatus(score);
   const weakest = weakestEvidence([
     ["Target", targetScore],
     ["Script", scriptScore],
-    ["Safety", safetyScore]
+    ["Safety", safetyScore],
+    ["QC Gate", qc.score]
   ]);
   return {
     id: item.id,
@@ -74,7 +90,9 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
     variantLabel: audition?.label || null,
     score,
     status,
+    keeperEligible: qc.status !== "risk",
     weakest,
+    qc,
     params: { ...params },
     baseParams: { ...(rendered.baseParams || params) },
     review,
@@ -84,6 +102,7 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
       evidenceItem("target", "Target", targetScore, `${target.name} macro/director fit.`),
       evidenceItem("script", "Script", scriptScore, scriptMatch?.plannedOnly ? "Planned script only." : "Rendered motion against the acting script."),
       evidenceItem("safety", "Safety", safetyScore, review ? "Clip, level, tone, and texture review." : "Fallback render-safety estimate."),
+      evidenceItem("qc", "QC Gate", qc.score, qc.detail),
       evidenceItem(
         "variant",
         item.stackAudition ? "Layer" : "Variant",
@@ -91,6 +110,45 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
         audition?.intent || "Baseline take without a variant direction."
       )
     ]
+  };
+}
+
+function takeQualityGate(review = null, rendered = null, safetyScore = 0) {
+  const blockers = [];
+  const checks = [];
+  const analysis = rendered?.analysis || {};
+  if (review?.status === "risk") blockers.push("render");
+  if (review?.comfort?.status === "risk") blockers.push("comfort");
+  if (review?.performanceBudget?.status === "risk") blockers.push("speed");
+  if (analysis.clipped) blockers.push("clipping");
+  if (Number.isFinite(analysis.truePeakDb) && analysis.truePeakDb > -0.8) blockers.push("true-peak");
+  if (Number.isFinite(analysis.peakDb) && analysis.peakDb > -0.25) blockers.push("peak");
+  if (!Number.isFinite(analysis.duration) || analysis.duration < 0.08) blockers.push("empty");
+
+  if (review?.status === "check") checks.push("render");
+  if (review?.comfort?.status === "check") checks.push("comfort");
+  if (review?.performanceBudget?.status === "check") checks.push("speed");
+  if (Number.isFinite(safetyScore) && safetyScore < 76) checks.push("safety");
+
+  const status = blockers.length ? "risk" : checks.length ? "check" : "ready";
+  const penalty = blockers.length * 18 + checks.length * 5;
+  const score = clampScore((Number.isFinite(safetyScore) ? safetyScore : 72) - penalty);
+  const summary = status === "risk"
+    ? `${blockers.slice(0, 2).join(" + ")} QC`
+    : status === "check"
+      ? `${checks.slice(0, 2).join(" + ")} check`
+      : "QC clear";
+  return {
+    status,
+    score,
+    blockers,
+    checks,
+    summary,
+    detail: status === "risk"
+      ? `Not keeper-eligible until ${blockers.join(", ")} is repaired.`
+      : status === "check"
+        ? `Keeper candidate, but ${checks.join(", ")} should be checked before export.`
+        : "Delivery QC is clear enough for keeper comparison."
   };
 }
 

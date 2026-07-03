@@ -498,21 +498,27 @@ function deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision, k
     ? takeDecision.score
     : Math.min(100, 72 + renderDeckCount * 6);
   const winner = takeDecision?.winner || null;
+  const candidate = winner || takeDecision?.candidate || null;
   const patchCount = keeperRefinement?.patch?.length || 0;
-  const needsRefinement = patchCount > 0 && takeDecision?.status !== "ready";
+  const qcHold = !winner && !!candidate;
+  const needsRefinement = patchCount > 0 && (takeDecision?.status !== "ready" || qcHold);
   return step({
     id: "deck",
     label: "Deck",
     status: takeDecision?.status || "ready",
     score,
-    summary: winner ? `${renderDeckCount} takes / ${score}%` : `${renderDeckCount} takes`,
+    summary: candidate ? `${renderDeckCount} takes / ${score}%` : `${renderDeckCount} takes`,
     detail: needsRefinement
-      ? `Keeper: ${winner?.label || "Take"}; ${patchCount} keeper patch moves are ready.`
+      ? `${qcHold ? "QC candidate" : "Keeper"}: ${candidate?.label || "Take"}; ${patchCount} keeper patch moves are ready.`
+      : qcHold
+        ? `No QC-ready keeper yet; ${candidate.label} is blocked by ${candidate.qc?.summary || "render QC"}.`
       : winner
         ? `Keeper: ${winner.label}; weakest evidence is ${winner.weakest}.`
         : `${renderDeckSeconds.toFixed(1)}s retained for A/B decisions.`,
     action: needsRefinement
       ? { id: "keeper-refine", label: "Refine Keeper" }
+      : qcHold
+        ? { id: "preview-region", label: "Fix QC Take" }
       : { id: "compare-deck", label: "A/B Compare" }
   });
 }

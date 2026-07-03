@@ -2424,6 +2424,11 @@ input[type="range"] {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 30%, transparent);
 }
 
+.take-decision-card.is-qc-hold {
+  border-color: color-mix(in srgb, var(--warn) 48%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 26%, transparent);
+}
+
 .take-decision-card.is-active {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 56%, transparent);
 }

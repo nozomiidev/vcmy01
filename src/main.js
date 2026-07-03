@@ -2582,10 +2582,12 @@ function renderTakeDecision() {
   $("takeDecisionStatus").textContent = `${decision.score}% ${takeDecisionStatusLabel(decision.status)}`;
   host.innerHTML = decision.items.map((item, index) => {
     const isWinner = item.id === decision.winnerId;
+    const isCandidate = !decision.winnerId && item.id === decision.candidateId;
     const isActive = item.id === state.activeRenderId;
+    const rankLabel = isWinner ? "Keeper" : isCandidate ? "QC Hold" : `#${index + 1}`;
     return `
-      <button class="take-decision-card is-${item.status} ${isWinner ? "is-winner" : ""} ${isActive ? "is-active" : ""}" data-take-decision="${item.id}" type="button">
-        <span class="take-decision-score">${isWinner ? "Keeper" : `#${index + 1}`} ${item.score}% ${takeDecisionStatusLabel(item.status)}</span>
+      <button class="take-decision-card is-${item.status} ${isWinner ? "is-winner" : ""} ${isCandidate ? "is-qc-hold" : ""} ${isActive ? "is-active" : ""}" data-take-decision="${item.id}" type="button">
+        <span class="take-decision-score">${rankLabel} ${item.score}% ${takeDecisionStatusLabel(item.status)}</span>
         <strong>${escapeHtml(item.label)}</strong>
         <small>${escapeHtml(item.target)} - ${escapeHtml(item.mode)}</small>
         <div class="take-decision-bars">
@@ -2597,7 +2599,7 @@ function renderTakeDecision() {
             </span>
           `).join("")}
         </div>
-        <p>${escapeHtml(takeDecisionDetail(item, isWinner))}</p>
+        <p>${escapeHtml(takeDecisionDetail(item, isWinner, isCandidate))}</p>
       </button>
     `;
   }).join("");
@@ -2682,9 +2684,13 @@ function renderReviewSummary(review) {
   return review.items.slice(0, 2).map((item) => `${item.label} ${item.value}`).join(" / ");
 }
 
-function takeDecisionDetail(item, isWinner) {
-  const prefix = isWinner ? "Recommended keeper" : "Alternate take";
-  return `${prefix}; weakest evidence: ${item.weakest}. ${item.items.slice(0, 3).map((metric) => `${metric.label} ${metric.value}`).join(" / ")}`;
+function takeDecisionDetail(item, isWinner, isCandidate = false) {
+  const prefix = isWinner
+    ? "Recommended keeper"
+    : isCandidate
+      ? `QC hold: ${item.qc?.summary || "repair first"}`
+      : "Alternate take";
+  return `${prefix}; weakest evidence: ${item.weakest}. ${item.items.slice(0, 4).map((metric) => `${metric.label} ${metric.value}`).join(" / ")}`;
 }
 
 function updateSourceFit() {

@@ -794,6 +794,28 @@ https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
 https://web.dev/articles/off-main-thread
 https://web.dev/articles/profiling-web-audio-apps-in-chrome
 
+## Take QC Gate Loop
+
+The next production-director pass separates "best candidate" from "keeper." A render can match the character target and acting script but still be wrong to preserve if it clips, fails comfort review, is too slow to iterate, or violates delivery headroom. Professional audio workflows treat loudness and true peak as measurable QC gates; VoiceForge should not let a high-scoring but broken take become the recommended keeper.
+
+Research decisions:
+
+- Apple Podcasts frames levels as a listener-experience requirement: spoken content should be audible and free from distortion, with overall loudness around -16 dB LKFS and true peak not exceeding -1 dB FS before encoding.
+- Netflix's QC guidance treats loudness/true-peak failures as issues to flag, which is the important product pattern: delivery evidence should gate release decisions, not merely annotate them after the fact.
+- Transom's podcast loudness workflow separates production level, peak limiting, and final gain. That supports a two-step decision model: pick/repair a candidate first, then call it a keeper only after QC clears.
+
+Implementation response:
+
+- `rankRenderDeckTakes()` now builds a QC gate for every render-deck item. Render risk, comfort risk, slow full-render budget, clipping, tight peaks, and empty audio make a take ineligible for keeper selection.
+- The deck can still expose the strongest blocked candidate as `candidate`, so Keeper Refinement can produce repair moves instead of leaving the user with a dead end.
+- Guided Studio now routes QC-held candidates to refinement before A/B comparison, and the UI labels such cards as `QC Hold` rather than `Keeper`.
+- Unit tests now cover safer-take selection, all-risk candidate hold, QC evidence cards, and Studio Plan routing.
+
+Sources:
+https://podcasters.apple.com/support/893-audio-requirements
+https://partnerhelp.netflixstudios.com/hc/en-us/articles/360050414014-Loudness-and-True-Peaks-How-to-Measure-and-When-to-Flag
+https://transom.org/2016/podcasting-basics-part-5-loudness-podcasts-vs-radio/
+
 Open follow-up:
 
 - CLI-side private WebM decoding is still blocked by the lack of `ffmpeg` or an equivalent local decoder in this workspace. Browser upload should be retried after Chrome extension file access is available, but URL import now provides a working local fixture path without committing the private sample.

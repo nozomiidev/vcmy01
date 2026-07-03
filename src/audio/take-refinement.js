@@ -7,7 +7,7 @@ const PARAM_LIMITS = new Map(
 );
 
 export function buildKeeperRefinement(decision = null, currentParams = {}, targetOrId = null) {
-  const winner = decision?.winner || null;
+  const winner = decision?.winner || decision?.candidate || null;
   if (!winner) {
     return {
       status: "waiting",
@@ -20,6 +20,7 @@ export function buildKeeperRefinement(decision = null, currentParams = {}, targe
       summary: "No keeper"
     };
   }
+  const qcHold = !decision?.winner && !!decision?.candidate;
 
   const target = resolveTarget(targetOrId);
   const baseParams = { ...(winner.baseParams || winner.params || currentParams || {}) };
@@ -34,13 +35,15 @@ export function buildKeeperRefinement(decision = null, currentParams = {}, targe
     : applied.patch;
   const status = patch.length
     ? decisionStatus(Math.min(decision?.score || 0, ...cards.map((card) => card.score)))
+    : qcHold
+      ? "risk"
     : "ready";
 
   return {
     status,
     score: decision?.score || 0,
     winnerId: winner.id,
-    winnerLabel: winner.label || "Keeper",
+    winnerLabel: qcHold ? `${winner.label || "Take"} QC candidate` : winner.label || "Keeper",
     params: applied.params,
     patch,
     cards: cards.map((card) => ({
@@ -51,7 +54,11 @@ export function buildKeeperRefinement(decision = null, currentParams = {}, targe
       summary: card.summary,
       patchCount: card.moves.length
     })),
-    summary: patch.length ? `${patch.length} keeper moves` : "Keeper locked"
+    summary: patch.length
+      ? `${patch.length} ${qcHold ? "QC repair moves" : "keeper moves"}`
+      : qcHold
+        ? "QC hold"
+        : "Keeper locked"
   };
 }
 
