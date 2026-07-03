@@ -828,3 +828,30 @@ Open follow-up:
 
 - CLI-side private WebM decoding is still blocked by the lack of `ffmpeg` or an equivalent local decoder in this workspace. Browser upload should be retried after Chrome extension file access is available, but URL import now provides a working local fixture path without committing the private sample.
 - The in-app Browser runtime also blocks page `import()` and `fetch()` inside evaluation, so it cannot currently decode `tests/data/konichiwabokunonamaewayamadatarodesu.webm` through a test-only eval path. A proper local fixture runner or Chrome file-access fix is the next path for private-sample regression.
+
+## Director Brief Loop
+
+The next pass treats workflow comprehension as part of audio quality. A studio can have strong cleanup, character safety, and QC logic but still feel unusable if the user cannot tell whether the next professional move is source repair, short preview, QC repair, A/B comparison, or export.
+
+Research decisions:
+
+- RX-style repair tools are stage-specific: mouth clicks, plosives, steady noise, and dialogue separation should be diagnosed and repaired without pretending one global macro can solve every speech defect. The UI must therefore name the current blocking stage rather than presenting a generic quality score.
+- Auphonic-style production thinking is adaptive and segment-aware: leveling, loudness normalization, filtering, noise reduction, and AutoEQ are described as algorithms that respond to signal conditions. VoiceForge should surface source-reactive evidence as an operator brief, not only as hidden metadata.
+- Apple/Transom-style podcast delivery treats loudness, true peak, and listener comfort as final approval gates. A character-like take that is fatiguing or QC-blocked should be called a held candidate, not a keeper.
+- RODE and common voice workflow guidance frame compression/EQ/de-ess as useful but easy to overdo. The product needs a short "repair first / preview next / compare now" decision layer so users do not keep exaggerating character controls when the audio problem is basic comfort.
+
+Implementation response:
+
+- Added `buildDirectorBrief()` as a pure decision layer above Studio Plan. It summarizes the current studio state into a headline, status, cards, and the same next action used by the guided workflow.
+- Added an Offline `Director Brief` panel before Guided Studio so the user sees the current production decision before scanning lower-level repair maps, character-chain cards, or render-deck details.
+- The brief treats missing sources, QC-held candidates, listening-comfort risk, ready keepers, and no-render sessions as different states with different action labels.
+- Source load and render completion now refresh Studio Plan/Director Brief immediately, so the top decision does not lag behind the rendered evidence.
+- Unit tests cover no-source start, QC-held repair routing, and ready-keeper summaries.
+
+Sources:
+https://s3.amazonaws.com/izotopedownloads/docs/rx8/en/mouth-de-click/index.html
+https://downloads.izotope.com/docs/rx6/26-de-plosive/index.html
+https://auphonic.com/help/algorithms/singletrack.html
+https://podcasters.apple.com/support/893-audio-requirements
+https://transom.org/2015/podcasting-basics-part-3-audio-levels-and-processing/
+https://rode.com/en-us/about/news-info/a-guide-to-audio-processing-and-fx-for-podcasting

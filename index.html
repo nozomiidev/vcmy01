@@ -199,6 +199,18 @@
                 <input class="input-command" id="audioUrl" type="url" placeholder="Audio URL" aria-label="Audio URL">
                 <button class="command" id="loadAudioUrl" type="button">Load URL</button>
               </div>
+              <div class="director-brief" id="directorBriefPanel">
+                <div class="director-brief-head">
+                  <span>Director Brief</span>
+                  <strong id="directorBriefStatus">No source</strong>
+                </div>
+                <div class="director-brief-copy">
+                  <strong id="directorBriefHeadline">Start with a source voice</strong>
+                  <p id="directorBriefSummary">Load, upload, or generate speech before the studio can judge cleanup, character fit, or export QC.</p>
+                </div>
+                <div class="director-brief-grid" id="directorBriefGrid"></div>
+                <button class="command primary" id="directorBriefAction" type="button">Generate Target Source</button>
+              </div>
               <div class="guided-studio" id="guidedStudioPanel">
                 <div class="guided-studio-head">
                   <span>Guided Studio</span>

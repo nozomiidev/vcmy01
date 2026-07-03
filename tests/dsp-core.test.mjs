@@ -26,6 +26,7 @@ import { bestEffectStackPatch, buildEffectStack, EFFECT_STACK_STAGE_IDS } from "
 import { buildStackAuditions, stackAuditionSummary } from "../src/audio/stack-audition.js";
 import { analyzePerformanceTrace, comparePerformanceTraces } from "../src/audio/performance-trace.js";
 import { automationSummary, buildPerformanceScript, compareScriptToPerformance, renderScriptAutomation, SCRIPT_LANES } from "../src/audio/performance-script.js";
+import { buildDirectorBrief } from "../src/audio/director-brief.js";
 import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.js";
 import { buildSceneSession, sceneSessionSummary } from "../src/audio/scene-session.js";
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, snapshotParamPatch } from "../src/audio/voice-memory.js";
@@ -1234,6 +1235,35 @@ const qcHoldStudioPlan = buildStudioPlan({
 });
 assert.equal(qcHoldStudioPlan.nextAction.id, "keeper-refine", "studio plan should refine a QC-held candidate before A/B comparison");
 assert.ok(qcHoldStudioPlan.steps.find((step) => step.id === "deck").detail.includes("QC candidate"), "studio plan should explain QC-held candidates");
+const emptyDirectorBrief = buildDirectorBrief({ plan: buildStudioPlan({ hasSource: false }) });
+assert.equal(emptyDirectorBrief.action.id, "load-source", "director brief should start no-source sessions at source generation");
+assert.equal(emptyDirectorBrief.status, "risk", "director brief should mark missing source as blocking");
+const qcDirectorBrief = buildDirectorBrief({
+  hasSource: true,
+  source: offline.source,
+  rendered: autoRendered,
+  plan: qcHoldStudioPlan,
+  review: qcBlockedReview,
+  takeDecision: allRiskDecision,
+  keeperRefinement: qcRefinement,
+  sourceTimeline: mockReadyTimeline,
+  productionTarget: STUDIO_PRODUCTION_TARGETS.find((target) => target.id === "kawaii")
+});
+assert.equal(qcDirectorBrief.action.id, "keeper-refine", "director brief should route QC-held takes to the repair action");
+assert.equal(qcDirectorBrief.status, "risk", "director brief should keep QC-held candidates out of ready state");
+assert.ok(qcDirectorBrief.cards.some((card) => card.id === "take" && card.value === "QC Hold"), "director brief should expose take QC status");
+const readyDirectorBrief = buildDirectorBrief({
+  hasSource: true,
+  source: offline.source,
+  rendered: autoRendered,
+  plan: deckStudioPlan,
+  review: autoReview,
+  takeDecision: { score: 90, status: "ready", winner: { label: "Sweet Lift", weakest: "Script", score: 90 } },
+  keeperRefinement: { patch: [] },
+  sourceTimeline: mockReadyTimeline
+});
+assert.equal(readyDirectorBrief.status, "ready", "director brief should surface a ready keeper");
+assert.ok(readyDirectorBrief.headline.includes("Keeper"), "director brief should make the keeper decision obvious");
 
 offline.generateSample(sampleRate, "high_bright");
 const highRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: 6 });

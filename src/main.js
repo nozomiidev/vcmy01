@@ -26,6 +26,7 @@ import { analyzePerformanceTrace, comparePerformanceTraces } from "./audio/perfo
 import { buildPerformanceScript, compareScriptToPerformance } from "./audio/performance-script.js";
 import { addRenderDeckItem, renderReview, totalDeckSeconds } from "./audio/render-review.js";
 import { rankVoiceRoutes } from "./audio/route-planner.js";
+import { buildDirectorBrief } from "./audio/director-brief.js";
 import { buildStudioPlan } from "./audio/studio-plan.js";
 import { rankRenderDeckTakes } from "./audio/take-decision.js";
 import { buildKeeperRefinement } from "./audio/take-refinement.js";
@@ -1037,6 +1038,7 @@ function bindOffline() {
     state.directorOptimize = $("directorOptimize").checked;
     persist();
     renderGuidedStudio();
+    renderStudioPlan();
   });
 
   $("renderPolishOnly").addEventListener("click", () => renderOfflineToPreview(true, { stage: "polish" }));
@@ -1068,6 +1070,7 @@ function bindOffline() {
   $("downloadRender").addEventListener("click", downloadCurrentWav);
   $("downloadWebm").addEventListener("click", downloadCurrentWebm);
   $("downloadZip").addEventListener("click", downloadCurrentZip);
+  $("directorBriefAction")?.addEventListener("click", applyStudioPlanStep);
 
   $("playCompare").addEventListener("click", async () => {
     if (!offline.source || !offline.rendered) return;
@@ -1304,6 +1307,7 @@ function useOfflineSource(source) {
   renderPerformanceTrace();
   renderSceneSession();
   renderProjectVault();
+  renderStudioPlan();
 }
 
 function renderOfflineToPreview(preview, renderOptions = {}) {
@@ -1341,6 +1345,7 @@ function renderOfflineToPreview(preview, renderOptions = {}) {
     $("downloadZip").disabled = false;
     $("playCompare").disabled = false;
     renderGuidedStudio();
+    renderStudioPlan();
     const scope = preview ? `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)}s` : "full source";
     const renderNote = [
       stage === "polish" ? "Studio Polish only" : "Studio Polish -> Character",
@@ -2411,6 +2416,7 @@ function renderStudioPlan() {
   const panel = $("studioPlanPanel");
   if (!panel) return;
   const plan = currentStudioPlan();
+  renderDirectorBrief(plan);
   const nextStep = plan.nextAction
     ? plan.steps.find((step) => step.action === plan.nextAction)
     : null;
@@ -2431,6 +2437,37 @@ function renderStudioPlan() {
     : "Plan ready. Choose a take from the render deck.";
   renderAuditionVariants();
   renderTakeDecision();
+}
+
+function renderDirectorBrief(plan = currentStudioPlan()) {
+  const panel = $("directorBriefPanel");
+  if (!panel) return;
+  const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
+  const takeDecision = currentTakeDecision();
+  const brief = buildDirectorBrief({
+    hasSource: !!offline.source,
+    source: offline.source,
+    rendered: offline.rendered,
+    plan,
+    review,
+    takeDecision,
+    keeperRefinement: currentKeeperRefinement(takeDecision),
+    sourceTimeline: currentSourceTimeline(),
+    productionTarget: STUDIO_PRODUCTION_TARGETS.find((target) => target.id === state.productionTarget)
+  });
+  panel.className = `director-brief is-${brief.status}`;
+  $("directorBriefStatus").textContent = directorBriefStatusLabel(brief.status);
+  $("directorBriefHeadline").textContent = brief.headline;
+  $("directorBriefSummary").textContent = brief.summary;
+  $("directorBriefGrid").innerHTML = brief.cards.map((card) => `
+    <div class="director-brief-card is-${card.status}" data-brief="${card.id}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.value)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </div>
+  `).join("");
+  $("directorBriefAction").disabled = !brief.action;
+  $("directorBriefAction").textContent = brief.action?.label || "Brief Ready";
 }
 
 function applyStudioPlanStep() {
@@ -2523,6 +2560,13 @@ function studioPlanStatusLabel(status) {
   if (status === "ready") return "Ready";
   if (status === "check") return "Check";
   return "Risk";
+}
+
+function directorBriefStatusLabel(status) {
+  if (status === "ready") return "Ready for review";
+  if (status === "check" || status === "polish") return "Needs a decision";
+  if (status === "waiting") return "Waiting";
+  return "Repair first";
 }
 
 function renderRenderDeck() {

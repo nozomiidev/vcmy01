@@ -240,6 +240,139 @@ button { color: inherit; }
   outline-offset: 2px;
 }
 
+.director-brief {
+  display: grid;
+  gap: 10px;
+  margin: 14px 14px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, rgba(105,227,181,0.06), rgba(143,167,255,0.035)),
+    var(--panel-2);
+}
+
+.director-brief.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 38%, var(--line));
+}
+
+.director-brief.is-check,
+.director-brief.is-polish {
+  border-color: color-mix(in srgb, var(--warn) 38%, var(--line));
+}
+
+.director-brief.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 42%, var(--line));
+}
+
+.director-brief-head,
+.director-brief-copy,
+.director-brief-grid {
+  min-width: 0;
+}
+
+.director-brief-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.director-brief-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.director-brief-head strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.director-brief-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.director-brief-copy strong,
+.director-brief-copy p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.director-brief-copy strong {
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.18;
+}
+
+.director-brief-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.38;
+}
+
+.director-brief-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.director-brief-card {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+}
+
+.director-brief-card.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--line));
+}
+
+.director-brief-card.is-check,
+.director-brief-card.is-polish {
+  border-color: color-mix(in srgb, var(--warn) 32%, var(--line));
+}
+
+.director-brief-card.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 38%, var(--line));
+}
+
+.director-brief-card span,
+.director-brief-card strong,
+.director-brief-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.director-brief-card span {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.director-brief-card strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.director-brief-card small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .workspace {
   width: min(1720px, 100%);
   margin: 0 auto;
