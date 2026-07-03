@@ -635,6 +635,13 @@ function compactToneSurgery(surgery = null) {
       dynamicDepthDb: round(band.dynamicDepthDb, 2),
       trigger: band.trigger,
       evidence: band.evidence,
+      perceptual: band.perceptual ? {
+        centerHz: round(band.perceptual.centerHz, 1),
+        bark: round(band.perceptual.bark, 2),
+        erbRate: round(band.perceptual.erbRate, 2),
+        salience: round(band.perceptual.salience, 4),
+        weight: round(band.perceptual.weight, 5)
+      } : null,
       reason: band.reason
     }))
   };

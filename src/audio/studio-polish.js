@@ -386,23 +386,35 @@ function buildToneSurgery(analysis, target, factor, stages) {
 
 function toneSurgeryBand(id, label, stageKey, analysis, options) {
   const spectral = analysis?.spectral || {};
-  const peak = pickSpectralPeak(spectral, options.range[0], options.range[1]);
-  const risk = clamp(options.risk || 0, 0, 100);
+  const fftPeak = pickSpectralPeak(spectral, options.range[0], options.range[1]);
+  const lpcPeak = pickEnvelopePeak(spectral.envelope, options.range[0], options.range[1]);
+  const earBand = pickPerceptualBand(spectral.perceptual, id, options.range[0], options.range[1]);
+  const earBoost = earBand ? Math.max(0, (earBand.salience || 0) * 100 - 42) * 0.16 : 0;
+  const risk = clamp((options.risk || 0) + earBoost, 0, 100);
   const stageDb = clamp(Number(options.stageDb || 0), -7, 0.8);
   const dynamicDepthDb = -clamp(Math.max(0, risk - 18) * 0.018 * (options.maxDynamicDb ? Math.abs(options.maxDynamicDb) / 2.4 : 1), 0, Math.abs(options.maxDynamicDb || -2.4));
+  const frequencyHz = earBand?.centerHz || lpcPeak?.hz || fftPeak?.hz || options.fallbackHz;
+  const q = earBand
+    ? clamp((earBand.centerHz || options.fallbackHz) / Math.max(60, (earBand.highHz || 0) - (earBand.lowHz || 0)), 0.55, 2.8)
+    : options.q;
   return {
     id,
     label,
     stageKey,
-    frequencyHz: Math.round(peak?.hz || options.fallbackHz),
-    q: Number(options.q.toFixed(2)),
+    frequencyHz: Math.round(frequencyHz),
+    q: Number(q.toFixed(2)),
     risk: Math.round(risk),
     stageDb: Number(stageDb.toFixed(2)),
     dynamicDepthDb: Number(dynamicDepthDb.toFixed(2)),
-    trigger: "band-limited envelope",
-    evidence: peak
-      ? `FFT peak ${Math.round(peak.hz)} Hz / ${peak.prominenceDb.toFixed(1)} dB prominence`
-      : spectral.summary || "IIR band ratio",
+    trigger: earBand ? "ERB band-limited envelope" : "band-limited envelope",
+    evidence: toneSurgeryEvidence({ earBand, lpcPeak, fftPeak, spectral }),
+    perceptual: earBand ? {
+      centerHz: Math.round(earBand.centerHz || 0),
+      bark: Number((earBand.bark || 0).toFixed(2)),
+      erbRate: Number((earBand.erbRate || 0).toFixed(2)),
+      salience: Number((earBand.salience || 0).toFixed(4)),
+      weight: Number((earBand.weight || 0).toFixed(5))
+    } : null,
     reason: options.reason
   };
 }
@@ -412,6 +424,35 @@ function pickSpectralPeak(spectral, lowHz, highHz) {
   return peaks
     .filter((peak) => peak.hz >= lowHz && peak.hz <= highHz)
     .sort((a, b) => (b.prominenceDb || 0) - (a.prominenceDb || 0))[0] || null;
+}
+
+function pickEnvelopePeak(envelope, lowHz, highHz) {
+  const peaks = Array.isArray(envelope?.peaks) ? envelope.peaks : [];
+  return peaks
+    .filter((peak) => peak.hz >= lowHz && peak.hz <= highHz)
+    .sort((a, b) => (b.prominenceDb || 0) - (a.prominenceDb || 0))[0] || null;
+}
+
+function pickPerceptualBand(perceptual, id, lowHz, highHz) {
+  const riskId = id === "harsh" ? "presence" : id;
+  const crowded = perceptual?.crowding?.band && perceptual.crowding.risk === riskId
+    ? perceptual.crowding.band
+    : null;
+  if (crowded?.centerHz >= lowHz && crowded.centerHz <= highHz) return crowded;
+  const bands = Array.isArray(perceptual?.bands) ? perceptual.bands : [];
+  const candidate = bands
+    .filter((band) => band.centerHz >= lowHz && band.centerHz <= highHz)
+    .sort((a, b) => (b.salience || 0) - (a.salience || 0))[0] || null;
+  return (candidate?.salience || 0) >= 0.08 ? candidate : null;
+}
+
+function toneSurgeryEvidence({ earBand, lpcPeak, fftPeak, spectral }) {
+  if (earBand) {
+    return `ERB band ${Math.round(earBand.centerHz)} Hz / Bark ${Number(earBand.bark || 0).toFixed(1)} / ${Math.round((earBand.salience || 0) * 100)}% salience`;
+  }
+  if (lpcPeak) return `LPC envelope ${Math.round(lpcPeak.hz)} Hz / ${Number(lpcPeak.prominenceDb || 0).toFixed(1)} dB prominence`;
+  if (fftPeak) return `FFT peak ${Math.round(fftPeak.hz)} Hz / ${Number(fftPeak.prominenceDb || 0).toFixed(1)} dB prominence`;
+  return spectral?.summary || "IIR band ratio";
 }
 
 function buildRoomShaper(analysis, target, factor, stages) {
@@ -570,7 +611,7 @@ function studioAnalysisItems(metrics) {
     item("mouth", "Mouth Clicks", metrics.mouthClick, `${Math.round(metrics.mouthClick)} risk`, "Short mouth transients and lip-smack-like events."),
     item("sibilance", "Sibilance", metrics.sibilance, `${Math.round(metrics.band.sibilanceRatio * 100)}% high`, "Sharp S and fricative energy needing dynamic control."),
     item("tone", "Tone Balance", Math.max(metrics.mud, metrics.nasal, metrics.harsh, metrics.brightnessProblem), toneValue(metrics), "Mud, nasal resonance, harshness, and brightness balance."),
-    item("spectral", "FFT Tone Map", Math.max(metrics.spectral?.risks?.dark || 0, metrics.spectral?.risks?.thin || 0, metrics.spectral?.risks?.nasal || 0, metrics.spectral?.risks?.harsh || 0), metrics.spectral?.summary || "No spectral analysis", "FFT centroid, rolloff, tilt, and resonant peak evidence."),
+    item("spectral", "FFT Tone Map", Math.max(metrics.spectral?.risks?.dark || 0, metrics.spectral?.risks?.thin || 0, metrics.spectral?.risks?.nasal || 0, metrics.spectral?.risks?.harsh || 0), metrics.spectral?.summary || "No spectral analysis", "FFT centroid, rolloff, LPC envelope, and ERB ear-band evidence."),
     item("dynamics", "Dynamics", clamp((metrics.dynamicRangeDb - 14) * 5, 0, 100), `${metrics.dynamicRangeDb.toFixed(1)} dB`, "Speech leveling before limiter and export.")
   ];
 }

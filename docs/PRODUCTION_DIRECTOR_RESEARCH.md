@@ -382,6 +382,33 @@ https://www.dsprelated.com/freebooks/sasp/Equivalent_Rectangular_Bandwidth.html
 https://www.dsprelated.com/freebooks/sasp/Bark_Frequency_Scale.html
 https://ansyshelp.ansys.com/public/Views/Secured/corp/v251/en/Sound_SAS_UG/Sound/UG_SAS/bark_scale_and_critical_bands_179506.html
 
+## Perceptual Tone Surgery Loop
+
+The sixteenth production-director pass turns the ERB map into action. Professional dynamic EQ workflows do not cut a frequency forever just because a spectrum peak exists; they trigger a narrow tonal move when a band becomes intrusive. For VoiceForge, this means tone surgery should prefer ear-band crowding, then LPC envelope peaks, then raw FFT peaks.
+
+Research decisions:
+
+- FabFilter's Dynamic EQ documentation frames dynamic EQ as level-dependent, subtle, surgical band movement, often triggered by a band-limited signal. That maps directly to the existing browser tone-surgery envelope.
+- Critical-band/masking research says nearby dominant energy can obscure perception, so an ERB crowding band is a better first-choice detector than an isolated FFT bin when the goal is comfort and intelligibility.
+- Community/pro workflow advice around masking and vocal clarity consistently favors small, targeted, A/B-checked subtractive or dynamic moves rather than broad permanent cuts.
+- The safe implementation is not a full spectral-dynamics engine yet: use ERB salience as frequency/evidence for the existing dynamic EQ model, with a salience floor so near-zero bands do not create false surgical moves.
+
+Implementation response:
+
+- `buildToneSurgery()` now chooses tone-band frequency/evidence from ERB crowding first, LPC envelope second, FFT peak third, then target fallback.
+- Tone-surgery band metadata now carries `perceptual` evidence (`centerHz`, Bark, ERB rate, salience, weight) into export manifests and Project Vault snapshots.
+- Low-salience ERB candidates are ignored unless they are the actual crowded risk band, preventing fake precision in quiet/high bands.
+
+Verification:
+
+- In-app Browser private-fixture Kawaii render showed ERB/LPC-aware FFT Tone evidence plus `Tone Surgery: Low-Mid Mud 387Hz / Nasal Ring 1050Hz / Presence Harshness 3469Hz`, Render Loudness/True Peak cards, A/B Match, no console errors, and enabled WAV/WebM/ZIP controls.
+
+Sources:
+https://www.fabfilter.com/help/pro-q/using/dynamic-eq
+https://pressbooks.umn.edu/sensationandperception/chapter/critical-bands-and-masking-draft/
+https://www.masteringbox.com/learn/frequency-masking
+https://www.dsprelated.com/freebooks/sasp/Equivalent_Rectangular_Bandwidth.html
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

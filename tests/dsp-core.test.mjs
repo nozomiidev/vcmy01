@@ -180,6 +180,7 @@ assert.ok(studioPolishPlan.toneSurgery.activeCount >= 0, "studio polish plan sho
 assert.ok(studioPolishPlan.roomShaper.rangeDb <= 0 && studioPolishPlan.roomShaper.releaseMs >= 120, "studio polish plan should retain a gentle room-floor expander");
 assert.ok(nasalSurgeryBand.frequencyHz >= 650 && nasalSurgeryBand.frequencyHz <= 1300, "tone surgery should keep nasal treatment in the vocal nasal range");
 assert.ok(nasalSurgeryBand.stageDb < 0 && nasalSurgeryBand.dynamicDepthDb <= 0, "tone surgery should use downward dynamic nasal control");
+assert.ok(nasalSurgeryBand.perceptual && nasalSurgeryBand.evidence.includes("ERB band"), "tone surgery should prefer ERB ear-band evidence when nasal energy crowds perception");
 assert.ok(dirtyMicroRepair.counts.mouth > 0 || dirtyMicroRepair.counts.plosive > 0, "micro repair should classify click or plosive events");
 assert.equal(studioPolishPlan.microRepair.eventCount, dirtyStudioAnalysis.microRepair.eventCount, "studio polish plan should retain micro-repair timeline");
 assert.equal(studioPolished.plan.microRepair.eventCount, dirtyStudioAnalysis.microRepair.eventCount, "studio polish render should carry micro-repair evidence");
@@ -754,6 +755,7 @@ assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest 
 assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
 assert.equal(exportManifest.render.studioPolish.microRepair.eventCount >= 0, true, "export manifest should retain micro-repair metadata");
 assert.ok(exportManifest.render.studioPolish.toneSurgery.bands.some((band) => band.id === "nasal"), "export manifest should retain tone-surgery metadata");
+assert.ok(exportManifest.render.studioPolish.toneSurgery.bands.some((band) => band.perceptual?.salience >= 0), "export manifest should retain perceptual tone-surgery evidence");
 assert.equal(exportManifest.render.studioPolish.roomShaper.roomTonePolicy, "attenuate, never hard-mute", "export manifest should retain room-floor metadata");
 assert.equal(exportManifest.render.mastering.enabled, true, "export manifest should retain final mastering metadata");
 assert.ok(exportManifest.source.studioAnalysis.spectral.centroidHz > 0, "export manifest should retain FFT tone map metadata");
@@ -788,6 +790,7 @@ assert.equal(safetyProject.source.studioAnalysis.spectral.perceptual.method, "er
 assert.ok(Number.isFinite(safetyProject.source.studioAnalysis.integratedLufs), "project snapshot should retain source loudness metadata");
 assert.equal(safetyProject.renderDeck[0].rendered.studioPolish.plan.microRepair.eventCount >= 0, true, "project snapshot should retain micro-repair metadata");
 assert.ok(safetyProject.renderDeck[0].rendered.studioPolish.plan.toneSurgery.bands.some((band) => band.id === "harsh"), "project snapshot should retain tone-surgery metadata");
+assert.ok(safetyProject.renderDeck[0].rendered.studioPolish.plan.toneSurgery.bands.some((band) => band.perceptual?.salience >= 0), "project snapshot should retain perceptual tone-surgery evidence");
 assert.equal(safetyProject.renderDeck[0].rendered.studioPolish.plan.roomShaper.roomTonePolicy, "attenuate, never hard-mute", "project snapshot should retain room-floor metadata");
 assert.equal(Array.isArray(safetyProject.renderDeck[0].rendered.safetyDelta), true, "project snapshot should retain safety deltas");
 const memoryStudioPlan = buildStudioPlan({

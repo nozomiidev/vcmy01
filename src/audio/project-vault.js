@@ -611,6 +611,13 @@ function sanitizeToneSurgery(surgery = null) {
       dynamicDepthDb: finiteNumber(band.dynamicDepthDb),
       trigger: cleanText(band.trigger || "", 80),
       evidence: cleanText(band.evidence || "", 180),
+      perceptual: band.perceptual ? {
+        centerHz: finiteNumber(band.perceptual.centerHz),
+        bark: finiteNumber(band.perceptual.bark),
+        erbRate: finiteNumber(band.perceptual.erbRate),
+        salience: finiteNumber(band.perceptual.salience),
+        weight: finiteNumber(band.perceptual.weight)
+      } : null,
       reason: cleanText(band.reason || "", 180)
     }))
   };
