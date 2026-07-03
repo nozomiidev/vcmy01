@@ -53,6 +53,7 @@ export function buildExportManifest({
       region: rendered.region || null,
       analysis: compactAnalysis(rendered.analysis),
       studioAnalysis: compactStudioAnalysis(rendered.studioAnalysis),
+      mastering: compactMastering(rendered.mastering),
       studioPolish: compactStudioPolish(rendered.studioPolish),
       characterSafety: compactCharacterSafety(rendered.characterSafety),
       autoCalibrated: !!rendered.autoCalibrated,
@@ -140,6 +141,9 @@ export function studioPolishResearchNotes(rendered = null) {
       for (const band of (tone.bands || []).filter((item) => item.risk > 12).slice(0, 3)) {
         notes.push(`  - ${band.label}: ${Math.round(band.frequencyHz)} Hz, ${round(band.stageDb, 2)} dB, ${band.evidence}`);
       }
+    }
+    if (rendered?.mastering?.enabled) {
+      notes.push(`- Final mastering: ${round(rendered.mastering.gainDb, 2)} dB to ${round(rendered.mastering.targetLufs, 1)} LUFS / ${round(rendered.mastering.truePeakCeilingDb, 1)} dBTP ceiling`);
     }
     notes.push(`- Label: ${polish.label}`);
     for (const note of polish.plan?.notes || []) notes.push(`- ${note}`);
@@ -283,6 +287,11 @@ function compactAnalysis(analysis = null) {
     duration: round(analysis.duration, 3),
     rmsDb: round(analysis.rmsDb, 2),
     peakDb: round(analysis.peakDb, 2),
+    integratedLufs: round(analysis.integratedLufs, 2),
+    momentaryMaxLufs: round(analysis.momentaryMaxLufs, 2),
+    shortTermLufs: round(analysis.shortTermLufs, 2),
+    loudnessRangeLu: round(analysis.loudnessRangeLu, 2),
+    truePeakDb: round(analysis.truePeakDb, 2),
     pitchMedianHz: round(analysis.pitchMedianHz, 1),
     voicedRatio: round(analysis.voicedRatio, 3),
     brightnessRatio: round(analysis.brightnessRatio, 4),
@@ -300,6 +309,9 @@ function compactStudioAnalysis(analysis = null) {
     noiseFloorDb: round(analysis.noiseFloorDb, 2),
     headroomDb: round(analysis.headroomDb, 2),
     loudnessProxyDb: round(analysis.loudnessProxyDb, 2),
+    truePeakDb: round(analysis.truePeakDb, 2),
+    integratedLufs: round(analysis.integratedLufs, 2),
+    loudnessRangeLu: round(analysis.loudnessRangeLu, 2),
     dynamicRangeDb: round(analysis.dynamicRangeDb, 2),
     problemScores: analysis.problemScores || null,
     spectral: compactSpectral(analysis.spectral),
@@ -343,6 +355,32 @@ function compactCharacterSafety(plan = null) {
       after: round(move.after, 3),
       reason: move.reason
     }))
+  };
+}
+
+function compactMastering(mastering = null) {
+  if (!mastering) return null;
+  return {
+    enabled: !!mastering.enabled,
+    target: mastering.target || null,
+    targetLufs: round(mastering.targetLufs, 2),
+    truePeakCeilingDb: round(mastering.truePeakCeilingDb, 2),
+    gainDb: round(mastering.gainDb, 2),
+    limitedByTruePeak: !!mastering.limitedByTruePeak,
+    before: compactLoudness(mastering.before),
+    after: compactLoudness(mastering.after)
+  };
+}
+
+function compactLoudness(loudness = null) {
+  if (!loudness) return null;
+  return {
+    integratedLufs: round(loudness.integratedLufs, 2),
+    momentaryMaxLufs: round(loudness.momentaryMaxLufs, 2),
+    shortTermLufs: round(loudness.shortTermLufs, 2),
+    loudnessRangeLu: round(loudness.loudnessRangeLu, 2),
+    truePeakDb: round(loudness.truePeakDb, 2),
+    gatedBlockCount: Math.max(0, Number(loudness.gatedBlockCount || 0))
   };
 }
 

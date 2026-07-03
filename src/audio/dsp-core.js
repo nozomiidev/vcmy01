@@ -1,4 +1,5 @@
 import { DEFAULT_PARAMS, FACTORY_PRESETS, paramsForPreset } from "./presets.js";
+import { analyzeLoudness } from "./loudness-meter.js";
 
 export const TAU = Math.PI * 2;
 
@@ -80,12 +81,20 @@ export function analyzeBuffer(buffer, sampleRate) {
   const pitch = estimatePitch(buffer, sampleRate);
   const brightness = estimateBrightness(buffer, sampleRate);
   const crestDb = linToDb(p) - linToDb(r);
+  const loudness = analyzeLoudness(buffer, sampleRate);
   return {
     duration: buffer.length / sampleRate,
     rms: r,
     rmsDb: linToDb(r),
     peak: p,
     peakDb: linToDb(p),
+    integratedLufs: loudness.integratedLufs,
+    momentaryMaxLufs: loudness.momentaryMaxLufs,
+    shortTermLufs: loudness.shortTermLufs,
+    loudnessRangeLu: loudness.loudnessRangeLu,
+    truePeak: loudness.truePeak,
+    truePeakDb: loudness.truePeakDb,
+    loudnessStandard: loudness.standard,
     zeroCrossingsPerSecond: zcr,
     pitchMedianHz: pitch.medianHz,
     voicedRatio: pitch.voicedRatio,

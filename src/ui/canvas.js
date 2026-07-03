@@ -46,8 +46,8 @@ export function drawSpectrum(canvas, bins, color = "#8fa7ff") {
 export function drawAnalysisCards(host, source, rendered) {
   const entries = [];
   if (source) {
-    entries.push(["Source RMS", `${source.analysis.rmsDb.toFixed(1)} dB`]);
-    entries.push(["Source Peak", `${source.analysis.peakDb.toFixed(1)} dB`]);
+    entries.push(["Source Loudness", formatLoudness(source.analysis)]);
+    entries.push(["Source True Peak", formatTruePeak(source.analysis)]);
     entries.push(["Source F0", formatHz(source.analysis.pitchMedianHz)]);
     entries.push(["Voiced", formatPct(source.analysis.voicedRatio)]);
     entries.push(["Brightness", formatPct(source.analysis.brightnessRatio)]);
@@ -68,8 +68,9 @@ export function drawAnalysisCards(host, source, rendered) {
       if (rendered.studioPolish.plan?.toneSurgery) entries.push(["Tone Surgery", rendered.studioPolish.plan.toneSurgery.summary || "No dynamic cuts"]);
     }
     if (rendered.region && !rendered.region.isFull) entries.push(["Region", `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)} s`]);
-    entries.push(["Render RMS", `${rendered.analysis.rmsDb.toFixed(1)} dB`]);
-    entries.push(["Render Peak", `${rendered.analysis.peakDb.toFixed(1)} dB`]);
+    if (rendered.mastering?.enabled) entries.push(["Master Gain", `${signedNumber(rendered.mastering.gainDb)} dB -> ${rendered.mastering.targetLufs.toFixed(1)} LUFS`]);
+    entries.push(["Render Loudness", formatLoudness(rendered.analysis)]);
+    entries.push(["Render True Peak", formatTruePeak(rendered.analysis)]);
     entries.push(["Render F0", formatHz(rendered.analysis.pitchMedianHz)]);
     entries.push(["Render ZCR", `${Math.round(rendered.analysis.zeroCrossingsPerSecond)}/s`]);
     entries.push(["Duration", `${rendered.analysis.duration.toFixed(2)} s`]);
@@ -80,6 +81,18 @@ export function drawAnalysisCards(host, source, rendered) {
 
 function formatHz(value) {
   return value > 0 ? `${Math.round(value)} Hz` : "unvoiced";
+}
+
+function formatLoudness(analysis) {
+  return Number.isFinite(analysis?.integratedLufs)
+    ? `${analysis.integratedLufs.toFixed(1)} LUFS`
+    : `${analysis?.rmsDb?.toFixed(1) || "-180.0"} dB RMS`;
+}
+
+function formatTruePeak(analysis) {
+  return Number.isFinite(analysis?.truePeakDb)
+    ? `${analysis.truePeakDb.toFixed(1)} dBTP`
+    : `${analysis?.peakDb?.toFixed(1) || "-180.0"} dB peak`;
 }
 
 function formatPct(value) {
@@ -107,6 +120,11 @@ function formatSpectral(spectral) {
 
 function signed(value) {
   return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+}
+
+function signedNumber(value) {
+  const n = Number(value || 0);
+  return n > 0 ? `+${n.toFixed(1)}` : n.toFixed(1);
 }
 
 function tuneName(key) {

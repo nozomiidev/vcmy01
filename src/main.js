@@ -143,6 +143,7 @@ function init() {
     renderStudioPlan();
   });
   updateDiagnostics();
+  loadInitialAudioFromQuery();
   requestAnimationFrame(drawLoop);
 }
 
@@ -1114,6 +1115,42 @@ function bindOffline() {
     if (button) applyProjectSnapshot(button.dataset.projectVault);
   });
   $("applyStudioPlanStep").addEventListener("click", applyStudioPlanStep);
+}
+
+async function loadInitialAudioFromQuery() {
+  const query = new URLSearchParams(window.location.search);
+  const audioUrl = query.get("audio") || query.get("url");
+  if (!audioUrl) return;
+  const target = query.get("target");
+  const polish = query.get("polish");
+  const director = query.get("director");
+  const render = query.get("render");
+  const tab = document.querySelector('[data-view-tab="offline"]');
+  tab?.click();
+  if (target && STUDIO_PRODUCTION_TARGETS.some((item) => item.id === target)) {
+    state.productionTarget = target;
+    $("productionTarget").value = target;
+  }
+  if (polish && STUDIO_POLISH_INTENSITIES.some((item) => item.id === polish)) {
+    state.polishIntensity = polish;
+    $("polishIntensity").value = polish;
+    engine.setStudioPolishIntensity(polish);
+  }
+  if (director !== null) {
+    state.directorOptimize = !/^(0|false|off)$/i.test(director);
+    $("directorOptimize").checked = state.directorOptimize;
+  }
+  persist();
+  renderGuidedStudio();
+  renderStudioPlan();
+  $("audioUrl").value = audioUrl;
+  await loadAudioUrlSource();
+  if (!offline.source) return;
+  if (render === "polish") {
+    renderOfflineToPreview(true, { stage: "polish" });
+  } else if (render === "full" || render === "character") {
+    renderOfflineToPreview(false);
+  }
 }
 
 function currentSourceTimeline() {

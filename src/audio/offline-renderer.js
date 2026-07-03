@@ -8,8 +8,9 @@ import {
   referenceVoiceProfileById
 } from "./dsp-core.js";
 import { automationSummary, renderScriptAutomation } from "./performance-script.js";
-import { analyzeStudioVoice, buildStudioPolishPlan, processStudioPolish } from "./studio-polish.js";
+import { analyzeStudioVoice, buildStudioPolishPlan, processStudioPolish, studioProductionTargetById } from "./studio-polish.js";
 import { applyCharacterSafety } from "./character-safety.js";
+import { normalizeLoudness } from "./loudness-meter.js";
 
 export class OfflineRenderer {
   constructor() {
@@ -125,11 +126,19 @@ export class OfflineRenderer {
         normalizedParams: true
       })
       : null;
-    const samples = stage === "polish"
+    const rawSamples = stage === "polish"
       ? characterInput
       : automation
       ? automation.samples
       : processVoiceBuffer(characterInput, this.source.sampleRate, characterParams, { normalizedParams: true });
+    const masteringTarget = studioProductionTargetById(options.studioTarget);
+    const mastering = normalizeLoudness(rawSamples, this.source.sampleRate, {
+      targetLufs: masteringTarget.targetRmsDb,
+      truePeakCeilingDb: masteringTarget.ceilingDb,
+      maxGainDb: 9,
+      minGainDb: -9
+    });
+    const samples = mastering.samples;
     const blob = encodeWavMono(samples, this.source.sampleRate);
     const mode = options.mode || (region.isFull ? "full" : "preview");
     this.rendered = {
@@ -139,6 +148,16 @@ export class OfflineRenderer {
       blob,
       analysis: analyzeBuffer(samples, this.source.sampleRate),
       studioAnalysis: analyzeStudioVoice(samples, this.source.sampleRate),
+      mastering: {
+        enabled: mastering.enabled,
+        target: { id: masteringTarget.id, label: masteringTarget.label },
+        targetLufs: mastering.targetLufs,
+        truePeakCeilingDb: mastering.truePeakCeilingDb,
+        gainDb: mastering.gainDb,
+        limitedByTruePeak: mastering.limitedByTruePeak,
+        before: mastering.before,
+        after: mastering.after
+      },
       region,
       mode,
       stage,

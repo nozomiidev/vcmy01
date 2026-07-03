@@ -271,6 +271,7 @@ function sanitizeRenderDeck(deck = [], options = {}) {
         sampleRate: Number(rendered.sampleRate || 0),
         analysis: sanitizeAnalysis(rendered.analysis),
         studioAnalysis: sanitizeStudioAnalysis(rendered.studioAnalysis),
+        mastering: sanitizeMastering(rendered.mastering),
         region: sanitizeRegion(rendered.region),
         mode: cleanText(rendered.mode || "preview", 32),
         stage: cleanText(rendered.stage || "character", 32),
@@ -432,6 +433,11 @@ function sanitizeAnalysis(analysis = null) {
     duration: finiteNumber(analysis.duration),
     rmsDb: finiteNumber(analysis.rmsDb),
     peakDb: finiteNumber(analysis.peakDb),
+    integratedLufs: finiteNumber(analysis.integratedLufs),
+    momentaryMaxLufs: finiteNumber(analysis.momentaryMaxLufs),
+    shortTermLufs: finiteNumber(analysis.shortTermLufs),
+    loudnessRangeLu: finiteNumber(analysis.loudnessRangeLu),
+    truePeakDb: finiteNumber(analysis.truePeakDb),
     pitchMedianHz: finiteNumber(analysis.pitchMedianHz),
     zeroCrossingsPerSecond: finiteNumber(analysis.zeroCrossingsPerSecond),
     brightnessRatio: finiteNumber(analysis.brightnessRatio),
@@ -454,6 +460,9 @@ function sanitizeStudioAnalysis(analysis = null) {
     noiseFloorDb: finiteNumber(analysis.noiseFloorDb),
     headroomDb: finiteNumber(analysis.headroomDb),
     loudnessProxyDb: finiteNumber(analysis.loudnessProxyDb),
+    truePeakDb: finiteNumber(analysis.truePeakDb),
+    integratedLufs: finiteNumber(analysis.integratedLufs),
+    loudnessRangeLu: finiteNumber(analysis.loudnessRangeLu),
     dynamicRangeDb: finiteNumber(analysis.dynamicRangeDb),
     problemScores: sanitizeProblemScores(analysis.problemScores),
     spectral: sanitizeSpectral(analysis.spectral),
@@ -530,6 +539,35 @@ function sanitizeCharacterSafety(plan = null) {
       after: finiteNumber(move.after),
       reason: cleanText(move.reason || "", 180)
     })) : []
+  };
+}
+
+function sanitizeMastering(mastering = null) {
+  if (!mastering) return null;
+  return {
+    enabled: !!mastering.enabled,
+    target: mastering.target ? {
+      id: cleanText(mastering.target.id || "", 48),
+      label: cleanText(mastering.target.label || "", 80)
+    } : null,
+    targetLufs: finiteNumber(mastering.targetLufs),
+    truePeakCeilingDb: finiteNumber(mastering.truePeakCeilingDb),
+    gainDb: finiteNumber(mastering.gainDb),
+    limitedByTruePeak: !!mastering.limitedByTruePeak,
+    before: sanitizeLoudness(mastering.before),
+    after: sanitizeLoudness(mastering.after)
+  };
+}
+
+function sanitizeLoudness(loudness = null) {
+  if (!loudness) return null;
+  return {
+    integratedLufs: finiteNumber(loudness.integratedLufs),
+    momentaryMaxLufs: finiteNumber(loudness.momentaryMaxLufs),
+    shortTermLufs: finiteNumber(loudness.shortTermLufs),
+    loudnessRangeLu: finiteNumber(loudness.loudnessRangeLu),
+    truePeakDb: finiteNumber(loudness.truePeakDb),
+    gatedBlockCount: Math.max(0, Number(loudness.gatedBlockCount || 0))
   };
 }
 

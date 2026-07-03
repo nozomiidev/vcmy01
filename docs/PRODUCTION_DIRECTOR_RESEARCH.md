@@ -163,6 +163,33 @@ https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
 https://www.reddit.com/r/audioengineering/comments/10rw2ym/how_much_magic_to_put_on_a_podcast/
 https://www.reddit.com/r/audioengineering/comments/15ac6yu/care_to_share_some_izotope_rx_hottakes_or_tips_n/
 
+## Loudness Mastering Loop
+
+The eighth production-director pass adds broadcast/podcast-style loudness evidence. RMS and sample peak are useful engineering values, but they are not enough for a studio product because streaming/podcast delivery is judged by perceived loudness and true-peak headroom.
+
+Research decisions:
+
+- Apple Podcasts recommends overall loudness around `-16 dB LKFS` with `+/- 1 dB` tolerance and true peak no higher than `-1 dB FS`, calculated according to ITU-R BS.1770 before encoding.
+- ITU-R BS.1770 defines the loudness algorithm around K-weighting, mean-square energy, 400 ms gated blocks, and true-peak indication.
+- AES's loudness education summarizes K-weighting as an 80 Hz low-frequency cutoff plus a presence shelf designed to better match subjective broadcast loudness.
+- Auphonic stresses the practical studio point: peak normalization alone does not match human loudness perception, so podcast speech should be normalized by loudness with true-peak constraints.
+
+Implementation response:
+
+- `analyzeLoudness()` adds a static-site-safe BS.1770-style mono proxy: K-weighted filtering, 400 ms absolute/relative gated integrated LUFS, short-term/momentary values, LRA proxy, and 4x Hermite true-peak proxy.
+- `analyzeBuffer()` now carries loudness and true-peak metadata, so source analysis, render analysis, export manifests, and Project Vault snapshots keep delivery evidence.
+- Studio Polish uses integrated LUFS as `loudnessProxyDb` when available and uses true peak for headroom/ceiling warnings.
+- Offline render now performs final bounded loudness mastering after Studio Polish and character processing, raising or trimming the finished render toward the selected production target while respecting the true-peak ceiling.
+- UI, export notes, Project Vault snapshots, and quality reports show LUFS and dBTP instead of only RMS/sample peak.
+
+Sources:
+https://podcasters.apple.com/support/893-audio-requirements
+https://www.itu.int/rec/R-REC-BS.1770
+https://www.itu.int/dms_pubrec/itu-r/rec/bs/R-REC-BS.1770-3-201208-S!!PDF-E.pdf
+https://aes.org/resources/audio-topics/loudness-project/learn-more/
+https://auphonic.com/blog/2011/07/25/loudness-normalization-and-compression-podcasts-and-speech-audio/
+https://auphonic.com/features/loudnorm
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
@@ -235,6 +262,7 @@ https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/de
 - Micro Repair Timeline was verified in the in-app Browser with the same private fixture. The source analysis showed `43 events / M27 P3 S13`, Guided Studio showed the same micro count before rendering, and the rendered analysis preserved `Polish Events` with WAV/WebM/ZIP enabled.
 - FFT Tone Map was verified in the in-app Browser with the same private fixture. The source analysis showed `FFT Tone 616 Hz / 563 Hz / -12.1 dB/oct` alongside Micro Repair evidence, so tone risks now have spectral evidence in UI, exports, and project snapshots.
 - Dynamic Tone Surgery was verified in the in-app Browser with the same private fixture, Kawaii / Anime target, and Director Optimize enabled. The rendered metric card showed `Low-Mid Mud 255Hz / Nasal Ring 1050Hz / Presence Harshness 3469Hz`, and WAV/WebM/ZIP export controls were enabled after full render.
+- Loudness Mastering was verified in the in-app Browser through the static deep link `?audio=/tests/data/konichiwabokunonamaewayamadatarodesu.webm&target=kawaii&polish=standard&director=1&render=full`. The source showed `-24.0 LUFS / -5.8 dBTP`, final mastering showed `+6.8 dB -> -19.2 LUFS`, and the render showed `-19.2 LUFS / -1.6 dBTP` with WAV/WebM/ZIP controls enabled.
 
 Open follow-up:
 

@@ -147,6 +147,9 @@ export function analyzeStudioVoice(input, sampleRate) {
   const p15 = percentile(frameValues, 0.15);
   const p85 = percentile(frameValues, 0.85);
   const dynamicRangeDb = linToDb(p85) - linToDb(p15);
+  const loudnessProxyDb = Number.isFinite(base.integratedLufs)
+    ? base.integratedLufs
+    : base.rmsDb + clamp(activeRatio - 0.55, -0.18, 0.18) * 4;
   const band = bandProfile(samples, sampleRate);
   const microRepair = buildMicroRepairTimeline(samples, sampleRate, { band });
   const spectral = analyzeSpectralVoice(samples, sampleRate);
@@ -212,7 +215,7 @@ export function analyzeStudioVoice(input, sampleRate) {
     rmsDb: base.rmsDb,
     peakDb: base.peakDb,
     noiseFloorDb: linToDb(noiseFloor),
-    loudnessProxyDb: base.rmsDb + clamp(activeRatio - 0.55, -0.18, 0.18) * 4,
+    loudnessProxyDb,
     brightnessRatio: base.brightnessRatio,
     dynamicRangeDb,
     band,
@@ -228,8 +231,8 @@ export function analyzeStudioVoice(input, sampleRate) {
     activeRatio,
     noiseFloor,
     noiseFloorDb: linToDb(noiseFloor),
-    headroomDb: Number.isFinite(base.peakDb) ? -base.peakDb : 0,
-    loudnessProxyDb: base.rmsDb + clamp(activeRatio - 0.55, -0.18, 0.18) * 4,
+    headroomDb: Number.isFinite(base.truePeakDb) ? -base.truePeakDb : Number.isFinite(base.peakDb) ? -base.peakDb : 0,
+    loudnessProxyDb,
     dynamicRangeDb,
     band,
     microRepair,
@@ -292,11 +295,11 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard", target
     135
   );
   const targetRmsDb = target.targetRmsDb || intensity.targetRmsDb;
-  const gainToTarget = targetRmsDb - Number(analysis.rmsDb || targetRmsDb);
+  const gainToTarget = targetRmsDb - Number(analysis.loudnessProxyDb ?? analysis.rmsDb ?? targetRmsDb);
   const headroomLimit = Math.max(-8, Number(analysis.headroomDb || 0) - 2.2);
   const outputGainDb = clamp(Math.min(gainToTarget, headroomLimit), -9, 8);
   const stages = {
-    inputGainDb: clamp((analysis.rmsDb < -34 ? 4 : 0) - (analysis.peakDb > -2 ? 3 : 0), -6, 6),
+    inputGainDb: clamp((analysis.loudnessProxyDb < -34 ? 4 : 0) - ((analysis.truePeakDb ?? analysis.peakDb) > -2 ? 3 : 0), -6, 6),
     deplosive: clamp(((scores.plosive || 0) - 8) * 1.15 * f, 0, 100),
     mouthClick: clamp(((scores.mouthClick || 0) - 7) * 1.18 * f, 0, 100),
     mouthClickPasses: (scores.mouthClick || 0) > 48 ? 2 : 1,
@@ -533,7 +536,7 @@ export function runStudioPolishQualitySuite({
 
 function studioAnalysisItems(metrics) {
   return [
-    item("level", "Level", metrics.levelScore, `${formatDb(metrics.base.rmsDb)} RMS / ${formatDb(metrics.base.peakDb)} peak`, "Gain staging and headroom before character processing."),
+    item("level", "Level", metrics.levelScore, levelMeterValue(metrics.base), "K-weighted loudness, gain staging, and true-peak headroom."),
     item("noise", "Noise Floor", metrics.noiseScore, `${formatDb(metrics.noiseFloorDb)} floor`, "Low-level room or device noise that can be amplified by compression."),
     item("plosive", "Plosives", metrics.plosive, `${Math.round(metrics.plosive)} risk`, "Low-frequency bursts should be reduced before high-pass filtering."),
     item("mouth", "Mouth Clicks", metrics.mouthClick, `${Math.round(metrics.mouthClick)} risk`, "Short mouth transients and lip-smack-like events."),
@@ -573,7 +576,13 @@ function repairStep(order, id, risk, value, copy) {
 }
 
 function levelRepairValue(analysis = {}) {
-  return `${formatDb(analysis.rmsDb)} RMS / ${formatDb(analysis.peakDb)} peak`;
+  return levelMeterValue(analysis);
+}
+
+function levelMeterValue(analysis = {}) {
+  const loudness = Number.isFinite(analysis.integratedLufs) ? `${analysis.integratedLufs.toFixed(1)} LUFS` : `${formatDb(analysis.rmsDb)} RMS`;
+  const truePeak = Number.isFinite(analysis.truePeakDb) ? `${analysis.truePeakDb.toFixed(1)} dBTP` : `${formatDb(analysis.peakDb)} peak`;
+  return `${loudness} / ${truePeak}`;
 }
 
 function noiseRepairValue(analysis = {}) {
@@ -731,9 +740,10 @@ function scoreStudioPolishPlan(samples, sampleRate, plan, target, basePlan) {
     scores.harsh * 0.95 +
     scores.brightness * 0.5;
   const loudness = Math.abs((analysis.loudnessProxyDb || analysis.rmsDb) - target.targetRmsDb) * 3.5;
-  const peakRisk = analysis.peakDb > target.ceilingDb
-    ? Math.pow((analysis.peakDb - target.ceilingDb) * 4, 2)
-    : Math.max(0, -9 - analysis.peakDb) * 0.6;
+  const peakDb = Number.isFinite(analysis.truePeakDb) ? analysis.truePeakDb : analysis.peakDb;
+  const peakRisk = peakDb > target.ceilingDb
+    ? Math.pow((peakDb - target.ceilingDb) * 4, 2)
+    : Math.max(0, -9 - peakDb) * 0.6;
   const brightnessRisk = analysis.brightnessRatio < minBright
     ? (minBright - analysis.brightnessRatio) * 170
     : analysis.brightnessRatio > maxBright
@@ -1130,10 +1140,13 @@ function plosiveScore(samples, sampleRate) {
 
 function levelProblemScore(analysis) {
   let score = 0;
-  if (analysis.rmsDb < -34) score += (-34 - analysis.rmsDb) * 3;
-  if (analysis.rmsDb > -11) score += (analysis.rmsDb + 11) * 4;
-  if (analysis.peakDb > -1.2) score += (analysis.peakDb + 1.2) * 18;
-  if (analysis.peakDb < -18) score += (-18 - analysis.peakDb) * 1.5;
+  const loudness = Number.isFinite(analysis.integratedLufs) ? analysis.integratedLufs : analysis.rmsDb;
+  const peakDb = Number.isFinite(analysis.truePeakDb) ? analysis.truePeakDb : analysis.peakDb;
+  if (loudness < -31) score += (-31 - loudness) * 3.2;
+  if (loudness > -13.5) score += (loudness + 13.5) * 5;
+  if (analysis.rmsDb < -36) score += (-36 - analysis.rmsDb) * 1.2;
+  if (peakDb > -1.2) score += (peakDb + 1.2) * 22;
+  if (peakDb < -18) score += (-18 - peakDb) * 1.2;
   return clamp(score, 0, 100);
 }
 
@@ -1319,9 +1332,11 @@ function studioPolishIssues(before, after, outputLength, sourceLength) {
   if (outputLength !== sourceLength) issues.push({ level: "fail", text: "length drift" });
   if (!Number.isFinite(after.rms) || after.rms <= 0) issues.push({ level: "fail", text: "invalid rms" });
   if (after.peak > 1 || after.clipped) issues.push({ level: "fail", text: "clips" });
-  if (after.rmsDb > -8) issues.push({ level: "warn", text: "too loud" });
-  if (after.rmsDb < -34) issues.push({ level: "warn", text: "too quiet" });
-  if (after.peakDb > -0.7) issues.push({ level: "warn", text: "near ceiling" });
+  const loudness = Number.isFinite(after.integratedLufs) ? after.integratedLufs : after.rmsDb;
+  const truePeakDb = Number.isFinite(after.truePeakDb) ? after.truePeakDb : after.peakDb;
+  if (loudness > -10) issues.push({ level: "warn", text: "too loud" });
+  if (loudness < -34) issues.push({ level: "warn", text: "too quiet" });
+  if (truePeakDb > -0.7) issues.push({ level: "warn", text: "near true peak ceiling" });
   if (after.problemScores.sibilance > before.problemScores.sibilance + 12 && after.problemScores.sibilance > 38) issues.push({ level: "warn", text: "sibilance increased" });
   if (after.problemScores.harsh > before.problemScores.harsh + 16 && after.problemScores.harsh > 45) issues.push({ level: "warn", text: "harshness increased" });
   return issues;
