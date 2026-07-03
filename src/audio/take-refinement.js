@@ -27,7 +27,9 @@ export function buildKeeperRefinement(decision = null, currentParams = {}, targe
   const targetCard = targetRefinement(baseParams, target, evidenceScore(winner, "target"));
   const scriptCard = scriptRefinement(winner.scriptMatch, evidenceScore(winner, "script"));
   const safetyCard = safetyRefinement(winner.review, evidenceScore(winner, "safety"));
-  const cards = [targetCard, scriptCard, safetyCard];
+  const cards = qcHold
+    ? [safetyCard, scriptCard, targetCard]
+    : [targetCard, scriptCard, safetyCard];
   const moves = mergeMoves(cards.flatMap((card) => card.moves));
   const applied = applyMoves(baseParams, moves);
   const patch = paramsMatch(currentParams, applied.params, applied.patch)
