@@ -9,6 +9,7 @@ import {
 } from "./dsp-core.js";
 import { automationSummary, renderScriptAutomation } from "./performance-script.js";
 import { analyzeStudioVoice, buildStudioPolishPlan, processStudioPolish } from "./studio-polish.js";
+import { applyCharacterSafety } from "./character-safety.js";
 
 export class OfflineRenderer {
   constructor() {
@@ -112,14 +113,23 @@ export class OfflineRenderer {
     });
     const characterInput = studioPolish ? studioPolish.samples : sourceSamples;
     const stage = options.stage || "character";
+    const characterSafety = stage === "polish" ? null : applyCharacterSafety(appliedParams, {
+      sourceProfile: this.profile,
+      source: this.source,
+      target: options.performanceScript?.target || null
+    });
+    const characterParams = characterSafety?.params || appliedParams;
     const automation = stage !== "polish" && options.automatePerformance && options.performanceScript
-      ? renderScriptAutomation(characterInput, this.source.sampleRate, appliedParams, options.performanceScript, options.automationOptions)
+      ? renderScriptAutomation(characterInput, this.source.sampleRate, characterParams, options.performanceScript, {
+        ...(options.automationOptions || {}),
+        normalizedParams: true
+      })
       : null;
     const samples = stage === "polish"
       ? characterInput
       : automation
       ? automation.samples
-      : processVoiceBuffer(characterInput, this.source.sampleRate, appliedParams);
+      : processVoiceBuffer(characterInput, this.source.sampleRate, characterParams, { normalizedParams: true });
     const blob = encodeWavMono(samples, this.source.sampleRate);
     const mode = options.mode || (region.isFull ? "full" : "preview");
     this.rendered = {
@@ -150,6 +160,7 @@ export class OfflineRenderer {
         outputAnalysis: null
       },
       autoCalibrated: !!options.autoCalibrate,
+      characterSafety,
       scriptAutomated: !!automation,
       performanceScript: options.performanceScript ? {
         targetId: options.performanceScript.targetId,
@@ -161,8 +172,9 @@ export class OfflineRenderer {
       scriptAutomation: automation?.plan || null,
       scriptAutomationSummary: automationSummary(automation?.plan),
       baseParams,
-      appliedParams,
-      calibrationDelta: paramDeltas(baseParams, appliedParams)
+      appliedParams: characterParams,
+      calibrationDelta: paramDeltas(baseParams, appliedParams),
+      safetyDelta: characterSafety ? paramDeltas(appliedParams, characterParams) : []
     };
     return this.rendered;
   }

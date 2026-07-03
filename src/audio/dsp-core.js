@@ -400,7 +400,7 @@ function writeString(view, offset, value) {
 }
 
 export function processVoiceBuffer(input, sampleRate, rawParams = {}, options = {}) {
-  const params = normalizeParams(rawParams);
+  const params = options.normalizedParams ? { ...DEFAULT_PARAMS, ...rawParams } : normalizeParams(rawParams);
   const dry = toMono(input);
   const gain = dbToLin(params.inputGain || 0);
   let work = new Float32Array(dry.length);

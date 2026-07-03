@@ -54,9 +54,11 @@ export function buildExportManifest({
       analysis: compactAnalysis(rendered.analysis),
       studioAnalysis: compactStudioAnalysis(rendered.studioAnalysis),
       studioPolish: compactStudioPolish(rendered.studioPolish),
+      characterSafety: compactCharacterSafety(rendered.characterSafety),
       autoCalibrated: !!rendered.autoCalibrated,
       scriptAutomated: !!rendered.scriptAutomated,
-      calibrationDelta: Array.isArray(rendered.calibrationDelta) ? rendered.calibrationDelta.slice(0, 12) : []
+      calibrationDelta: Array.isArray(rendered.calibrationDelta) ? rendered.calibrationDelta.slice(0, 12) : [],
+      safetyDelta: Array.isArray(rendered.safetyDelta) ? rendered.safetyDelta.slice(0, 12) : []
     } : null,
     voice: {
       presetId,
@@ -138,6 +140,19 @@ export function studioPolishResearchNotes(rendered = null) {
     }
   } else {
     notes.push("Studio Polish was disabled for this render.");
+  }
+  if (rendered?.characterSafety?.enabled) {
+    notes.push("", "Character safety:");
+    notes.push(`- Status: ${rendered.characterSafety.status}`);
+    notes.push(`- Score: ${rendered.characterSafety.score}`);
+    if (rendered.characterSafety.creative) notes.push("- Creative exception: robot/creature style allows wider non-human shifts.");
+    if (rendered.characterSafety.moves?.length) {
+      for (const move of rendered.characterSafety.moves.slice(0, 8)) {
+        notes.push(`- ${move.label}: ${round(move.before, 2)} -> ${round(move.after, 2)}; ${move.reason}`);
+      }
+    } else {
+      notes.push("- No pitch, formant, air, breath, or harshness clamps were needed.");
+    }
   }
   notes.push("", "DSP honesty:", "", "This is browser DSP polish, not AI dialogue isolation or speaker-identity voice conversion.");
   return `${notes.join("\n")}\n`;
@@ -294,6 +309,25 @@ function compactStudioPolish(polish = null) {
     stages: polish.plan?.stages || null,
     input: compactStudioAnalysis(polish.inputAnalysis),
     output: compactStudioAnalysis(polish.outputAnalysis)
+  };
+}
+
+function compactCharacterSafety(plan = null) {
+  if (!plan) return null;
+  return {
+    enabled: !!plan.enabled,
+    status: plan.status || "",
+    score: Math.round(plan.score || 0),
+    creative: !!plan.creative,
+    target: plan.target || null,
+    limits: plan.limits || null,
+    moves: (plan.moves || []).slice(0, 12).map((move) => ({
+      key: move.key,
+      label: move.label,
+      before: round(move.before, 3),
+      after: round(move.after, 3),
+      reason: move.reason
+    }))
   };
 }
 

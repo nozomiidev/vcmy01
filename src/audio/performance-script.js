@@ -66,7 +66,7 @@ export function renderScriptAutomation(input, sampleRate, baseParams = {}, scrip
   const source = input instanceof Float32Array ? input : new Float32Array(input || []);
   if (!script || !source.length) {
     return {
-      samples: processVoiceBuffer(source, sampleRate, baseParams),
+      samples: processVoiceBuffer(source, sampleRate, baseParams, options.normalizedParams ? { normalizedParams: true } : {}),
       plan: null
     };
   }
@@ -75,8 +75,10 @@ export function renderScriptAutomation(input, sampleRate, baseParams = {}, scrip
     intensity: 0.72,
     chunkSec: 0.42,
     hopSec: 0.24,
+    normalizedParams: false,
     ...options
   };
+  const voiceOptions = opts.normalizedParams ? { normalizedParams: true } : {};
   const chunkSize = Math.max(1024, Math.min(source.length, Math.round(sampleRate * opts.chunkSec)));
   const hopSize = Math.max(512, Math.min(chunkSize, Math.round(sampleRate * opts.hopSec)));
   const acc = new Float32Array(source.length);
@@ -90,7 +92,7 @@ export function renderScriptAutomation(input, sampleRate, baseParams = {}, scrip
     const scriptTime = sourceTimeToScriptTime(center, source.length / sampleRate, script.durationSec);
     const lanes = scriptLaneValuesAt(script, scriptTime);
     const frameParams = automatedParamsForLanes(baseParams, script, lanes, opts.intensity);
-    const processed = processVoiceBuffer(source.slice(start, end), sampleRate, frameParams);
+    const processed = processVoiceBuffer(source.slice(start, end), sampleRate, frameParams, voiceOptions);
     for (let i = 0; i < processed.length && start + i < source.length; i++) {
       const win = chunkWindow(i, processed.length, start === 0, end >= source.length);
       acc[start + i] += processed[i] * win;

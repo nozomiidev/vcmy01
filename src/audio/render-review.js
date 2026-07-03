@@ -13,6 +13,7 @@ export function renderReview(source = null, rendered = null) {
   const zcrDelta = finiteDelta(renderAnalysis.zeroCrossingsPerSecond, sourceAnalysis.zeroCrossingsPerSecond);
   const headroomDb = Number.isFinite(renderAnalysis.peakDb) ? -renderAnalysis.peakDb : 0;
   const guardrail = guardrailRisk(rendered.appliedParams || rendered.baseParams || {});
+  const characterSafety = rendered.characterSafety || null;
   const score = reviewScore({
     clipped: renderAnalysis.clipped,
     peakDb: renderAnalysis.peakDb,
@@ -20,7 +21,8 @@ export function renderReview(source = null, rendered = null) {
     duration: renderAnalysis.duration,
     brightnessDelta,
     zcrDelta,
-    guardrailRisk: guardrail.score
+    guardrailRisk: guardrail.score,
+    characterSafetyScore: characterSafety?.score
   });
   const items = [
     {
@@ -42,6 +44,16 @@ export function renderReview(source = null, rendered = null) {
       label: "Studio Polish",
       value: rendered.studioPolish.intensity,
       detail: rendered.studioPolish.plan?.notes?.join("; ") || "Studio polish ran before character processing."
+    });
+  }
+  if (characterSafety?.enabled) {
+    items.push({
+      id: "character-safety",
+      label: "Character Safety",
+      value: characterSafety.status === "guarded" ? "Guarded" : "Clear",
+      detail: characterSafety.moves?.length
+        ? characterSafety.moves.slice(0, 3).map((move) => `${move.label} ${formatMove(move)}`).join("; ")
+        : "Pitch/formant/breath range stayed inside source-adaptive limits."
     });
   }
   if (guardrail.score > 0) {
@@ -91,6 +103,9 @@ function reviewScore(metrics) {
   if (!Number.isFinite(metrics.duration) || metrics.duration < 0.08) score -= 14;
   if (Math.abs(metrics.brightnessDelta || 0) < 0.01 && Math.abs(metrics.zcrDelta || 0) < 150) score -= 5;
   if (metrics.guardrailRisk > 0) score -= Math.min(34, metrics.guardrailRisk);
+  if (Number.isFinite(metrics.characterSafetyScore) && metrics.characterSafetyScore < 70) {
+    score -= Math.min(18, (70 - metrics.characterSafetyScore) * 0.45);
+  }
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
@@ -137,4 +152,11 @@ function signedPercent(value) {
 function signedNumber(value, unit = "") {
   if (Math.abs(value) < 1) return `0${unit}`;
   return `${value > 0 ? "+" : ""}${Math.round(value)}${unit}`;
+}
+
+function formatMove(move) {
+  const before = Number(move.before || 0);
+  const after = Number(move.after || 0);
+  const fixed = Math.abs(before) < 10 && Math.abs(after) < 10 ? 1 : 0;
+  return `${before.toFixed(fixed)}->${after.toFixed(fixed)}`;
 }

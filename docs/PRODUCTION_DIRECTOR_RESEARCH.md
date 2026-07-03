@@ -70,6 +70,29 @@ Sources:
 https://github.com/mmorise/World
 https://github.com/breakfastquay/rubberband
 
+## Character Safety Loop
+
+The fourth production-director pass adds a source-adaptive safety stage before Character Transform output.
+
+Research decisions:
+
+- Celemony Melodyne treats formants as pitch-independent spectral emphasis regions that define tone color/timbre, and its Formant Tool can make a voice sound more masculine/feminine or deliberately denatured. VoiceForge therefore treats formant-like movement as an identity-risk control, not just another EQ knob.
+- Professional vocal pitch/time manipulation guidance consistently warns that large pitch shifts create artifacts unless source quality, moderation, and formant preservation are handled carefully. VoiceForge therefore clamps large non-creative pitch/formant moves before rendering.
+- De-essing practice treats sibilance, EQ, compression, and air as interdependent. iZotope notes that de-essers should suppress harsh sibilance while keeping speech natural/intelligible, and that multiple light passes can be more natural than one heavy hand. VoiceForge therefore caps added air/presence/saturation on sibilant or harsh sources and raises de-ess/soft consonants instead.
+- Creative robot/creature voices are intentionally non-human, so they get wider pitch/formant limits while still preserving clipping/headroom review.
+
+Implementation response:
+
+- `applyCharacterSafety()` normalizes preset/macros once, then clamps pitch, formant-like movement, pitch/formant divergence, air, presence, saturation, breath, whisper, and consonant softness according to the source profile and Studio Analysis problem scores.
+- `OfflineRenderer.render()` now separates `calibrationDelta` from `safetyDelta`, so source tuning and destructive-transform prevention remain auditable.
+- Guided Studio, Render Deck, render review, export ZIP metadata, and Project Vault snapshots now preserve Character Safety status and top moves.
+- The safety stage is deliberately conservative for human targets and permissive only for creative robot/creature voices.
+
+Sources:
+https://helpcenter.celemony.com/M5/doc/melodyneStudio5/en/M5tour_ToolFormants?env=standAlone
+https://www.sonarworks.com/blog/learn/can-you-stretch-or-shift-vocals-without-artifacts-using-plugins
+https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
@@ -138,6 +161,7 @@ https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/de
 - Computer Use bootstrap currently fails before app inspection with the bundled `@oai/sky` package export error; Browser and Chrome remain the usable GUI verification surfaces until that runtime is fixed.
 - The repair-map loop was verified in the in-app Browser with generated source, Talk Radio target, and Render Polish. The UI showed ordered repair steps such as Mouth De-click, Room Noise, Tone Surgery, and Production Target, and WAV/WebM/ZIP became enabled after render.
 - URL import was verified in the in-app Browser with the private local fixture `/tests/data/konichiwabokunonamaewayamadatarodesu.webm`. The app decoded a 7.0s source locally, analyzed it as a medium source, showed repair steps for Mouth De-click, Tone Surgery, De-ess, and Level / Dynamics, then completed Polish -> Character render with WAV/WebM/ZIP enabled.
+- Character Safety was verified in the in-app Browser with the same private fixture and Kawaii / Anime target. The Guided Studio and Render Deck showed `Safety Guarded` with pitch, formant-like, and air clamps, while WAV, WebM, and ZIP export controls became available.
 
 Open follow-up:
 

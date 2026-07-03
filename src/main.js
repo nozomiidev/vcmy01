@@ -15,6 +15,7 @@ import {
 } from "./audio/performance-targets.js";
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
 import { buildRenderZipPackage, encodeRenderedWebmOpus, preferredOpusMimeType, renderedBaseName } from "./audio/export-session.js";
+import { characterSafetySummary } from "./audio/character-safety.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
 import { auditionVariantSummary, buildAuditionVariants } from "./audio/audition-variants.js";
@@ -172,11 +173,14 @@ function renderGuidedStudio() {
   const analysis = source?.studioAnalysis || null;
   const plan = analysis ? buildStudioPolishPlan(analysis, state.polishIntensity, state.productionTarget) : null;
   const opusType = preferredOpusMimeType();
+  const safetyLabel = rendered?.characterSafety?.enabled
+    ? rendered.characterSafety.status === "guarded" ? "Safety Guarded" : "Safety Clear"
+    : "Pending";
   const steps = [
     { id: "source", label: "Source", status: source ? "ready" : "waiting", value: source ? source.name : "No source" },
     { id: "clean", label: "Clean", status: analysis ? analysis.status : "waiting", value: analysis ? `${analysis.score}%` : "Waiting" },
     { id: "polish", label: "Polish", status: rendered?.studioPolish?.enabled ? "ready" : source ? "polish" : "waiting", value: rendered?.studioPolish?.enabled ? `${rendered.studioPolish.intensity}${rendered.studioPolish.optimized ? "+dir" : ""}` : state.polishIntensity },
-    { id: "character", label: "Character", status: rendered?.stage === "character" ? "ready" : source ? "polish" : "waiting", value: rendered?.stage === "character" ? presetById(state.presetId).name : "Pending" },
+    { id: "character", label: "Character", status: rendered?.stage === "character" ? rendered.characterSafety?.status || "ready" : source ? "polish" : "waiting", value: rendered?.stage === "character" ? `${presetById(state.presetId).name} / ${safetyLabel}` : "Pending" },
     { id: "export", label: "Export", status: rendered ? "ready" : "waiting", value: rendered ? (opusType ? "WAV/WebM/ZIP" : "WAV/ZIP") : "Pending" }
   ];
   panel.className = `guided-studio is-${analysis?.status || "waiting"}`;
@@ -218,6 +222,12 @@ function renderGuidedStudio() {
     const opt = rendered.studioPolish.plan.optimization;
     const optLabel = opt.scoreBefore <= 0 && opt.scoreAfter <= 0 ? "guarded" : `${opt.scoreBefore}->${opt.scoreAfter}`;
     stagePills.push(["Director", optLabel]);
+  }
+  if (rendered?.characterSafety?.enabled) {
+    stagePills.push([
+      rendered.characterSafety.status === "guarded" ? "Safety Guarded" : "Safety Clear",
+      characterSafetySummary(rendered.characterSafety)
+    ]);
   }
   const repairPills = (repairMap?.steps || [])
     .filter((step) => step.status !== "ready")
@@ -1288,7 +1298,8 @@ function renderOfflineToPreview(preview, renderOptions = {}) {
     const renderNote = [
       stage === "polish" ? "Studio Polish only" : "Studio Polish -> Character",
       scope,
-      autoTune ? describeCalibrationDelta(rendered.baseParams, rendered.appliedParams) : "manual chain rendered",
+      autoTune ? describeDeltaList(rendered.calibrationDelta, "Profile already fits this voice.") : "manual chain rendered",
+      rendered.characterSafety?.enabled ? characterSafetySummary(rendered.characterSafety) : "polish-only safety bypass",
       rendered.scriptAutomated ? `${rendered.scriptAutomation?.frameCount || 0} script frames` : "static script"
     ].join("; ");
     toast(preview ? "Preview rendered" : "Offline render complete", renderNote);
@@ -2482,7 +2493,10 @@ function renderRenderDeck() {
     const metrics = review?.items || [];
     const badge = item.variant || item.stackAudition || null;
     const badgeLabel = item.stackAudition ? `Stack: ${item.stackAudition.label}` : badge?.label || "";
-    const detail = badge ? `${badge.intent} ${renderReviewSummary(review)}` : renderReviewSummary(review);
+    const safety = item.rendered?.characterSafety || null;
+    const safetyBadge = safety?.enabled ? characterSafetySummary(safety) : "";
+    const detailParts = [badge?.intent || "", safetyBadge, renderReviewSummary(review)].filter(Boolean);
+    const detail = detailParts.join(" ");
     return `
       <button class="render-card is-${review?.status || "empty"} ${active ? "is-active" : ""}" data-render-deck="${item.id}" type="button">
         <span class="render-card-score">${review ? `${review.score}% ${renderReviewStatusLabel(review.status)}` : "No review"}</span>
@@ -2840,6 +2854,19 @@ function describeCalibrationDelta(before, after) {
     .slice(0, 4)
     .map((item) => `${names.get(item.key) || item.key} ${item.delta > 0 ? "+" : ""}${item.delta.toFixed(item.key === "pitch" || item.key === "formant" ? 1 : 0)}`);
   return changes.length ? changes.join(", ") : "Profile already fits this voice.";
+}
+
+function describeDeltaList(deltas = [], fallback = "No public parameter change.") {
+  const names = new Map([...MACRO_DEFS, ...DIRECTOR_DEFS, ...PARAM_DEFS].map((def) => [def.key, def.label]));
+  const changes = (Array.isArray(deltas) ? deltas : [])
+    .filter((item) => item && !String(item.key || "").startsWith("_") && Math.abs(Number(item.delta || 0)) >= 0.1)
+    .slice(0, 4)
+    .map((item) => {
+      const fixed = item.key === "pitch" || item.key === "formant" || item.key === "inputGain" ? 1 : 0;
+      const delta = Number(item.delta || 0);
+      return `${names.get(item.key) || item.key} ${delta > 0 ? "+" : ""}${delta.toFixed(fixed)}`;
+    });
+  return changes.length ? changes.join(", ") : fallback;
 }
 
 function describePatchObject(patch = {}) {

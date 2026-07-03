@@ -275,6 +275,7 @@ function sanitizeRenderDeck(deck = [], options = {}) {
         mode: cleanText(rendered.mode || "preview", 32),
         stage: cleanText(rendered.stage || "character", 32),
         studioPolish: sanitizeStudioPolish(rendered.studioPolish),
+        characterSafety: sanitizeCharacterSafety(rendered.characterSafety),
         autoCalibrated: !!rendered.autoCalibrated,
         scriptAutomated: !!rendered.scriptAutomated,
         performanceScript: rendered.performanceScript || null,
@@ -284,6 +285,7 @@ function sanitizeRenderDeck(deck = [], options = {}) {
         baseParams: normalizeProjectParams(rendered.baseParams || {}),
         appliedParams: normalizeProjectParams(rendered.appliedParams || {}),
         calibrationDelta: Array.isArray(rendered.calibrationDelta) ? rendered.calibrationDelta.slice(0, 12) : [],
+        safetyDelta: Array.isArray(rendered.safetyDelta) ? rendered.safetyDelta.slice(0, 12) : [],
         lineReadId: cleanText(rendered.lineReadId || item?.targetId || "", 96),
         sceneKitId: rendered.sceneKitId ? cleanText(rendered.sceneKitId, 96) : null,
         sceneBeatId: rendered.sceneBeatId ? cleanText(rendered.sceneBeatId, 96) : null,
@@ -497,6 +499,33 @@ function sanitizeStudioPolish(polish = null) {
     } : null,
     inputAnalysis: sanitizeStudioAnalysis(polish.inputAnalysis),
     outputAnalysis: sanitizeStudioAnalysis(polish.outputAnalysis)
+  };
+}
+
+function sanitizeCharacterSafety(plan = null) {
+  if (!plan) return null;
+  return {
+    enabled: !!plan.enabled,
+    status: cleanText(plan.status || "", 32),
+    score: clampScore(plan.score),
+    creative: !!plan.creative,
+    target: plan.target ? {
+      id: cleanText(plan.target.id || "", 96),
+      name: cleanText(plan.target.name || "", 100)
+    } : null,
+    limits: plan.limits ? {
+      pitchMin: finiteNumber(plan.limits.pitchMin),
+      pitchMax: finiteNumber(plan.limits.pitchMax),
+      formantMin: finiteNumber(plan.limits.formantMin),
+      formantMax: finiteNumber(plan.limits.formantMax)
+    } : null,
+    moves: Array.isArray(plan.moves) ? plan.moves.slice(0, 12).map((move) => ({
+      key: cleanText(move.key || "", 48),
+      label: cleanText(move.label || "", 80),
+      before: finiteNumber(move.before),
+      after: finiteNumber(move.after),
+      reason: cleanText(move.reason || "", 180)
+    })) : []
   };
 }
 

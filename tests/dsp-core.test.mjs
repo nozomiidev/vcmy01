@@ -40,6 +40,7 @@ import {
   STUDIO_PRODUCTION_TARGETS
 } from "../src/audio/studio-polish.js";
 import { buildExportManifest, renderedBaseName, studioPolishResearchNotes } from "../src/audio/export-session.js";
+import { applyCharacterSafety, characterSafetySummary } from "../src/audio/character-safety.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -529,10 +530,38 @@ const lowProfile = buildCalibrationProfile(lowSource, sampleRate);
 const kawaii = paramsForPreset("kawaii");
 const tunedKawaii = calibrateParamsForVoice(kawaii, lowProfile);
 const tunedKawaiiAgain = calibrateParamsForVoice(tunedKawaii, lowProfile);
+const riskyCharacterSafety = applyCharacterSafety({
+  ...paramsForPreset("kawaii"),
+  pitch: 10.5,
+  formant: -8.5,
+  air: 82,
+  breath: 96,
+  whisper: 62,
+  consonantSoftness: 5,
+  saturation: 34
+}, {
+  sourceProfile: { ...lowProfile, breathyOrNoisy: true },
+  source: {
+    studioAnalysis: {
+      problemScores: {
+        sibilance: 68,
+        harsh: 61,
+        mouthClick: 73
+      }
+    }
+  },
+  target: { id: "kawaii_spark", name: "Kawaii Spark" }
+});
 assert.equal(lowProfile.range, "low", "low reference voice should calibrate as low range");
 assert.ok(tunedKawaii.pitch > kawaii.pitch, "low voice kawaii calibration should lift pitch");
 assert.ok(tunedKawaii.formant > kawaii.formant, "low voice kawaii calibration should lift formant-like shift");
 assert.equal(tunedKawaiiAgain.pitch, tunedKawaii.pitch, "calibration should not stack repeatedly for the same source profile");
+assert.equal(riskyCharacterSafety.status, "guarded", "character safety should clamp risky non-creative character transforms");
+assert.ok(riskyCharacterSafety.moves.some((move) => move.key === "pitch"), "character safety should clamp excessive pitch");
+assert.ok(riskyCharacterSafety.moves.some((move) => move.key === "formant"), "character safety should clamp excessive formant spread");
+assert.ok(riskyCharacterSafety.moves.some((move) => move.key === "air"), "character safety should limit air on sibilant sources");
+assert.ok(riskyCharacterSafety.moves.some((move) => move.key === "consonantSoftness"), "character safety should soften click-heavy consonants");
+assert.ok(characterSafetySummary(riskyCharacterSafety).includes("Pitch"), "character safety summary should expose its top moves");
 
 const offline = new OfflineRenderer();
 offline.generateSample(sampleRate, "low_warm");
@@ -609,6 +638,9 @@ assert.equal(autoRendered.studioPolish.enabled, true, "offline render should run
 assert.equal(autoRendered.studioPolish.intensity, "standard", "offline render should default to standard Studio Polish");
 assert.equal(autoRendered.stage, "character", "offline render should default to character stage after Studio Polish");
 assert.equal(autoRendered.region.isFull, true, "default offline render should cover the full source");
+assert.equal(autoRendered.characterSafety.enabled, true, "offline render should attach character safety metadata");
+assert.ok(autoRendered.characterSafety.score >= 0 && autoRendered.characterSafety.score <= 100, "character safety score should be bounded");
+assert.ok(Array.isArray(autoRendered.safetyDelta), "offline render should expose safety deltas separately from calibration");
 assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "pitch" && item.delta > 0), "auto render should lift low-source pitch for kawaii");
 assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "formant" && item.delta > 0), "auto render should lift low-source formant for kawaii");
 assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "body" && item.delta < 0), "auto render should reduce low-source body for kawaii");
@@ -619,11 +651,13 @@ const autoReview = renderReview(offline.source, autoRendered);
 assert.ok(autoReview.score >= 70, "render review should score usable offline renders");
 assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.includes("+")), "render review should expose apparent F0 movement");
 assert.ok(autoReview.items.some((item) => item.id === "studio-polish"), "render review should expose Studio Polish evidence");
+assert.ok(autoReview.items.some((item) => item.id === "character-safety"), "render review should expose character-safety evidence");
 const polishOnlyRender = offline.render(kawaii, { stage: "polish", studioPolish: "light", studioTarget: "ikemen", directorOptimize: true, mode: "preview", region: { startSec: 0, durationSec: 0.6 } });
 assert.equal(polishOnlyRender.stage, "polish", "offline render should support polish-only preview");
 assert.equal(polishOnlyRender.studioPolish.target.id, "ikemen", "offline render should retain production target");
 assert.equal(polishOnlyRender.studioPolish.optimized, true, "offline render should retain director optimization state");
 assert.equal(polishOnlyRender.scriptAutomated, false, "polish-only render should not apply acting automation");
+assert.equal(polishOnlyRender.characterSafety, null, "polish-only render should not run character safety");
 assert.equal(polishOnlyRender.samples.length, Math.round(sampleRate * 0.6), "polish-only render should preserve region length");
 const extremeRender = offline.render(paramsForPreset("kawaii", {
   pitch: 11,
@@ -633,8 +667,10 @@ const extremeRender = offline.render(paramsForPreset("kawaii", {
   romanticBreath: 100
 }), { studioPolish: "standard", region: { startSec: 0, durationSec: 0.6 }, mode: "preview" });
 const extremeReview = renderReview(offline.source, extremeRender);
-assert.equal(extremeReview.status, "risk", "render review should flag extreme character transforms as risk");
-assert.ok(extremeReview.items.some((item) => item.id === "guardrail"), "render review should include character guardrail evidence");
+assert.equal(extremeRender.characterSafety.status, "guarded", "offline render should guard extreme character transforms");
+assert.ok(extremeRender.safetyDelta.some((item) => item.key === "pitch" && item.delta < 0), "offline safety should reduce excessive pitch");
+assert.ok(extremeRender.safetyDelta.some((item) => item.key === "formant" && item.delta < 0), "offline safety should reduce excessive formant shift");
+assert.ok(extremeReview.items.some((item) => item.id === "character-safety" && item.value === "Guarded"), "render review should include character-safety evidence");
 const exportManifest = buildExportManifest({
   source: offline.source,
   rendered: autoRendered,
@@ -648,11 +684,24 @@ const exportManifest = buildExportManifest({
 });
 assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest should retain Studio Polish metadata");
 assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
+assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
+assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");
 assert.equal(exportManifest.source.sourceKind, "generated", "export manifest should retain source import kind");
 assert.equal(exportManifest.files.webm.endsWith(".webm"), true, "export manifest should name compressed WebM output");
 assert.equal(renderedBaseName(autoRendered).includes("VoiceForge"), true, "export base name should derive from render name");
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Studio Polish First"), "export research notes should document the polish workflow");
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Repair map:"), "export research notes should include repair-map rationale");
+assert.ok(studioPolishResearchNotes(extremeRender).includes("Character safety:"), "export research notes should include character-safety rationale");
+const safetyProject = createProjectSnapshot({
+  presetId: "kawaii",
+  presetName: "Kawaii Bright",
+  lineReadId: kawaiiSpark.id,
+  params: autoRendered.appliedParams,
+  source: offline.source,
+  renderDeck: [{ id: "safety-render", title: "Safety Render", target: kawaiiSpark.name, targetId: kawaiiSpark.id, review: autoReview, rendered: autoRendered }]
+}, { id: "project-safety", title: "Safety metadata project", includeAudio: false });
+assert.equal(safetyProject.renderDeck[0].rendered.characterSafety.enabled, true, "project snapshot should retain character-safety metadata");
+assert.equal(Array.isArray(safetyProject.renderDeck[0].rendered.safetyDelta), true, "project snapshot should retain safety deltas");
 const memoryStudioPlan = buildStudioPlan({
   hasSource: true,
   sourceFit: mockReadySourceFit,

@@ -524,6 +524,15 @@ input[type="range"] {
   border-color: color-mix(in srgb, var(--ok) 38%, var(--line));
 }
 
+.guided-step.is-clear {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
+}
+
+.guided-step.is-guarded {
+  border-color: color-mix(in srgb, var(--warn) 48%, var(--line));
+  background: linear-gradient(180deg, rgba(255,209,102,0.06), rgba(255,255,255,0.02)), #08090d;
+}
+
 .guided-step.is-polish {
   border-color: color-mix(in srgb, var(--warn) 38%, var(--line));
 }
