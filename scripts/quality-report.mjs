@@ -28,6 +28,7 @@ console.table(polishSuite.results.map((item) => ({
   rms: `${item.after.rmsDb.toFixed(1)} dB`,
   peak: `${item.after.peakDb.toFixed(1)} dB`,
   polish: item.plan.intensity,
+  repair: item.plan.repairMap?.topIssue?.label || "none",
   notes: item.issues.map((issue) => issue.text).join(", ") || "stable"
 })));
 console.table(directorSuite.results.map((item) => ({
@@ -39,6 +40,7 @@ console.table(directorSuite.results.map((item) => ({
   opt: item.plan.optimization ? `${item.plan.optimization.scoreBefore}->${item.plan.optimization.scoreAfter}` : "off",
   rms: `${item.after.rmsDb.toFixed(1)} dB`,
   peak: `${item.after.peakDb.toFixed(1)} dB`,
+  repair: item.plan.repairMap?.topIssue?.label || "none",
   notes: item.issues.map((issue) => issue.text).join(", ") || "stable"
 })));
 console.log(JSON.stringify({

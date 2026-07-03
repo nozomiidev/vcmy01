@@ -127,6 +127,12 @@ export function studioPolishResearchNotes(rendered = null) {
     }
     notes.push(`- Label: ${polish.label}`);
     for (const note of polish.plan?.notes || []) notes.push(`- ${note}`);
+    if (polish.plan?.repairMap?.steps?.length) {
+      notes.push("", "Repair map:");
+      for (const step of polish.plan.repairMap.steps.slice(0, 8)) {
+        notes.push(`- ${step.order}. ${step.label}: ${step.status}; ${step.action}; risk if overdone: ${step.overuseRisk}`);
+      }
+    }
   } else {
     notes.push("Studio Polish was disabled for this render.");
   }
@@ -266,7 +272,8 @@ function compactStudioAnalysis(analysis = null) {
     headroomDb: round(analysis.headroomDb, 2),
     loudnessProxyDb: round(analysis.loudnessProxyDb, 2),
     dynamicRangeDb: round(analysis.dynamicRangeDb, 2),
-    problemScores: analysis.problemScores || null
+    problemScores: analysis.problemScores || null,
+    repairMap: compactRepairMap(analysis.repairMap)
   };
 }
 
@@ -280,9 +287,32 @@ function compactStudioPolish(polish = null) {
     label: polish.label || "",
     notes: polish.plan?.notes || [],
     optimization: polish.plan?.optimization || null,
+    repairMap: compactRepairMap(polish.plan?.repairMap),
     stages: polish.plan?.stages || null,
     input: compactStudioAnalysis(polish.inputAnalysis),
     output: compactStudioAnalysis(polish.outputAnalysis)
+  };
+}
+
+function compactRepairMap(map = null) {
+  if (!map) return null;
+  return {
+    status: map.status || "",
+    score: map.score || 0,
+    target: map.target || null,
+    topIssue: map.topIssue || null,
+    nextAction: map.nextAction || null,
+    steps: (map.steps || []).map((step) => ({
+      order: step.order,
+      id: step.id,
+      label: step.label,
+      status: step.status,
+      risk: step.risk,
+      value: step.value,
+      action: step.action,
+      why: step.why,
+      overuseRisk: step.overuseRisk
+    }))
   };
 }
 

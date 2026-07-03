@@ -89,6 +89,24 @@ The first Director Optimize pass uses deterministic simulated annealing over bou
 
 This is not magic mastering. It is an audio-director assistant that turns professional target judgment into measurable constraints.
 
+## Repair Map Loop
+
+The second production-director pass turns Studio Polish into an ordered repair map instead of a bag of sliders.
+
+Research decisions:
+
+- RX Mouth De-click warns that higher sensitivity can damage plosives or the original signal, and notes that two passes can outperform one heavy pass. VoiceForge therefore exposes mouth repair as a staged decision and runs severe cases as two lighter passes.
+- RX De-plosive recommends detecting plosives before high-pass filtering because plosive detection depends on very low-frequency energy. VoiceForge keeps De-plosive before HPF in both documentation and DSP order.
+- FabFilter Pro-DS documents lookahead for catching the start of sibilance while preserving natural consonants. VoiceForge now uses a bounded lookahead path for de-ess when the source is sibilant enough to need it.
+- Vocal EQ practice separates fundamental/body, vowels, nasal range, presence, sibilance, and air. VoiceForge reflects that as tone surgery instead of one generic "brightness" control.
+
+Implementation response:
+
+- `analyzeStudioVoice()` now returns `repairMap.steps`, `topIssue`, `nextAction`, and `overprocessRisks`.
+- `buildStudioPolishPlan()` stores the target-aware repair map with the plan, so UI, exports, and project snapshots can explain why a chain was chosen.
+- The Guided Studio surface shows the repair queue before low-level parameter details.
+- Export ZIP research notes and `analysis.json` include repair-map evidence.
+
 ## Verification Notes
 
 2026-07-03 local verification covered the new production-target and Director Optimize flow.
@@ -100,7 +118,9 @@ This is not magic mastering. It is an audio-director assistant that turns profes
 - Chrome verified generated source -> analyze -> polish -> full render with `Kawaii / Anime` target and Director Optimize checked.
 - Chrome download clicks generated real local files for WAV, WebM Opus, and ZIP in the Windows Downloads folder. The Chrome automation download event did not fire, so OS file presence is the reliable verification signal here.
 - Computer Use bootstrap currently fails before app inspection with the bundled `@oai/sky` package export error; Browser and Chrome remain the usable GUI verification surfaces until that runtime is fixed.
+- The repair-map loop was verified in the in-app Browser with generated source, Talk Radio target, and Render Polish. The UI showed ordered repair steps such as Mouth De-click, Room Noise, Tone Surgery, and Production Target, and WAV/WebM/ZIP became enabled after render.
 
 Open follow-up:
 
 - Local private WebM decoding is still blocked by the lack of `ffmpeg` or an equivalent local decoder in this workspace. Browser upload should be retried after Chrome extension file access is available, or a Node/browser-side decode fixture should be added without committing the private sample.
+- The in-app Browser runtime also blocks page `import()` and `fetch()` inside evaluation, so it cannot currently decode `tests/data/konichiwabokunonamaewayamadatarodesu.webm` through a test-only eval path. A proper local fixture runner or Chrome file-access fix is the next path for private-sample regression.

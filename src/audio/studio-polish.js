@@ -75,6 +75,57 @@ export const STUDIO_PRODUCTION_TARGETS = Object.freeze([
 
 const DEFAULT_TARGET = STUDIO_PRODUCTION_TARGETS[0];
 
+const REPAIR_STAGE_COPY = Object.freeze({
+  input: {
+    label: "Input Gain",
+    why: "Set speech level and headroom before compression or character gain.",
+    action: "Trim or lift before repair",
+    overuseRisk: "Too much input gain makes every later detector overreact."
+  },
+  deplosive: {
+    label: "De-plosive",
+    why: "Reduce low-frequency air bursts before high-pass filtering hides their detector cue.",
+    action: "Catch P/B/T/K thumps first",
+    overuseRisk: "Heavy reduction can thin chest tone and weaken consonant impact."
+  },
+  mouth: {
+    label: "Mouth De-click",
+    why: "Smooth short lip-smack and saliva transients before compression raises them.",
+    action: "Prefer two light passes",
+    overuseRisk: "Too much click repair can shave consonants and make speech lisp-like."
+  },
+  noise: {
+    label: "Room Noise",
+    why: "Lower steady noise before leveler/compressor brings it forward.",
+    action: "Gentle floor-aware gating",
+    overuseRisk: "Aggressive noise work causes pumping, gating, or watery tails."
+  },
+  tone: {
+    label: "Tone Surgery",
+    why: "Separate mud, nasal congestion, harsh presence, and brightness from the character macro.",
+    action: "Small dynamic-EQ style cuts",
+    overuseRisk: "Broad cuts can remove body, vowel clarity, or air."
+  },
+  deess: {
+    label: "De-ess",
+    why: "Catch sibilance after tone shaping but before final compression and air.",
+    action: "Lookahead high-band control",
+    overuseRisk: "Too much de-ess makes speech dull or wet-lisped."
+  },
+  level: {
+    label: "Level / Dynamics",
+    why: "Even out delivery for podcast/radio comfort before export limiting.",
+    action: "Leveler then compressor",
+    overuseRisk: "Over-compression makes the voice flat, loud, and fatiguing."
+  },
+  target: {
+    label: "Production Target",
+    why: "Match the intended podcast, radio, ikemen, or kawaii target without breaking source identity.",
+    action: "Bounded director optimization",
+    overuseRisk: "Target chasing can over-brighten, over-darken, or force the wrong body size."
+  }
+});
+
 export function studioPolishIntensityById(id) {
   return STUDIO_POLISH_INTENSITIES.find((item) => item.id === id) || DEFAULT_INTENSITY;
 }
@@ -120,6 +171,46 @@ export function analyzeStudioVoice(input, sampleRate) {
     harsh,
     brightnessProblem
   });
+  const problemScores = {
+    level: levelScore,
+    noise: noiseScore,
+    mouthClick,
+    plosive,
+    sibilance,
+    mud,
+    nasal,
+    harsh,
+    brightness: brightnessProblem
+  };
+  const items = studioAnalysisItems({
+    base,
+    noiseFloorDb: linToDb(noiseFloor),
+    activeRatio,
+    dynamicRangeDb,
+    band,
+    levelScore,
+    noiseScore,
+    mouthClick,
+    plosive,
+    sibilance,
+    mud,
+    nasal,
+    harsh,
+    brightnessProblem
+  });
+  const repairMap = buildStudioRepairMap({
+    status: score >= 86 ? "ready" : score >= 68 ? "polish" : "repair",
+    score,
+    rmsDb: base.rmsDb,
+    peakDb: base.peakDb,
+    noiseFloorDb: linToDb(noiseFloor),
+    loudnessProxyDb: base.rmsDb + clamp(activeRatio - 0.55, -0.18, 0.18) * 4,
+    brightnessRatio: base.brightnessRatio,
+    dynamicRangeDb,
+    band,
+    problemScores,
+    items
+  });
   return {
     ...base,
     status: score >= 86 ? "ready" : score >= 68 ? "polish" : "repair",
@@ -131,39 +222,52 @@ export function analyzeStudioVoice(input, sampleRate) {
     loudnessProxyDb: base.rmsDb + clamp(activeRatio - 0.55, -0.18, 0.18) * 4,
     dynamicRangeDb,
     band,
-    problemScores: {
-      level: levelScore,
-      noise: noiseScore,
-      mouthClick,
-      plosive,
-      sibilance,
-      mud,
-      nasal,
-      harsh,
-      brightness: brightnessProblem
-    },
-    items: studioAnalysisItems({
-      base,
-      noiseFloorDb: linToDb(noiseFloor),
-      activeRatio,
-      dynamicRangeDb,
-      band,
-      levelScore,
-      noiseScore,
-      mouthClick,
-      plosive,
-      sibilance,
-      mud,
-      nasal,
-      harsh,
-      brightnessProblem
-    })
+    problemScores,
+    items,
+    repairMap
+  };
+}
+
+export function buildStudioRepairMap(analysis, targetId = "podcast") {
+  const target = studioProductionTargetById(targetId);
+  const scores = analysis?.problemScores || {};
+  const band = analysis?.band || {};
+  const toneRisk = Math.max(scores.mud || 0, scores.nasal || 0, scores.harsh || 0, scores.brightness || 0);
+  const targetRisk = productionTargetRisk(analysis, target);
+  const steps = [
+    repairStep(1, "input", scores.level || 0, levelRepairValue(analysis), REPAIR_STAGE_COPY.input),
+    repairStep(2, "deplosive", scores.plosive || 0, `${Math.round(scores.plosive || 0)} risk`, REPAIR_STAGE_COPY.deplosive),
+    repairStep(3, "mouth", scores.mouthClick || 0, `${Math.round(scores.mouthClick || 0)} risk`, REPAIR_STAGE_COPY.mouth),
+    repairStep(4, "noise", scores.noise || 0, noiseRepairValue(analysis), REPAIR_STAGE_COPY.noise),
+    repairStep(5, "tone", toneRisk, toneRepairValue(scores, band), REPAIR_STAGE_COPY.tone),
+    repairStep(6, "deess", scores.sibilance || 0, `${Math.round((band.sibilanceRatio || 0) * 100)}% high`, REPAIR_STAGE_COPY.deess),
+    repairStep(7, "level", clamp((Number(analysis?.dynamicRangeDb || 0) - 14) * 5, 0, 100), `${Number(analysis?.dynamicRangeDb || 0).toFixed(1)} dB`, REPAIR_STAGE_COPY.level),
+    repairStep(8, "target", targetRisk, target.label, REPAIR_STAGE_COPY.target)
+  ];
+  const active = steps.filter((step) => step.status !== "ready");
+  const top = active.slice().sort((a, b) => b.risk - a.risk || a.order - b.order)[0] || steps[0];
+  const score = steps.length
+    ? Math.round(steps.reduce((sum, step) => sum + step.score, 0) / steps.length)
+    : 0;
+  return {
+    target: { id: target.id, label: target.label },
+    status: score >= 86 ? "ready" : score >= 68 ? "polish" : "repair",
+    score,
+    topIssue: top ? { id: top.id, label: top.label, status: top.status, risk: top.risk } : null,
+    nextAction: active[0] ? { id: active[0].id, label: active[0].label, action: active[0].action } : null,
+    steps,
+    overprocessRisks: active.slice(0, 4).map((step) => ({
+      id: step.id,
+      label: step.label,
+      risk: step.overuseRisk
+    }))
   };
 }
 
 export function buildStudioPolishPlan(analysis, intensityId = "standard", targetId = "podcast") {
   const intensity = studioPolishIntensityById(intensityId);
   const target = studioProductionTargetById(targetId);
+  const repairMap = buildStudioRepairMap(analysis, target.id);
   const f = intensity.factor;
   const scores = analysis.problemScores || {};
   const lowPitch = Number(analysis.pitchMedianHz || 0) > 0 && analysis.pitchMedianHz < 125;
@@ -184,17 +288,20 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard", target
     intensity: intensity.id,
     label: `Studio Polish ${intensity.label}`,
     target: { id: target.id, label: target.label },
+    repairMap,
     targetRmsDb,
     stages: {
       inputGainDb: clamp((analysis.rmsDb < -34 ? 4 : 0) - (analysis.peakDb > -2 ? 3 : 0), -6, 6),
       deplosive: clamp(((scores.plosive || 0) - 8) * 1.15 * f, 0, 100),
       mouthClick: clamp(((scores.mouthClick || 0) - 7) * 1.18 * f, 0, 100),
+      mouthClickPasses: (scores.mouthClick || 0) > 48 ? 2 : 1,
       noiseReduction: clamp(((scores.noise || 0) - 6) * 0.92 * f, 0, 72),
       highPassHz,
       mudDb: -clamp(((scores.mud || 0) - 8) * 0.072 * f, 0, 5.5),
       nasalDb: -clamp(((scores.nasal || 0) - 8) * 0.068 * f, 0, 4.8),
       harshDb: -clamp(((scores.harsh || 0) - 8) * 0.058 * f, 0, 4.8),
       deEss: clamp((scores.sibilance || 0) * 0.9 * f + (scores.harsh || 0) * 0.22 * f, 0, 82),
+      deEssLookaheadMs: (scores.sibilance || 0) > 16 ? 8 : 0,
       leveler: clamp(22 + Math.max(0, analysis.dynamicRangeDb - 13) * 2.4 + f * 24 + target.compressionBias * 0.45, 12, 78),
       compression: clamp(20 + Math.max(0, analysis.dynamicRangeDb - 12) * 1.5 + f * 20 + target.compressionBias, 12, 78),
       presenceDb: clamp((analysis.brightnessRatio < 0.18 ? 1.2 : analysis.brightnessRatio > 0.36 ? -0.65 : 0.4) * f - Math.max(0, scores.harsh || 0) * 0.01 + target.presenceBias, -1.8, 3.2),
@@ -357,6 +464,56 @@ function item(id, label, score, value, detail) {
   };
 }
 
+function repairStep(order, id, risk, value, copy) {
+  const bounded = clamp(risk, 0, 100);
+  return {
+    order,
+    id,
+    label: copy.label,
+    status: bounded < 18 ? "ready" : bounded < 48 ? "polish" : "repair",
+    risk: Math.round(bounded),
+    score: Math.round(100 - bounded),
+    value,
+    why: copy.why,
+    action: copy.action,
+    overuseRisk: copy.overuseRisk
+  };
+}
+
+function levelRepairValue(analysis = {}) {
+  return `${formatDb(analysis.rmsDb)} RMS / ${formatDb(analysis.peakDb)} peak`;
+}
+
+function noiseRepairValue(analysis = {}) {
+  return `${formatDb(analysis.noiseFloorDb)} floor`;
+}
+
+function toneRepairValue(scores = {}, band = {}) {
+  const labels = [];
+  if ((scores.mud || 0) > 16) labels.push(`mud ${Math.round((band.mudRatio || 0) * 100)}%`);
+  if ((scores.nasal || 0) > 16) labels.push(`nasal ${Math.round((band.nasalRatio || 0) * 100)}%`);
+  if ((scores.harsh || 0) > 16) labels.push(`harsh ${Math.round((band.harshRatio || 0) * 100)}%`);
+  if ((scores.brightness || 0) > 16) labels.push("brightness");
+  return labels.length ? labels.join(" / ") : "balanced";
+}
+
+function productionTargetRisk(analysis = {}, target = DEFAULT_TARGET) {
+  const [minBright, maxBright] = target.brightnessRange || DEFAULT_TARGET.brightnessRange;
+  const loudness = Number(analysis.loudnessProxyDb ?? analysis.rmsDb ?? target.targetRmsDb);
+  const bright = Number(analysis.brightnessRatio || 0);
+  const band = analysis.band || {};
+  const loudnessRisk = Math.abs(loudness - target.targetRmsDb) * 7.5;
+  const brightnessRisk = bright < minBright
+    ? (minBright - bright) * 170
+    : bright > maxBright
+      ? (bright - maxBright) * 155
+      : 0;
+  const bandRisk = Object.entries(target.bandLimits || {}).reduce((sum, [key, limit]) => {
+    return sum + Math.max(0, Number(band[key] || 0) - limit) * 180;
+  }, 0);
+  return clamp(loudnessRisk + brightnessRisk + bandRisk, 0, 100);
+}
+
 function toneValue(metrics) {
   const parts = [];
   if (metrics.mud > 16) parts.push("mud");
@@ -400,13 +557,13 @@ function applyStudioPolishPlan(samples, sampleRate, plan) {
   let work = new Float32Array(samples);
   work = applyGain(work, p.inputGainDb);
   work = reducePlosives(work, sampleRate, p.deplosive);
-  work = reduceMouthClicks(work, sampleRate, p.mouthClick);
+  work = reduceMouthClicks(work, sampleRate, p.mouthClick, p.mouthClickPasses);
   work = reduceRoomNoise(work, p.noiseReduction);
   work = applyBiquad(work, sampleRate, "highpass", p.highPassHz, 0.72, 0);
   work = applyBiquad(work, sampleRate, "peaking", 245, 0.9, p.mudDb);
   work = applyBiquad(work, sampleRate, "peaking", 930, 1.05, p.nasalDb);
   work = applyBiquad(work, sampleRate, "peaking", 3300, 1.1, p.harshDb);
-  work = dynamicDeEss(work, sampleRate, p.deEss);
+  work = dynamicDeEss(work, sampleRate, p.deEss, p.deEssLookaheadMs);
   work = speechLeveler(work, p.leveler);
   work = speechCompressor(work, p.compression);
   work = applyBiquad(work, sampleRate, "peaking", 2300, 0.8, p.presenceDb);
@@ -492,6 +649,8 @@ function mutatePlan(plan, target, temperature, rng) {
   p[key] = clamp(p[key] + (rng() * 2 - 1) * step * scale, min, max);
   if (target.id === "ikemen") p.highPassHz = Math.min(p.highPassHz, 112);
   if (target.id === "kawaii") p.highPassHz = Math.max(p.highPassHz, 78);
+  p.mouthClickPasses = p.mouthClick > 48 ? 2 : 1;
+  p.deEssLookaheadMs = p.deEss > 12 ? 8 : 0;
   return out;
 }
 
@@ -520,9 +679,21 @@ function clonePlan(plan) {
   return {
     ...plan,
     target: plan.target ? { ...plan.target } : null,
+    repairMap: plan.repairMap ? cloneRepairMap(plan.repairMap) : null,
     stages: { ...(plan.stages || {}) },
     notes: [...(plan.notes || [])],
     optimization: plan.optimization ? { ...plan.optimization } : undefined
+  };
+}
+
+function cloneRepairMap(map) {
+  return {
+    ...map,
+    target: map.target ? { ...map.target } : null,
+    topIssue: map.topIssue ? { ...map.topIssue } : null,
+    nextAction: map.nextAction ? { ...map.nextAction } : null,
+    steps: (map.steps || []).map((step) => ({ ...step })),
+    overprocessRisks: (map.overprocessRisks || []).map((risk) => ({ ...risk }))
   };
 }
 
@@ -662,9 +833,18 @@ function reducePlosives(input, sampleRate, amountPct) {
   return out;
 }
 
-function reduceMouthClicks(input, sampleRate, amountPct) {
+function reduceMouthClicks(input, sampleRate, amountPct, passCount = 1) {
   const amount = clamp(amountPct / 100, 0, 1);
   if (amount <= 0.001) return input;
+  const passes = passCount >= 2 && amount > 0.32
+    ? [amount * 0.68, amount * 0.32]
+    : [amount];
+  let work = input;
+  for (const passAmount of passes) work = reduceMouthClickPass(work, sampleRate, passAmount);
+  return work;
+}
+
+function reduceMouthClickPass(input, sampleRate, amount) {
   const high = applyBiquad(input, sampleRate, "highpass", 1800, 0.72, 0);
   const out = new Float32Array(input);
   let fast = 0;
@@ -699,14 +879,15 @@ function reduceRoomNoise(input, amountPct) {
   return out;
 }
 
-function dynamicDeEss(input, sampleRate, amountPct) {
+function dynamicDeEss(input, sampleRate, amountPct, lookaheadMs = 0) {
   const amount = clamp(amountPct / 100, 0, 1);
   if (amount <= 0.001) return input;
   const high = applyBiquad(input, sampleRate, "highpass", 5200, 0.72, 0);
   const out = new Float32Array(input.length);
   let env = 0;
+  const lookahead = Math.max(0, Math.min(Math.round(sampleRate * 0.015), Math.round(sampleRate * (lookaheadMs || 0) / 1000)));
   for (let i = 0; i < input.length; i++) {
-    const h = Math.abs(high[i]);
+    const h = Math.abs(high[Math.min(high.length - 1, i + lookahead)]);
     env += (h - env) * (h > env ? 0.16 : 0.006);
     const reduction = clamp((env - 0.018) * 16, 0, 0.72 * amount);
     out[i] = input[i] - high[i] * reduction;

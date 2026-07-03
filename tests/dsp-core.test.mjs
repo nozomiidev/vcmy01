@@ -32,6 +32,7 @@ import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectPa
 import { buildSourceTimeline, cueRegion, nearestCueIdForRegion, sourceTimelineSummary } from "../src/audio/source-timeline.js";
 import {
   analyzeStudioVoice,
+  buildStudioRepairMap,
   buildStudioPolishPlan,
   optimizeStudioPolishPlan,
   processStudioPolish,
@@ -120,6 +121,7 @@ const dirtyStudioAnalysis = analyzeStudioVoice(dirtyStudioSource, sampleRate);
 const studioPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard");
 const studioPolished = processStudioPolish(dirtyStudioSource, sampleRate, studioPolishPlan);
 const kawaiiPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard", "kawaii");
+const kawaiiRepairMap = buildStudioRepairMap(dirtyStudioAnalysis, "kawaii");
 const directorPlan = optimizeStudioPolishPlan(dirtyStudioSource, sampleRate, kawaiiPolishPlan, { target: "kawaii", iterations: 10 });
 const directorPolished = processStudioPolish(dirtyStudioSource, sampleRate, {
   intensity: "standard",
@@ -130,6 +132,12 @@ const directorPolished = processStudioPolish(dirtyStudioSource, sampleRate, {
 assert.equal(studioPolished.samples.length, dirtyStudioSource.length, "studio polish preserves source length");
 assert.equal(studioPolishPlan.stages.highPassHz >= 54, true, "studio polish plan should choose a valid adaptive high-pass");
 assert.equal(kawaiiPolishPlan.target.id, "kawaii", "studio polish should support production targets");
+assert.equal(kawaiiRepairMap.steps[1].id, "deplosive", "repair map should put de-plosive before high-pass/tone work");
+assert.equal(kawaiiRepairMap.steps[2].id, "mouth", "repair map should put mouth de-click before compression");
+assert.ok(kawaiiRepairMap.overprocessRisks.length > 0, "repair map should expose over-processing risks");
+assert.equal(kawaiiPolishPlan.repairMap.target.id, "kawaii", "studio polish plan should retain target-aware repair map");
+assert.ok(kawaiiPolishPlan.stages.mouthClickPasses >= 1 && kawaiiPolishPlan.stages.mouthClickPasses <= 2, "mouth repair should use bounded staged passes");
+assert.ok(kawaiiPolishPlan.stages.deEssLookaheadMs === 0 || kawaiiPolishPlan.stages.deEssLookaheadMs === 8, "de-ess lookahead should be bounded");
 assert.ok(kawaiiPolishPlan.stages.highPassHz >= studioPolishPlan.stages.highPassHz, "kawaii target should lift the cleanup high-pass boundary");
 assert.equal(directorPlan.optimization.enabled, true, "director optimizer should add optimization metadata");
 assert.ok(directorPlan.optimization.scoreAfter >= directorPlan.optimization.scoreBefore - 8, "director optimizer should avoid large objective regressions");
@@ -637,9 +645,11 @@ const exportManifest = buildExportManifest({
   compressed: { blob: { size: 1234 }, mimeType: "audio/webm;codecs=opus" }
 });
 assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest should retain Studio Polish metadata");
+assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
 assert.equal(exportManifest.files.webm.endsWith(".webm"), true, "export manifest should name compressed WebM output");
 assert.equal(renderedBaseName(autoRendered).includes("VoiceForge"), true, "export base name should derive from render name");
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Studio Polish First"), "export research notes should document the polish workflow");
+assert.ok(studioPolishResearchNotes(autoRendered).includes("Repair map:"), "export research notes should include repair-map rationale");
 const memoryStudioPlan = buildStudioPlan({
   hasSource: true,
   sourceFit: mockReadySourceFit,

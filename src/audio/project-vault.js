@@ -235,6 +235,7 @@ function sanitizeSource(source = null, options = {}) {
     sampleRate,
     durationSec: Number.isFinite(durationSec) ? Math.max(0, durationSec) : 0,
     analysis: sanitizeAnalysis(source.analysis),
+    studioAnalysis: sanitizeStudioAnalysis(source.studioAnalysis),
     hasAudio: includeAudio && !!(samples && source.blob),
     samples: includeAudio ? samples : null,
     blob: includeAudio ? source.blob || null : null
@@ -446,7 +447,8 @@ function sanitizeStudioAnalysis(analysis = null) {
     headroomDb: finiteNumber(analysis.headroomDb),
     loudnessProxyDb: finiteNumber(analysis.loudnessProxyDb),
     dynamicRangeDb: finiteNumber(analysis.dynamicRangeDb),
-    problemScores: sanitizeProblemScores(analysis.problemScores)
+    problemScores: sanitizeProblemScores(analysis.problemScores),
+    repairMap: sanitizeRepairMap(analysis.repairMap)
   };
 }
 
@@ -471,6 +473,7 @@ function sanitizeStudioPolish(polish = null) {
       } : null,
       targetRmsDb: finiteNumber(polish.plan.targetRmsDb),
       stages: sanitizeProblemScores(polish.plan.stages),
+      repairMap: sanitizeRepairMap(polish.plan.repairMap),
       optimization: polish.plan.optimization ? {
         enabled: !!polish.plan.optimization.enabled,
         algorithm: cleanText(polish.plan.optimization.algorithm || "", 80),
@@ -488,6 +491,46 @@ function sanitizeStudioPolish(polish = null) {
     } : null,
     inputAnalysis: sanitizeStudioAnalysis(polish.inputAnalysis),
     outputAnalysis: sanitizeStudioAnalysis(polish.outputAnalysis)
+  };
+}
+
+function sanitizeRepairMap(map = null) {
+  if (!map) return null;
+  return {
+    status: cleanText(map.status || "", 32),
+    score: clampScore(map.score),
+    target: map.target ? {
+      id: cleanText(map.target.id || "", 48),
+      label: cleanText(map.target.label || "", 80)
+    } : null,
+    topIssue: map.topIssue ? {
+      id: cleanText(map.topIssue.id || "", 48),
+      label: cleanText(map.topIssue.label || "", 80),
+      status: cleanText(map.topIssue.status || "", 32),
+      risk: clampScore(map.topIssue.risk)
+    } : null,
+    nextAction: map.nextAction ? {
+      id: cleanText(map.nextAction.id || "", 48),
+      label: cleanText(map.nextAction.label || "", 80),
+      action: cleanText(map.nextAction.action || "", 120)
+    } : null,
+    steps: (Array.isArray(map.steps) ? map.steps : []).slice(0, 10).map((step) => ({
+      order: Math.max(0, Number(step.order || 0)),
+      id: cleanText(step.id || "", 48),
+      label: cleanText(step.label || "", 80),
+      status: cleanText(step.status || "", 32),
+      risk: clampScore(step.risk),
+      score: clampScore(step.score),
+      value: cleanText(step.value || "", 80),
+      action: cleanText(step.action || "", 120),
+      why: cleanText(step.why || "", 180),
+      overuseRisk: cleanText(step.overuseRisk || "", 180)
+    })),
+    overprocessRisks: (Array.isArray(map.overprocessRisks) ? map.overprocessRisks : []).slice(0, 6).map((item) => ({
+      id: cleanText(item.id || "", 48),
+      label: cleanText(item.label || "", 80),
+      risk: cleanText(item.risk || "", 180)
+    }))
   };
 }
 

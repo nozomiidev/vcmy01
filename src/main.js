@@ -195,11 +195,13 @@ function renderGuidedStudio() {
     $("studioPolishPatches").innerHTML = "";
     return;
   }
+  const repairMap = plan.repairMap || analysis.repairMap;
+  const repairByCard = new Map((repairMap?.steps || []).map((step) => [studioRepairCardKey(step.id), step]));
   $("studioPolishGrid").innerHTML = analysis.items.map((item) => `
     <div class="studio-polish-card is-${item.status}" data-polish="${item.id}">
       <span>${escapeHtml(item.label)}</span>
       <strong>${escapeHtml(item.value)}</strong>
-      <small>${escapeHtml(item.detail)}</small>
+      <small>${escapeHtml(repairByCard.get(item.id)?.action || item.detail)}</small>
     </div>
   `).join("");
   const stagePills = [
@@ -216,10 +218,24 @@ function renderGuidedStudio() {
     const opt = rendered.studioPolish.plan.optimization;
     stagePills.push(["Director", `${opt.scoreBefore}->${opt.scoreAfter}`]);
   }
+  const repairPills = (repairMap?.steps || [])
+    .filter((step) => step.status !== "ready")
+    .slice(0, 4)
+    .map((step) => [`${String(step.order).padStart(2, "0")} ${step.label}`, step.status]);
   $("studioPolishPatches").innerHTML = [
     ...stagePills.map(([label, value]) => `<span>${escapeHtml(label)} <b>${escapeHtml(value)}</b></span>`),
+    ...repairPills.map(([label, value]) => `<span>${escapeHtml(label)} <b>${escapeHtml(value)}</b></span>`),
     ...plan.notes.slice(0, 3).map((note) => `<span>${escapeHtml(note)} <b>on</b></span>`)
   ].join("");
+}
+
+function studioRepairCardKey(id) {
+  if (id === "input") return "level";
+  if (id === "deplosive") return "plosive";
+  if (id === "deess") return "sibilance";
+  if (id === "level") return "dynamics";
+  if (id === "target") return "tone";
+  return id;
 }
 
 function renderPresets() {
