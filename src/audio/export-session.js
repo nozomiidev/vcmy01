@@ -618,6 +618,20 @@ function compactMicroRepair(timeline = null) {
       type: event.type,
       label: event.label,
       action: event.action,
+      decision: event.decision ? {
+        id: event.decision.id,
+        windowMs: round(event.decision.windowMs, 1),
+        band: event.decision.band,
+        preserve: event.decision.preserve
+      } : null,
+      shape: event.shape ? {
+        method: event.shape.method,
+        widthMs: round(event.shape.widthMs, 2),
+        riseDb: round(event.shape.riseDb, 1),
+        decayDb: round(event.shape.decayDb, 1),
+        focus: round(event.shape.focus, 3),
+        confidence: Math.round(event.shape.confidence || 0)
+      } : null,
       startSec: round(event.startSec, 3),
       endSec: round(event.endSec, 3),
       risk: Math.round(event.risk || 0)

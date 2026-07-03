@@ -550,6 +550,37 @@ https://www.fabfilter.com/help/pro-ds/using/basiccontrols
 https://www.fabfilter.com/help/pro-ds/using/advancedcontrols
 https://rode.com/en-us/about/news-info/a-guide-to-audio-processing-and-fx-for-podcasting
 
+## Multiscale Micro-Repair Loop
+
+The twenty-second production-director pass upgrades mouth/plosive/sibilance repair from point labels into shaped edit decisions. The guiding idea is that a click, lip smack, plosive, and sibilant edge are not the same defect: they differ in width, spectral focus, rise, decay, and the amount of neighboring speech that must be preserved.
+
+Research decisions:
+
+- RX De-click analyzes amplitude irregularities and smoothes them; RX controls such as frequency skew and click widening imply that click class and repair width should be separate decisions.
+- RX Spectral Repair treats selected spectrogram/waveform regions as corrupted audio and repairs them with surrounding information. Browser DSP cannot fully clone spectral inpainting here, but it can at least shape the local repair window from evidence.
+- RX De-plosive separates and reduces plosives while preserving fundamental frequency content and harmonics. That maps to a low-band duck rather than a broad high-pass cut.
+- Community and post-production practice often zooms into waveform/spectral regions and applies local repair only where the defect lives. The software should make the same distinction automatically and conservatively.
+
+Implementation response:
+
+- `buildMicroRepairTimeline()` now enriches each event with `multiscale-pulse-envelope` shape evidence: width, rise, decay, low/mouth/sibilance focus, and confidence.
+- Each event receives a bounded repair decision: `interpolate-impulse`, `attenuate-lip-smack`, `duck-low-burst`, or `split-high-duck`.
+- `applyMicroRepairEvents()` now reads those decisions to size the interpolation/ducking window per event instead of using one fixed repair width.
+- Export manifests retain pulse shapes and repair decisions, keeping the repair pass auditable.
+
+Verification:
+
+- `npm test` passed with shape and repair-decision assertions for micro events and export manifests.
+- `npm run quality` passed 44/0/0 with Studio Polish 4/0/0 and Director Polish 4/0/0.
+- In-app Browser verification with the private Yamada Taro fixture showed `Micro Repair`, `Ride`, `Spectral Fit`, `Kawaii Bright / Safety Guarded`, WAV/WebM/ZIP export actions, and zero console errors.
+
+Sources:
+https://downloads.izotope.com/docs/rx6/21-de-click/index.html
+https://s3.amazonaws.com/izotopedownloads/docs/rx8/en/mouth-de-click/index.html
+https://downloads.izotope.com/docs/rx6/35-spectral-repair/index.html
+https://s3.amazonaws.com/izotopedownloads/docs/rx700/en/de-plosive/index.html
+https://www.izotope.com/community/blog/removing-plosives-from-a-voice-recording
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

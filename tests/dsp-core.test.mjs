@@ -179,6 +179,8 @@ const directorPolished = processStudioPolish(dirtyStudioSource, sampleRate, {
 });
 assert.equal(studioPolished.samples.length, dirtyStudioSource.length, "studio polish preserves source length");
 assert.ok(dirtyMicroRepair.eventCount > 0, "micro repair should detect local artifact events");
+assert.equal(dirtyMicroRepair.topEvent.shape.method, "multiscale-pulse-envelope", "micro repair should expose pulse-shape evidence");
+assert.ok(dirtyMicroRepair.topEvent.decision.windowMs > 0, "micro repair should expose bounded repair-window decisions");
 assert.ok(dirtyStudioAnalysis.spectral.centroidHz > 0, "studio analysis should retain FFT tone map");
 assert.ok(Number.isFinite(dirtyStudioAnalysis.integratedLufs), "studio analysis should retain loudness metadata");
 assert.ok(Number.isFinite(dirtyStudioAnalysis.truePeakDb), "studio analysis should retain true-peak metadata");
@@ -792,6 +794,8 @@ const exportManifest = buildExportManifest({
 assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest should retain Studio Polish metadata");
 assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
 assert.equal(exportManifest.render.studioPolish.microRepair.eventCount >= 0, true, "export manifest should retain micro-repair metadata");
+assert.ok(exportManifest.render.studioPolish.microRepair.events.every((event) => event.shape?.method === "multiscale-pulse-envelope"), "export manifest should retain micro-repair pulse shapes");
+assert.ok(exportManifest.render.studioPolish.microRepair.events.every((event) => event.decision?.windowMs > 0), "export manifest should retain micro-repair repair decisions");
 assert.ok(exportManifest.render.studioPolish.toneSurgery.bands.some((band) => band.id === "nasal"), "export manifest should retain tone-surgery metadata");
 assert.ok(exportManifest.render.studioPolish.toneSurgery.bands.some((band) => band.perceptual?.salience >= 0), "export manifest should retain perceptual tone-surgery evidence");
 assert.equal(exportManifest.render.studioPolish.roomShaper.roomTonePolicy, "attenuate, never hard-mute", "export manifest should retain room-floor metadata");
