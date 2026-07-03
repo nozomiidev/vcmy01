@@ -438,6 +438,32 @@ https://speechprocessingbook.aalto.fi/Representations/Pitch-Synchoronous_Overlap
 https://www.surina.net/soundtouch/README.html
 https://github.com/audacity/audacity/discussions/1524
 
+## Realtime Worklet Pitch Sync Loop
+
+The eighteenth production-director pass applies the same anti-breakage idea to live monitoring. The offline renderer can afford YIN/LPC-style analysis; the AudioWorklet cannot. Real-time voice change must keep the render callback short, avoid allocations, and avoid heavy search.
+
+Research decisions:
+
+- AudioWorklet code runs on the audio rendering thread, so pitch quality improvements must be bounded and allocation-light.
+- WSOLA/PSOLA principles still matter in real time, but the browser live path should first use cheap voiced-period tracking rather than full pitch marking or FFT search.
+- The worklet should preserve continuity first: normalized overlapping delay taps and better interpolation are safer than aggressive retuning.
+
+Implementation response:
+
+- `VoiceForgeProcessor` now tracks positive zero-crossing intervals during voiced segments and smooths them into a live `pitchPeriod`.
+- Live pitch and formant windows use the smoothed period when confidence is plausible, falling back to fixed windows otherwise.
+- Worklet delay reads now use cubic interpolation and normalized dual-window mixing, matching the offline shifter's artifact-reduction direction.
+
+Verification:
+
+- `node --check src/audio/worklet.js`, `npm test`, and `npm run quality` passed.
+- In-app Browser private-fixture page load still showed `DSP ready`, the Live tab, no console errors, and the offline WAV/WebM/ZIP flow intact. Microphone permission was not triggered during this pass.
+
+Sources:
+https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletProcessor/process
+https://www.isca-archive.org/eurospeech_1993/roelands93_eurospeech.html
+https://www.surina.net/soundtouch/README.html
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

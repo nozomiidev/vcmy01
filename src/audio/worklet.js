@@ -17,6 +17,9 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
     this.highEnv = 0;
     this.gateGain = 1;
     this.rphase = 0;
+    this.lastSign = 0;
+    this.lastCrossFrame = -1;
+    this.pitchPeriod = 0;
     this.seed = 999;
     this.noiseHp = 0;
     this.lastNoise = 0;
@@ -53,9 +56,41 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
     const index = write - 4 - delay;
     const i0 = Math.floor(index);
     const frac = index - i0;
-    const a = buf[i0 & this.mask] || 0;
-    const b = buf[(i0 + 1) & this.mask] || 0;
-    return a + (b - a) * frac;
+    const y0 = buf[(i0 - 1) & this.mask] || 0;
+    const y1 = buf[i0 & this.mask] || 0;
+    const y2 = buf[(i0 + 1) & this.mask] || 0;
+    const y3 = buf[(i0 + 2) & this.mask] || 0;
+    const a0 = y3 - y2 - y0 + y1;
+    const a1 = y0 - y1 - a0;
+    const a2 = y2 - y0;
+    return a0 * frac * frac * frac + a1 * frac * frac + a2 * frac + y1;
+  }
+
+  windowSize(seconds, ratio, shortWindow = false) {
+    const requested = Math.max(shortWindow ? 96 : 192, Math.round(sampleRate * seconds));
+    if (!this.pitchPeriod || this.env < 0.003) return requested;
+    const periods = shortWindow
+      ? clamp(3.4 + Math.abs(Math.log2(ratio || 1)) * 1.4, 3.2, 5.2)
+      : clamp(5.8 + Math.abs(Math.log2(ratio || 1)) * 1.6, 5.2, 8.5);
+    const min = sampleRate * (shortWindow ? 0.014 : 0.028);
+    const max = sampleRate * (shortWindow ? 0.052 : 0.105);
+    return Math.round(clamp(this.pitchPeriod * periods, min, max));
+  }
+
+  updatePitchPeriod(sample, frameIndex) {
+    const sign = sample >= 0 ? 1 : -1;
+    if (this.lastSign < 0 && sign >= 0 && this.env > 0.0035) {
+      const period = this.lastCrossFrame >= 0 ? frameIndex - this.lastCrossFrame : 0;
+      const minPeriod = sampleRate / 520;
+      const maxPeriod = sampleRate / 65;
+      if (period >= minPeriod && period <= maxPeriod) {
+        this.pitchPeriod = this.pitchPeriod
+          ? this.pitchPeriod + (period - this.pitchPeriod) * 0.14
+          : period;
+      }
+      this.lastCrossFrame = frameIndex;
+    }
+    this.lastSign = sign;
   }
 
   process(inputs, outputs) {
@@ -63,8 +98,8 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
     const out = outputs[0] && outputs[0][0];
     if (!out) return true;
     const p = this.params;
-    const win = Math.max(192, Math.round(sampleRate * 0.085));
-    const fwin = Math.max(96, Math.round(sampleRate * 0.024));
+    const win = this.windowSize(0.085, p.pitch, false);
+    const fwin = this.windowSize(0.024, p.formant, true);
     const fstep = 1 - p.formant;
     const ringInc = 2 * Math.PI * (42 + p.robot * 110 + p.creature * 22) / sampleRate;
     const lpCoeff = Math.exp(-2 * Math.PI * 2600 / sampleRate);
@@ -74,6 +109,7 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       const dry = s;
       const abs = Math.abs(s);
       this.env = abs > this.env ? this.env + (abs - this.env) * 0.2 : this.env * 0.996;
+      this.updatePitchPeriod(dry, currentFrame + i);
       this.fast += (abs - this.fast) * (abs > this.fast ? 0.08 : 0.014);
       this.slow += (abs - this.slow) * 0.0012;
       this.dryLp = (1 - lpCoeff) * dry + lpCoeff * this.dryLp;
@@ -109,8 +145,9 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       if (this.phase < 0) this.phase += win;
       const d1 = this.phase;
       const d2 = (d1 + win / 2) % win;
-      let y = this.read(this.buf, this.w, d1) * Math.sin(Math.PI * d1 / win) +
-        this.read(this.buf, this.w, d2) * Math.sin(Math.PI * d2 / win);
+      const g1 = Math.sin(Math.PI * d1 / win);
+      const g2 = Math.sin(Math.PI * d2 / win);
+      let y = (this.read(this.buf, this.w, d1) * g1 + this.read(this.buf, this.w, d2) * g2) / Math.max(0.4, g1 + g2);
 
       this.fbuf[this.fw & this.mask] = y;
       this.fw++;
@@ -119,8 +156,9 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       if (this.fphase < 0) this.fphase += fwin;
       const e1 = this.fphase;
       const e2 = (e1 + fwin / 2) % fwin;
-      y = this.read(this.fbuf, this.fw, e1) * Math.sin(Math.PI * e1 / fwin) +
-        this.read(this.fbuf, this.fw, e2) * Math.sin(Math.PI * e2 / fwin);
+      const fg1 = Math.sin(Math.PI * e1 / fwin);
+      const fg2 = Math.sin(Math.PI * e2 / fwin);
+      y = (this.read(this.fbuf, this.fw, e1) * fg1 + this.read(this.fbuf, this.fw, e2) * fg2) / Math.max(0.4, fg1 + fg2);
 
       const clarity = Math.max(0, Math.min(0.38,
         p.presence * 0.35 +
@@ -223,4 +261,8 @@ registerProcessor("voiceforge-recorder", VoiceForgeRecorder);
 function smoothstep(edge0, edge1, value) {
   const x = Math.max(0, Math.min(1, (value - edge0) / Math.max(1e-9, edge1 - edge0)));
   return x * x * (3 - 2 * x);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
