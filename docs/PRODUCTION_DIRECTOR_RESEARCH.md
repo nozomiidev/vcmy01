@@ -814,6 +814,7 @@ Implementation response:
 - Keeper Refinement now maps Comfort issue IDs to targeted repair moves, so micro-events, sibilance/harshness, nasal focus, mud, loudness, and dynamics do not all receive the same generic safety patch.
 - QC-held Keeper Refinement now displays Safety/Comfort repair moves before target/script nuance, so the patch list matches the actual production priority.
 - After a QC repair patch is applied, Studio Plan now routes to `Preview QC Fix` instead of variants, because the old render-deck evidence is stale until the repaired settings are heard.
+- Take Decision now ranks blocked risk candidates with extra QC-gate weight, so a partially repaired preview can outrank an older but more script-matched broken render.
 - Export `analysis.json` and Project Vault snapshots now retain compact Take Decision evidence, including the QC-held candidate, blocker/check lists, and blocked deck count.
 - ZIP exports now include `take-decision-notes.md`, so the keeper/QC-hold decision is readable without digging through JSON.
 - Unit tests now cover safer-take selection, all-risk candidate hold, QC evidence cards, and Studio Plan routing.

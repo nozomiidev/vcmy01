@@ -1076,6 +1076,21 @@ const allRiskDecision = rankRenderDeckTakes([
 ], offline.source, kawaiiSpark);
 assert.equal(allRiskDecision.winnerId, null, "take decision should hold keeper selection when every take fails QC");
 assert.equal(allRiskDecision.candidateId, "only-risk", "take decision should still expose the best QC candidate for repair");
+const betterRiskReview = {
+  ...qcBlockedReview,
+  score: 88,
+  comfort: { status: "risk", score: 54, reasons: ["micro"], issues: [], detail: "Still risky, but less fatiguing." }
+};
+const worseRiskReview = {
+  ...qcBlockedReview,
+  score: 84,
+  comfort: { status: "risk", score: 15, reasons: ["micro", "sibilance"], issues: [], detail: "Very fatiguing." }
+};
+const riskProgressDecision = rankRenderDeckTakes([
+  { id: "worse-risk", title: "Worse Risk", target: kawaiiSpark.name, mode: "Full", rendered: variantPreview, review: worseRiskReview },
+  { id: "better-risk", title: "Better Risk", target: kawaiiSpark.name, mode: "Preview", rendered: variantPreview, review: betterRiskReview }
+], offline.source, kawaiiSpark);
+assert.equal(riskProgressDecision.candidateId, "better-risk", "take decision should prefer the QC-improved candidate while every take is still blocked");
 const qcRefinement = buildKeeperRefinement(allRiskDecision, kawaii, kawaiiSpark);
 assert.ok(qcRefinement.patch.length > 0, "QC-held candidates should produce repair moves before keeper lock");
 assert.ok(["Safety", "Comfort"].some((label) => qcRefinement.patch[0].group.includes(label)), "QC-held candidate patches should show safety/comfort repairs before performance tweaks");

@@ -70,7 +70,9 @@ function scoreTake(item, deckIndex, source, target, weights, options) {
     safetyScore * weights.safety +
     variantScore * weights.variant
   );
-  const score = Math.min(weightedScore, QC_SCORE_CAPS[qc.status] ?? QC_SCORE_CAPS.risk);
+  const score = qc.status === "risk"
+    ? Math.min(QC_SCORE_CAPS.risk, clampScore(weightedScore * 0.58 + qc.score * 0.42))
+    : Math.min(weightedScore, QC_SCORE_CAPS[qc.status] ?? QC_SCORE_CAPS.risk);
 
   const label = audition?.label || item.title || `Take ${deckIndex + 1}`;
   const status = decisionStatus(score);
