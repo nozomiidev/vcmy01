@@ -739,6 +739,7 @@ https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/de
 - Loudness Mastering was verified in the in-app Browser through the static deep link `?audio=/tests/data/konichiwabokunonamaewayamadatarodesu.webm&target=kawaii&polish=standard&director=1&render=full`. The source showed `-24.0 LUFS / -5.8 dBTP`, final mastering showed `+6.8 dB -> -19.2 LUFS`, and the render showed `-19.2 LUFS / -1.6 dBTP` with WAV/WebM/ZIP controls enabled.
 - Room Floor Shaping was verified through the same private-fixture deep link. The rendered metric card showed `Room Floor -58 dB / -3 dB`, while Tone Surgery, Master Gain, Render Loudness, Render True Peak, and WAV/WebM/ZIP export readiness remained visible.
 - Render Performance Observability was verified through the same private-fixture deep link. The render deck exposed `Render Speed RT 2.7x`, WAV/WebM/ZIP controls stayed enabled, Character Safety remained guarded, and the in-app Browser reported zero console errors.
+- Render Budget Direction was verified through the same private-fixture deep link after the performance-budget pass. The render deck exposed `83% RISK` and `Render Speed RT 2.3x`, the slow-render recommendation was present in the page text, WAV/WebM/ZIP controls stayed enabled, and the in-app Browser reported zero console errors. The top Studio Plan action remained `Save Project` because project capture has higher workflow precedence than another preview.
 
 ## Render Performance Observability Loop
 
@@ -760,6 +761,29 @@ Sources:
 https://developer.mozilla.org/en-US/docs/Web/API/Performance/now
 https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/High_precision_timing
 https://www.w3.org/TR/hr-time-3/
+
+## Render Budget Direction Loop
+
+The follow-up pass turns timing measurement into product direction. The browser verification showed a full private-fixture render at `RT 2.7x`, which is useful audio evidence but a poor interaction loop for exploration. A studio should let the user iterate on short cues, variants, and stack slices before committing to a full keeper render.
+
+Research decisions:
+
+- MDN describes Web Workers as a way to run laborious processing away from the main UI thread, keeping the interface responsive. VoiceForge is not workerized yet, so the current product must steer slow cases toward short previews.
+- MDN AudioWorklet guidance exists for real-time custom processing off the main thread, but offline Studio Polish currently runs inside the app flow. That makes render budget visible UI evidence, not just a hidden debug metric.
+- `requestIdleCallback()` and off-main-thread guidance support the broader next architecture: schedule non-critical work cooperatively and move heavier render/audition batches away from the UI path where possible.
+
+Implementation response:
+
+- `renderReview()` now builds a `performanceBudget` with status, score, realtime factor, recommendation, and detail.
+- Render review status is downgraded when the performance budget is risky, because a take that is too slow to iterate should move back to short-preview work before more full renders. Comfort risk remains visible and still feeds the Effect Stack cleanup route.
+- `buildStudioPlan()` uses slow full-render evidence to recommend `Use Short Preview` before additional variants or keeper decisions.
+- Export manifests retain the review performance budget so QA can connect a render's audible result with its browser cost.
+
+Sources:
+https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API
+https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
+https://web.dev/articles/off-main-thread
+https://web.dev/articles/profiling-web-audio-apps-in-chrome
 
 Open follow-up:
 

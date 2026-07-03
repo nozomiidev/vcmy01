@@ -409,19 +409,25 @@ function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount) 
       action: { id: "preview-region", label: "Preview Region" }
     });
   }
+  const performanceBudget = review.performanceBudget || null;
+  const slowRender = performanceBudget?.status === "risk";
   return step({
     id: "audition",
     label: "Audition",
     status: review.status,
     score: review.score,
     summary: `${review.score}% ${labelForStatus(review.status)}`,
-    detail: renderDeckCount > 1
+    detail: slowRender
+      ? performanceBudget.detail
+      : renderDeckCount > 1
       ? "Multiple takes are ready for comparison."
       : auditionVariantCount
         ? `${auditionVariantCount} audition variants can test nearby character directions.`
         : "One take is ready; another take improves choice.",
-    action: review.status !== "ready" || renderDeckCount < 2
-      ? auditionVariantCount && renderDeckCount
+    action: slowRender
+      ? { id: "preview-region", label: "Use Short Preview" }
+      : review.status !== "ready" || renderDeckCount < 2
+        ? auditionVariantCount && renderDeckCount
         ? { id: "render-variants", label: "Render Variants" }
         : { id: "preview-region", label: renderDeckCount ? "Add Another Take" : "Preview Region" }
       : null

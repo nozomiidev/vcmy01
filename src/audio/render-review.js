@@ -15,6 +15,7 @@ export function renderReview(source = null, rendered = null) {
   const guardrail = guardrailRisk(rendered.appliedParams || rendered.baseParams || {});
   const characterSafety = rendered.characterSafety || null;
   const comfort = listeningComfortReview(sourceAnalysis, renderAnalysis, rendered.studioAnalysis, rendered.mastering);
+  const performanceBudget = renderPerformanceBudget(rendered.performance);
   const score = reviewScore({
     clipped: renderAnalysis.clipped,
     peakDb: renderAnalysis.peakDb,
@@ -24,8 +25,10 @@ export function renderReview(source = null, rendered = null) {
     zcrDelta,
     guardrailRisk: guardrail.score,
     characterSafetyScore: characterSafety?.score,
-    comfortScore: comfort.score
+    comfortScore: comfort.score,
+    performanceScore: performanceBudget?.score
   });
+  const status = combinedReviewStatus(score, performanceBudget?.status);
   const items = [
     {
       id: "f0",
@@ -69,7 +72,7 @@ export function renderReview(source = null, rendered = null) {
       id: "performance",
       label: "Render Speed",
       value: `RT ${formatRatio(rendered.performance.realtimeFactor)}x`,
-      detail: `${formatMs(rendered.performance.elapsedMs)} for ${formatSeconds(rendered.performance.renderedSeconds)} of ${rendered.performance.mode || "audio"} render.`
+      detail: `${formatMs(rendered.performance.elapsedMs)} for ${formatSeconds(rendered.performance.renderedSeconds)} of ${rendered.performance.mode || "audio"} render. ${performanceBudget.detail}`
     });
   }
   if (guardrail.score > 0) {
@@ -96,9 +99,37 @@ export function renderReview(source = null, rendered = null) {
   );
   return {
     score,
-    status: score >= 86 ? "ready" : score >= 70 ? "check" : "risk",
+    status,
     comfort,
+    performanceBudget,
     items
+  };
+}
+
+export function renderPerformanceBudget(performance = null) {
+  if (!performance) return null;
+  const factor = Number(performance.realtimeFactor);
+  const elapsedMs = Number(performance.elapsedMs);
+  const renderedSeconds = Number(performance.renderedSeconds);
+  const boundedFactor = Number.isFinite(factor) ? Math.max(0, factor) : 99;
+  const score = Math.round(Math.max(0, Math.min(100, 104 - boundedFactor * 32)));
+  const status = boundedFactor <= 0.85 ? "ready" : boundedFactor <= 1.45 ? "check" : "risk";
+  return {
+    status,
+    score,
+    realtimeFactor: round(boundedFactor, 3),
+    elapsedMs: Number.isFinite(elapsedMs) ? round(elapsedMs, 2) : 0,
+    renderedSeconds: Number.isFinite(renderedSeconds) ? round(renderedSeconds, 3) : 0,
+    recommendation: status === "risk"
+      ? "short-preview-first"
+      : status === "check"
+        ? "preview-before-full"
+        : "full-render-ok",
+    detail: status === "risk"
+      ? "Full renders are slower than realtime; use short previews and reserve full renders for keeper candidates."
+      : status === "check"
+        ? "Full renders are near realtime; preview before variant/deck rendering."
+        : "Render is comfortably faster than realtime."
   };
 }
 
@@ -181,7 +212,17 @@ function reviewScore(metrics) {
   if (Number.isFinite(metrics.comfortScore) && metrics.comfortScore < 62) {
     score -= Math.min(8, (62 - metrics.comfortScore) * 0.24);
   }
+  if (Number.isFinite(metrics.performanceScore) && metrics.performanceScore < 62) {
+    score -= Math.min(10, (62 - metrics.performanceScore) * 0.28);
+  }
   return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function combinedReviewStatus(score, performanceStatus) {
+  const base = score >= 86 ? "ready" : score >= 70 ? "check" : "risk";
+  if (base === "risk" || performanceStatus === "risk") return "risk";
+  if (base === "check" || performanceStatus === "check") return "check";
+  return "ready";
 }
 
 function addPenalty(penalties, id, penalty, reason) {
@@ -232,6 +273,12 @@ function signedPercent(value) {
 function signedNumber(value, unit = "") {
   if (Math.abs(value) < 1) return `0${unit}`;
   return `${value > 0 ? "+" : ""}${Math.round(value)}${unit}`;
+}
+
+function round(value, digits = 2) {
+  if (!Number.isFinite(value)) return 0;
+  const scale = 10 ** digits;
+  return Math.round(value * scale) / scale;
 }
 
 function formatRatio(value) {

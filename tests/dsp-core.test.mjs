@@ -17,7 +17,7 @@ import {
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
 import { livePolishedParams } from "../src/audio/engine.js";
 import { AUDITION_VARIANT_IDS, auditionVariantSummary, buildAuditionVariants } from "../src/audio/audition-variants.js";
-import { addRenderDeckItem, listeningComfortReview, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
+import { addRenderDeckItem, listeningComfortReview, renderPerformanceBudget, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
 import { rankRenderDeckTakes, sourceSamplesForRenderedRegion } from "../src/audio/take-decision.js";
 import { buildKeeperRefinement } from "../src/audio/take-refinement.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
@@ -763,8 +763,18 @@ assert.ok(autoReview.items.some((item) => item.id === "comfort"), "render review
 assert.equal(autoReview.comfort.score, autoComfort.score, "render review should retain the computed listening-comfort score");
 assert.ok(autoReview.comfort.score >= 0 && autoReview.comfort.score <= 100, "listening-comfort score should be bounded");
 assert.ok(autoReview.items.some((item) => item.id === "performance"), "render review should expose offline render performance evidence");
+assert.ok(autoReview.performanceBudget && ["ready", "check", "risk"].includes(autoReview.performanceBudget.status), "render review should include performance-budget status");
 assert.ok(autoReview.items.some((item) => item.id === "studio-polish"), "render review should expose Studio Polish evidence");
 assert.ok(autoReview.items.some((item) => item.id === "character-safety"), "render review should expose character-safety evidence");
+const slowPerformanceBudget = renderPerformanceBudget({ elapsedMs: 23000, renderedSeconds: 7, realtimeFactor: 3.29, mode: "full", stage: "character" });
+assert.equal(slowPerformanceBudget.status, "risk", "performance budget should flag renders slower than realtime");
+assert.equal(slowPerformanceBudget.recommendation, "short-preview-first", "slow render budget should recommend short previews before more full renders");
+const slowReview = renderReview(offline.source, {
+  ...autoRendered,
+  performance: { ...autoRendered.performance, elapsedMs: 23000, renderedSeconds: 7, realtimeFactor: 3.29 }
+});
+assert.equal(slowReview.performanceBudget.status, "risk", "render review should carry slow-render budget risk");
+assert.equal(slowReview.status, "risk", "slow render budget should downgrade the review status");
 const polishOnlyRender = offline.render(kawaii, { stage: "polish", studioPolish: "light", studioTarget: "ikemen", directorOptimize: true, mode: "preview", region: { startSec: 0, durationSec: 0.6 } });
 assert.equal(polishOnlyRender.stage, "polish", "offline render should support polish-only preview");
 assert.equal(polishOnlyRender.studioPolish.target.id, "ikemen", "offline render should retain production target");
@@ -823,6 +833,7 @@ assert.ok(Number.isFinite(exportManifest.render.performance.realtimeFactor), "ex
 assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
 assert.ok(Number.isFinite(exportManifest.render.characterSafety.evidence.nasal), "export manifest should retain character safety tone evidence");
 assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");
+assert.equal(exportManifest.review.performanceBudget.status, autoReview.performanceBudget.status, "export manifest should retain review performance-budget metadata");
 assert.equal(exportManifest.audition.status, "ready", "export manifest should retain A/B audition status");
 assert.ok(exportManifest.audition.stages.some((stage) => stage.id === "character-render"), "export manifest should retain final audition stage metadata");
 assert.equal(exportManifest.source.sourceKind, "generated", "export manifest should retain source import kind");
@@ -865,6 +876,20 @@ const memoryStudioPlan = buildStudioPlan({
   renderDeckCount: 1
 });
 assert.equal(memoryStudioPlan.nextAction.id, "capture-memory", "studio plan should capture auditioned designs before more rendering");
+const slowRenderStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
+  renderReview: slowReview,
+  renderDeckCount: 1
+});
+assert.equal(slowRenderStudioPlan.nextAction.id, "preview-region", "studio plan should steer slow full renders back to short previews");
+assert.equal(slowRenderStudioPlan.nextAction.label, "Use Short Preview", "studio plan should make the slow-render action explicit");
 const hotStack = buildEffectStack(paramsForPreset("streamer", { outputGain: 3, saturation: 62, compression: 80 }), {
   target: LINE_READ_TARGETS.find((target) => target.id === "streamer_hook"),
   renderReview: { status: "risk", score: 48, items: [] },

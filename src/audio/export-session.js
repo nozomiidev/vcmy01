@@ -76,6 +76,7 @@ export function buildExportManifest({
     review: review ? {
       status: review.status,
       score: review.score,
+      performanceBudget: compactPerformanceBudget(review.performanceBudget),
       items: review.items?.map((item) => ({
         id: item.id,
         label: item.label,
@@ -588,6 +589,19 @@ function compactRenderPerformance(performance = null) {
     sampleRate: Math.max(0, Number(performance.sampleRate || 0)),
     mode: performance.mode || "",
     stage: performance.stage || ""
+  };
+}
+
+function compactPerformanceBudget(budget = null) {
+  if (!budget) return null;
+  return {
+    status: budget.status || "",
+    score: Math.round(Number(budget.score || 0)),
+    realtimeFactor: round(budget.realtimeFactor, 3),
+    elapsedMs: round(budget.elapsedMs, 2),
+    renderedSeconds: round(budget.renderedSeconds, 3),
+    recommendation: budget.recommendation || "",
+    detail: budget.detail || ""
   };
 }
 
