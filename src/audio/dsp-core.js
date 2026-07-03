@@ -418,6 +418,7 @@ export function processVoiceBuffer(input, sampleRate, rawParams = {}, options = 
   work = noiseGate(work, params);
   work = prosodyPitchShift(work, sampleRate, Math.pow(2, params.pitch / 12), params);
   work = granularShift(work, sampleRate, Math.pow(2, params.formant / 12), 0.024);
+  work = vocalTractShape(work, sampleRate, params);
   work = applyBiquad(work, sampleRate, "highpass", params.lowCut, 0.72, 0);
   work = applyBiquad(work, sampleRate, "lowpass", params.highCut, 0.72, 0);
   work = characterFilterBank(work, sampleRate, params);
@@ -695,6 +696,45 @@ function characterFilterBank(input, sampleRate, p) {
   return out;
 }
 
+export function vocalTractProfile(rawParams = {}) {
+  const p = normalizeParams(rawParams);
+  const cuteBias = p.cuteness * 0.022 + p.anime * 0.014;
+  const deepBias = p.body * 0.018 + Math.max(0, -p.formant) * 2.2 + Math.max(0, -p.mouth) * 0.022;
+  const shiftSt = clamp(p.formant * 0.62 + p.mouth * 0.045 + cuteBias - deepBias * 0.18, -7.5, 7.5);
+  const ratio = Math.pow(2, shiftSt / 12);
+  const smallMouth = clamp((p.formant * 4.2 + p.mouth * 0.42 + p.cuteness * 0.32 + p.anime * 0.18 - p.body * 0.18) / 100, -1, 1);
+  const chest = clamp((p.body * 0.62 + Math.max(0, -p.formant) * 5 + Math.max(0, -p.mouth) * 0.35 - p.cuteness * 0.2) / 100, -1, 1);
+  return {
+    shiftSt: Number(shiftSt.toFixed(2)),
+    ratio: Number(ratio.toFixed(3)),
+    smallMouth: Number(smallMouth.toFixed(3)),
+    chest: Number(chest.toFixed(3)),
+    formants: {
+      f1: Math.round(clamp(640 * ratio, 420, 1050)),
+      f2: Math.round(clamp(1180 * ratio, 760, 2100)),
+      f3: Math.round(clamp(2550 * ratio, 1700, 4100))
+    },
+    gains: {
+      f1Db: Number((smallMouth * 1.4 - chest * 0.45).toFixed(2)),
+      f2Db: Number((smallMouth * 1.9 - Math.max(0, chest) * 0.35).toFixed(2)),
+      f3Db: Number((Math.max(0, smallMouth) * 1.25 + p.anime * 0.012 + p.presence * 0.01).toFixed(2)),
+      chestDb: Number((Math.max(0, chest) * 2.2 + Math.max(0, p.intimacy) * 0.01).toFixed(2)),
+      nasalGuardDb: Number((-Math.max(0, Math.abs(smallMouth)) * 0.65 - Math.max(0, chest) * 0.45).toFixed(2))
+    }
+  };
+}
+
+function vocalTractShape(input, sampleRate, p) {
+  const profile = vocalTractProfile(p);
+  let out = input;
+  out = applyBiquad(out, sampleRate, "peaking", profile.formants.f1, 0.85, profile.gains.f1Db);
+  out = applyBiquad(out, sampleRate, "peaking", profile.formants.f2, 1.02, profile.gains.f2Db);
+  out = applyBiquad(out, sampleRate, "peaking", profile.formants.f3, 1.08, profile.gains.f3Db);
+  out = applyBiquad(out, sampleRate, "peaking", 260, 0.85, profile.gains.chestDb);
+  out = applyBiquad(out, sampleRate, "peaking", 980, 1.12, profile.gains.nasalGuardDb);
+  return out;
+}
+
 function harmonicExciter(input, sampleRate, p) {
   const amount = clamp((Math.max(0, p.air) * 0.38 + Math.max(0, p.brightness) * 0.22 + p.anime * 0.18 + p.cuteness * 0.1) / 100, 0, 0.58);
   if (amount <= 0.002) return input;
@@ -848,10 +888,11 @@ function addBreathAndWhisper(input, dry, sampleRate, p) {
     const breathBed = clamp(slow * 10, 0, 1) * (0.52 + intimate * 0.48);
     const whisperFocus = clamp(consonant * (1 - soft * 0.55) + tail * intimate * 0.75, 0, 1);
     const shaped = hp * (0.65 + clamp(Math.max(0, p.air) / 100, 0, 1) * 0.35);
-    const romanticTail = tail * (0.45 + intimate * 0.55);
+    const phraseTail = smoothstep(0.58, 1, i / Math.max(1, input.length - 1));
+    const romanticTail = clamp(tail * (0.45 + intimate * 0.55) + phraseTail * romantic * endingSoftness * 0.42, 0, 1);
     const textureGain = breath * 0.085 * breathBed +
       whisper * 0.13 * whisperFocus +
-      romantic * 0.09 * romanticTail +
+      romantic * 0.105 * romanticTail +
       endingSoftness * 0.028 * tail;
     const duck = 1 - whisper * 0.22 * clamp(slow * 8, 0, 1);
     out[i] = input[i] * duck + shaped * textureGain;

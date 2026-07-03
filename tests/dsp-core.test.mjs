@@ -59,11 +59,14 @@ import {
   REFERENCE_VOICE_PROFILES,
   runPresetQualitySuite,
   runReferenceQualitySuite,
-  selfTestDspCore
+  selfTestDspCore,
+  vocalTractProfile
 } from "../src/audio/dsp-core.js";
 
 const sampleRate = 48000;
 const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
+const kawaiiTract = vocalTractProfile(paramsForPreset("kawaii"));
+const ikemenTract = vocalTractProfile(paramsForPreset("ikemen"));
 
 function concatFloat32(chunks) {
   const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
@@ -103,6 +106,8 @@ function studioPolishFixture(base, sampleRate) {
 }
 
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
+assert.ok(kawaiiTract.ratio > 1 && kawaiiTract.smallMouth > 0, "kawaii tract profile should lift apparent vocal-tract size");
+assert.ok(ikemenTract.chest > kawaiiTract.chest && ikemenTract.gains.chestDb > kawaiiTract.gains.chestDb, "ikemen tract profile should emphasize chest resonance");
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
 assert.deepEqual(EFFECT_STACK_STAGE_IDS, ["input", "core", "tract", "tone", "texture", "performance", "dynamics", "space", "guard"], "effect stack should expose ordered signal-path layers");

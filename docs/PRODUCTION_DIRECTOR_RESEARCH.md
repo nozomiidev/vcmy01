@@ -214,6 +214,35 @@ https://downloads.izotope.com/docs/rx6/36-voice-de-noise/index.html
 https://transom.org/2015/podcasting-basics-part-3-audio-levels-and-processing/
 https://www.reddit.com/r/audioengineering/comments/10rw2ym/how_much_magic_to_put_on_a_podcast/
 
+## Vocal Tract Character Loop
+
+The tenth production-director pass moves the character engine away from only pitch/formant-like grains and generic EQ. It adds a lightweight source-filter-inspired vocal tract profile for apparent mouth size, chest resonance, and formant-region emphasis.
+
+Research decisions:
+
+- Praat vocal-tract manipulation treats apparent vocal tract size as a formant-shift operation, separate from pitch.
+- Rubber Band and related production tools distinguish pitch shifting from formant preservation or formant manipulation; otherwise pitch shifts drag the timbre into chipmunk/giant artifacts.
+- Source-filter speech processing models vocal identity as excitation plus a vocal-tract filter. A static browser app cannot do full LPC resynthesis yet, but it can still use bounded resonator banks to reinforce target mouth/chest cues.
+- Community DSP guidance converges on the same distinction: a convincing voice changer needs pitch tracking or resynthesis for true formants, while simple filters are only a controlled approximation.
+
+Implementation response:
+
+- `vocalTractProfile()` derives formant-region centers, small-mouth bias, chest bias, and nasal guard from character parameters.
+- `processVoiceBuffer()` now runs `vocalTractShape()` after formant-like granular shifting and before broad character EQ.
+- Kawaii/anime profiles get higher apparent tract centers and small-mouth emphasis; ikemen/deep profiles get stronger chest resonance and nasal guarding.
+
+Verification:
+
+- In-app Browser private-fixture deep link completed source import, Standard polish, Kawaii full character render, Safety Guarded review, and WAV/WebM/ZIP export readiness after vocal-tract shaping.
+- The local `konichiwabokunonamaewayamadatarodesu.webm` run reported Source Loudness -24.0 LUFS, Polish Events 43 / M27 P3 S13, Room Floor -58 dB / -3 dB, Tone Surgery at 255/1050/3469 Hz, Master Gain +6.3 dB toward -19.2 LUFS, Render Loudness -19.5 LUFS, and Render True Peak -1.2 dBTP.
+
+Sources:
+https://www.praatvocaltoolkit.com/change-vocal-tract.html
+https://breakfastquay.com/rubberband/
+https://github.com/breakfastquay/rubberband
+https://dsprelated.com/freebooks/pasp/Formant_Synthesis_Models.html
+https://dsp.stackexchange.com/questions/89674/change-pitch-of-voice
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
