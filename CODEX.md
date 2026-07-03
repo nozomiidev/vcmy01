@@ -64,10 +64,14 @@ cleanup, profiling, and careful optimization over avoiding ambitious features.
 Work in this order:
 
 1. Preserve and understand the current static prototype.
-2. Strengthen browser-side DSP first.
-3. Add real-time and offline paths that share the same effect model.
-4. Add calibration so presets adapt to the user's source voice.
-5. Only then consider browser AI voice conversion if DSP cannot reach the
+2. Research pro voice repair, podcast/radio polish, and voice changer practice
+   while implementing, not as a detached paper exercise.
+3. Build Studio Polish before Character Transform: analyze, clean, polish, then
+   apply character direction.
+4. Strengthen browser-side DSP first.
+5. Add real-time and offline paths that share the same effect model.
+6. Add calibration so presets adapt to the user's source voice.
+7. Only then consider browser AI voice conversion if DSP cannot reach the
    desired character-voice quality.
 
 AI is allowed, but it is not the first move. If AI is introduced, it must still
@@ -128,6 +132,7 @@ Chrome:
 
 - `docs/PROJECT_BRIEF.md`
 - `docs/DSP_STRATEGY.md`
+- `docs/STUDIO_POLISH_RESEARCH_MATRIX.md`
 - `docs/RESEARCH_NOTES.md`
 - `docs/ARCHITECTURE_DECISIONS.md`
 - `docs/ROADMAP.md`

@@ -54,6 +54,42 @@ Do not let visible guide text, onboarding, docs, or demo presets stand in for
 real functionality. Explanations can support the workflow, but the capability
 must exist.
 
+## Research-In-Implementation Rule
+
+Research is part of the Studio Polish First implementation, not a separate
+document-only phase. Major audio workflow changes must connect research,
+engineering judgment, and shipped behavior.
+
+For professional voice polish, consult and compare:
+
+- official or primary documentation for the target technique
+- pro studio, podcast, radio, or dialogue-editing practice
+- community and practitioner reports when they expose practical failure modes
+- browser API and OSS/library constraints
+
+Do not copy community advice blindly. Use it to identify common workflow,
+failure modes, and vocabulary, then verify against DSP principles, official
+docs, and local test audio.
+
+Each major polish block should answer:
+
+- what sound it repairs or adds
+- what it can damage when pushed too hard
+- where it belongs in the processing order
+- how the UI keeps a non-expert from breaking the voice
+
+The first production chain is Studio Polish before Character Transform:
+
+1. Import or record.
+2. Analyze.
+3. Clean.
+4. Polish.
+5. Character.
+6. Export.
+
+Character presets must not be tuned by amplifying an unpolished, clicky, noisy,
+boomy, nasal, or harsh source.
+
 ## External Asset And OSS Rule
 
 Do not treat building everything from scratch as a virtue. Also do not cling to

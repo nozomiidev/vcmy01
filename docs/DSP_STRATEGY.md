@@ -18,6 +18,13 @@ This is primarily a capability and architecture gap, not just an audio polish
 gap. The app needs production workflows and a character-director layer, not only
 better values for existing sliders.
 
+The next major implementation stage is Studio Polish First. This means the
+offline workflow must first make the source voice clean, controlled, and
+pleasant before it applies kawaii, anime, otome, ikemen, or other character
+macros. Research and implementation move together: every major polish block
+should be grounded in pro audio practice, official tool behavior, and local
+browser constraints before it becomes a shipped control.
+
 ## Audio Architecture Targets
 
 Use one shared effect model for:
@@ -305,6 +312,10 @@ Therefore:
 Recorded and uploaded audio needs a dedicated workflow:
 
 - choose a take or upload an audio file
+- analyze level, headroom, noise floor, plosives, mouth clicks, sibilance,
+  nasal tone, mud, harshness, brightness, and loudness proxy
+- clean source defects before character processing
+- apply studio polish for level, tone, dynamics, controlled air, and safety
 - pick a character preset
 - preview short regions quickly
 - map active phrases into Source Timeline cues before trusting a preview region
@@ -320,6 +331,24 @@ Recorded and uploaded audio needs a dedicated workflow:
 
 Offline rendering can afford more latency and can use higher-quality algorithms
 than the live path.
+
+The Studio Polish signal order is:
+
+1. input trim and gain safety
+2. de-plosive
+3. mouth de-click
+4. noise and room reduction
+5. adaptive high-pass
+6. tonal cleanup
+7. de-ess and dynamic EQ
+8. leveler and compressor
+9. presence, air, and light saturation
+10. limiter and loudness target
+
+This order is intentionally conservative. De-plosive should run before
+high-pass filtering because low-frequency plosive evidence can be lost after
+filtering. Noise analysis should happen before aggressive gain, gate, or
+compression because those stages can make noise prints unstable.
 
 Source Timeline is the first long-file control layer. It analyzes energy,
 activity, pitch evidence, texture, and duration to propose bounded cue regions

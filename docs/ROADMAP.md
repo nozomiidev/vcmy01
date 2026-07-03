@@ -33,6 +33,12 @@ GitHub Pages.
 - Add a take-processing view.
 - Reuse the same preset/effect schema for offline rendering.
 - Support region preview, A/B, render, and export.
+- Add Studio Polish First flow so uploaded or recorded voices are analyzed,
+  cleaned, polished, then character-transformed instead of being pushed
+  directly through macro presets.
+- Add source diagnostics for level, headroom, plosives, mouth clicks,
+  sibilance, nasal tone, mud, harshness, brightness, and loudness proxy.
+- Add WAV, WebM Opus, and ZIP session package export.
 - Add non-destructive render history and take-to-offline routing.
 - Make long uploaded files workable without rendering the whole file for every
   parameter change.
