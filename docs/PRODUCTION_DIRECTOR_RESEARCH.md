@@ -742,6 +742,7 @@ https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/de
 - Render Budget Direction was verified through the same private-fixture deep link after the performance-budget pass. The render deck exposed `83% RISK` and `Render Speed RT 2.3x`, the slow-render recommendation was present in the page text, WAV/WebM/ZIP controls stayed enabled, and the in-app Browser reported zero console errors. The top Studio Plan action remained `Save Project` because project capture has higher workflow precedence than another preview.
 - Cue-linked preview recovery was checked in the in-app Browser with the private-fixture deep link. The active preview region remained on the selected short cue (`2.9-5.2s / 7.0s`) after the slow full render, coordinate-clicking the top Studio Plan button advanced the local workflow without console errors, and unit coverage verifies that `preview-region` actions carry the active cue id when they are the next action.
 - QC-gated capture was checked in the in-app Browser with the private-fixture deep link. A risk render showed `Render speed risk should be fixed before capturing this voice as reusable memory.`, WAV/WebM/ZIP controls and Render Speed remained visible, and the console reported zero errors. A previously saved local project made `Restore Project` the top action, which is the expected higher-priority restore path.
+- Multi-issue Comfort QC was checked in the in-app Browser with the private-fixture deep link. The Effect Stack showed Comfort 15% with `4 next moves`, confirming that more than two ranked comfort issues can now feed repair routing while WAV/WebM/ZIP and Render Speed remained visible and the console reported zero errors.
 
 ## Render Performance Observability Loop
 
@@ -781,6 +782,7 @@ Implementation response:
 - `buildStudioPlan()` uses slow full-render evidence to recommend `Use Short Preview` before additional variants or keeper decisions.
 - Preview actions now carry the active/best source cue, so slow-render recovery is not a vague instruction; the Studio Plan can jump directly to the most useful short section before rendering.
 - Project and Voice Memory capture are blocked while render speed, listening comfort, or render review status is risky. A project snapshot should be a reusable studio state, not a bookmark to an obviously broken or too-slow take.
+- Listening Comfort now keeps up to five ranked QC issues instead of only the two displayed summary reasons. Sibilance, harshness, micro-events, loudness, dynamics, nasal focus, and mud can therefore all feed downstream repair decisions when they coexist.
 - Export manifests retain the review performance budget so QA can connect a render's audible result with its browser cost.
 
 Sources:

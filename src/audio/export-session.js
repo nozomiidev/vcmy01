@@ -76,6 +76,7 @@ export function buildExportManifest({
     review: review ? {
       status: review.status,
       score: review.score,
+      comfort: compactListeningComfort(review.comfort),
       performanceBudget: compactPerformanceBudget(review.performanceBudget),
       items: review.items?.map((item) => ({
         id: item.id,
@@ -602,6 +603,26 @@ function compactPerformanceBudget(budget = null) {
     renderedSeconds: round(budget.renderedSeconds, 3),
     recommendation: budget.recommendation || "",
     detail: budget.detail || ""
+  };
+}
+
+function compactListeningComfort(comfort = null) {
+  if (!comfort) return null;
+  return {
+    status: comfort.status || "",
+    score: Math.round(Number(comfort.score || 0)),
+    targetLufs: round(comfort.targetLufs, 1),
+    loudness: round(comfort.loudness, 1),
+    truePeakDb: round(comfort.truePeakDb, 1),
+    dynamicRangeDb: round(comfort.dynamicRangeDb, 1),
+    microEventsPerMinute: Math.max(0, Math.round(Number(comfort.microEventsPerMinute || 0))),
+    reasons: Array.isArray(comfort.reasons) ? comfort.reasons.slice(0, 5) : [],
+    issues: Array.isArray(comfort.issues) ? comfort.issues.slice(0, 5).map((item) => ({
+      id: item.id || "",
+      penalty: round(item.penalty, 2),
+      reason: item.reason || ""
+    })) : [],
+    detail: comfort.detail || ""
   };
 }
 

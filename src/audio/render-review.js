@@ -174,7 +174,13 @@ export function listeningComfortReview(sourceAnalysis = null, renderAnalysis = n
   addPenalty(penalties, "mud", Math.max(0, Number(spectral.mud || 0) - 54) * 0.05, "Low-mid buildup reduces clarity.");
   const totalPenalty = penalties.reduce((sum, item) => sum + item.penalty, 0);
   const score = Math.max(0, Math.min(100, Math.round(100 - totalPenalty)));
-  const top = penalties.slice().sort((a, b) => b.penalty - a.penalty).slice(0, 2);
+  const ranked = penalties.slice().sort((a, b) => b.penalty - a.penalty);
+  const top = ranked.slice(0, 2);
+  const issues = ranked.slice(0, 5).map((item) => ({
+    id: item.id,
+    penalty: Number(item.penalty.toFixed(2)),
+    reason: item.reason
+  }));
   return {
     score,
     status: score >= 84 ? "ready" : score >= 68 ? "check" : "risk",
@@ -183,7 +189,8 @@ export function listeningComfortReview(sourceAnalysis = null, renderAnalysis = n
     truePeakDb: Number(truePeakDb.toFixed(1)),
     dynamicRangeDb: Number(dynamicRangeDb.toFixed(1)),
     microEventsPerMinute: Math.round(microArtifactRate),
-    reasons: top.map((item) => item.id),
+    reasons: issues.map((item) => item.id),
+    issues,
     detail: top.length ? top.map((item) => item.reason).join(" ") : "Loudness, peak headroom, tone, and micro events are comfortable."
   };
 }

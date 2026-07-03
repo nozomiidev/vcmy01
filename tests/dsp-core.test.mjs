@@ -767,6 +767,19 @@ assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.include
 assert.ok(autoReview.items.some((item) => item.id === "comfort"), "render review should expose listening-comfort evidence");
 assert.equal(autoReview.comfort.score, autoComfort.score, "render review should retain the computed listening-comfort score");
 assert.ok(autoReview.comfort.score >= 0 && autoReview.comfort.score <= 100, "listening-comfort score should be bounded");
+assert.ok(autoReview.comfort.reasons.length <= 5, "listening-comfort review should keep a bounded issue list");
+const denseComfort = listeningComfortReview(offline.source.analysis, {
+  ...autoRendered.analysis,
+  integratedLufs: -11,
+  truePeakDb: -0.2
+}, {
+  problemScores: { sibilance: 82, harsh: 74 },
+  dynamicRangeDb: 2.2,
+  microRepair: { counts: { mouth: 80, plosive: 10, sibilance: 35 } },
+  spectral: { risks: { nasal: 72, mud: 70 } }
+}, { targetLufs: -16, truePeakCeilingDb: -1 });
+assert.ok(denseComfort.reasons.length > 2, "listening-comfort review should expose multiple simultaneous QC reasons");
+assert.ok(denseComfort.issues.every((issue) => issue.penalty > 0), "listening-comfort issues should retain penalty evidence");
 assert.ok(autoReview.items.some((item) => item.id === "performance"), "render review should expose offline render performance evidence");
 assert.ok(autoReview.performanceBudget && ["ready", "check", "risk"].includes(autoReview.performanceBudget.status), "render review should include performance-budget status");
 assert.ok(autoReview.items.some((item) => item.id === "studio-polish"), "render review should expose Studio Polish evidence");
@@ -838,6 +851,7 @@ assert.ok(Number.isFinite(exportManifest.render.performance.realtimeFactor), "ex
 assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
 assert.ok(Number.isFinite(exportManifest.render.characterSafety.evidence.nasal), "export manifest should retain character safety tone evidence");
 assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");
+assert.equal(exportManifest.review.comfort.score, autoReview.comfort.score, "export manifest should retain listening comfort metadata");
 assert.equal(exportManifest.review.performanceBudget.status, autoReview.performanceBudget.status, "export manifest should retain review performance-budget metadata");
 assert.equal(exportManifest.audition.status, "ready", "export manifest should retain A/B audition status");
 assert.ok(exportManifest.audition.stages.some((stage) => stage.id === "character-render"), "export manifest should retain final audition stage metadata");
