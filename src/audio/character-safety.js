@@ -74,7 +74,21 @@ export function applyCharacterSafety(rawParams = {}, {
 export function characterSafetySummary(plan = null) {
   if (!plan?.enabled) return "Character safety off";
   if (!plan.moves?.length) return "Character safety clear";
-  return plan.moves.slice(0, 3).map((move) => `${move.label} ${formatDelta(move.before, move.after)}`).join(" / ");
+  const moveSummary = plan.moves.slice(0, 3).map((move) => `${move.label} ${formatDelta(move.before, move.after)}`).join(" / ");
+  const identity = characterIdentityRiskLabel(plan.evidence?.identityRisk || "");
+  return identity ? `Identity ${identity} / ${moveSummary}` : moveSummary;
+}
+
+export function characterIdentityRiskLabel(risk = "") {
+  if (!risk) return "";
+  const labels = {
+    "opposed-pitch-formant": "pitch/formant split",
+    "deep-mask": "deep masked color"
+  };
+  return String(risk)
+    .split(",")
+    .map((item) => labels[item] || item.replace(/-/g, " "))
+    .join(" + ");
 }
 
 function characterLimits(profile = {}, params = {}, creative = false) {

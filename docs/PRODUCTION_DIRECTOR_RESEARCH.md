@@ -507,10 +507,12 @@ Implementation response:
 - Strong opposite-direction pitch/formant shifts on human targets are re-coupled toward the pitch direction and recorded as `opposed-pitch-formant`.
 - Unplanned low-pitch/low-formant/heavy-body stacks are recorded as `deep-mask` and body reinforcement is capped unless the target is explicitly a low human voice such as ikemen, deep, narrator, or intimate.
 - Export manifests and Project Vault snapshots keep `identityRisk`, so future listening reviews can distinguish "spectral comfort" risks from "anonymous disguise" risks.
+- Render Review and ZIP research notes surface identity coupling as `Identity Guard`, so the user can tell whether a clamp was about comfort, clipping, or disguise-like human-character failure.
 
 Verification:
 
 - Unit regression covers both `opposed-pitch-formant` and `deep-mask`, including the exact guard move and retained evidence.
+- Review/export regression confirms `Identity Guard` and the human-readable risk label are visible outside internal metadata.
 
 Sources:
 https://screamingbee.com/docs/morphvoxpro/morphdocpitchtimbre

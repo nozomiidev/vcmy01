@@ -1,4 +1,5 @@
 import { analyzeBuffer, clamp, dbToLin, encodeWavMono } from "./dsp-core.js";
+import { characterIdentityRiskLabel } from "./character-safety.js";
 import { processStudioPolish } from "./studio-polish.js";
 
 export const OPUS_MIME_CANDIDATES = Object.freeze([
@@ -315,6 +316,8 @@ export function studioPolishResearchNotes(rendered = null) {
     notes.push("", "Character safety:");
     notes.push(`- Status: ${rendered.characterSafety.status}`);
     notes.push(`- Score: ${rendered.characterSafety.score}`);
+    const identity = characterIdentityRiskLabel(rendered.characterSafety.evidence?.identityRisk || "");
+    if (identity) notes.push(`- Identity risk: ${identity}`);
     if (rendered.characterSafety.creative) notes.push("- Creative exception: robot/creature style allows wider non-human shifts.");
     if (rendered.characterSafety.moves?.length) {
       for (const move of rendered.characterSafety.moves.slice(0, 8)) {

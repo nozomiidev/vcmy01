@@ -690,8 +690,10 @@ assert.equal(spectralCharacterSafety.evidence.perceptualRisk, "nasal:1050Hz", "c
 assert.equal(identitySplitSafety.evidence.identityRisk, "opposed-pitch-formant", "character safety should flag anonymous-style pitch/formant splits");
 assert.ok(identitySplitSafety.params.formant > 0, "identity split guard should recouple vocal-tract shift to pitch direction");
 assert.ok(identitySplitSafety.moves.some((move) => move.reason.includes("witness-anonymizer")), "identity split guard should explain the disguise risk");
+assert.ok(characterSafetySummary(identitySplitSafety).includes("Identity pitch/formant split"), "character safety summary should expose identity-coupling risk");
 assert.equal(deepMaskSafety.evidence.identityRisk, "deep-mask", "character safety should flag deep masked human targets");
 assert.ok(deepMaskSafety.moves.some((move) => move.key === "body" && move.after <= 58), "deep mask guard should restrain body reinforcement");
+assert.ok(characterSafetySummary(deepMaskSafety).includes("deep masked color"), "character safety summary should label deep-mask risk");
 
 const offline = new OfflineRenderer();
 offline.generateSample(sampleRate, "low_warm");
@@ -785,6 +787,10 @@ const tunedLowToKawaiiFit = offline.sourceFitReport(autoRendered.appliedParams, 
 assert.equal(tunedLowToKawaiiFit.patches.length, 0, "source fit should not keep suggesting the same source patch after tuning");
 assert.ok(tunedLowToKawaiiFit.score > lowToKawaiiFit.score, "source fit should improve after tuning even when range remains risky");
 const autoReview = renderReview(offline.source, autoRendered);
+const identityReview = renderReview(offline.source, {
+  ...autoRendered,
+  characterSafety: identitySplitSafety
+});
 const autoComfort = listeningComfortReview(offline.source.analysis, autoRendered.analysis, autoRendered.studioAnalysis, autoRendered.mastering);
 assert.ok(autoReview.score >= 70, "render review should score usable offline renders");
 assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.includes("+")), "render review should expose apparent F0 movement");
@@ -808,6 +814,7 @@ assert.ok(autoReview.items.some((item) => item.id === "performance"), "render re
 assert.ok(autoReview.performanceBudget && ["ready", "check", "risk"].includes(autoReview.performanceBudget.status), "render review should include performance-budget status");
 assert.ok(autoReview.items.some((item) => item.id === "studio-polish"), "render review should expose Studio Polish evidence");
 assert.ok(autoReview.items.some((item) => item.id === "character-safety"), "render review should expose character-safety evidence");
+assert.ok(identityReview.items.some((item) => item.id === "character-safety" && item.value === "Identity Guard" && item.detail.includes("pitch/formant split")), "render review should surface identity-coupling safety evidence");
 const slowPerformanceBudget = renderPerformanceBudget({ elapsedMs: 23000, renderedSeconds: 7, realtimeFactor: 3.29, mode: "full", stage: "character" });
 assert.equal(slowPerformanceBudget.status, "risk", "performance budget should flag renders slower than realtime");
 assert.equal(slowPerformanceBudget.recommendation, "short-preview-first", "slow render budget should recommend short previews before more full renders");
@@ -911,6 +918,7 @@ assert.ok(studioPolishResearchNotes(autoRendered).includes("Repair map:"), "expo
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Micro repair events:"), "export research notes should include micro-repair rationale");
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Source reactive control:"), "export research notes should include source-reactive rationale");
 assert.ok(studioPolishResearchNotes(extremeRender).includes("Character safety:"), "export research notes should include character-safety rationale");
+assert.ok(studioPolishResearchNotes({ ...autoRendered, characterSafety: identitySplitSafety }).includes("Identity risk: pitch/formant split"), "export research notes should include identity-coupling risk");
 const safetyProject = createProjectSnapshot({
   presetId: "kawaii",
   presetName: "Kawaii Bright",

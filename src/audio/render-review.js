@@ -1,3 +1,5 @@
+import { characterIdentityRiskLabel } from "./character-safety.js";
+
 export const RENDER_DECK_LIMITS = Object.freeze({
   maxItems: 6,
   maxSeconds: 45
@@ -58,13 +60,12 @@ export function renderReview(source = null, rendered = null) {
     });
   }
   if (characterSafety?.enabled) {
+    const identity = characterIdentityRiskLabel(characterSafety.evidence?.identityRisk || "");
     items.push({
       id: "character-safety",
       label: "Character Safety",
-      value: characterSafety.status === "guarded" ? "Guarded" : "Clear",
-      detail: characterSafety.moves?.length
-        ? characterSafety.moves.slice(0, 3).map((move) => `${move.label} ${formatMove(move)}`).join("; ")
-        : "Pitch/formant/breath range stayed inside source-adaptive limits."
+      value: identity ? "Identity Guard" : characterSafety.status === "guarded" ? "Guarded" : "Clear",
+      detail: characterSafetyDetail(characterSafety, identity)
     });
   }
   if (rendered.performance) {
@@ -104,6 +105,13 @@ export function renderReview(source = null, rendered = null) {
     performanceBudget,
     items
   };
+}
+
+function characterSafetyDetail(characterSafety, identity = "") {
+  const moveText = characterSafety.moves?.length
+    ? characterSafety.moves.slice(0, 3).map((move) => `${move.label} ${formatMove(move)}`).join("; ")
+    : "Pitch/formant/breath range stayed inside source-adaptive limits.";
+  return identity ? `Identity risk: ${identity}. ${moveText}` : moveText;
 }
 
 export function renderPerformanceBudget(performance = null) {
