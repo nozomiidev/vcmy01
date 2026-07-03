@@ -182,6 +182,11 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
         y *= Math.max(0.72, delivery);
       }
 
+      if (p.deEss > 0) {
+        const reduction = Math.max(0, Math.min(p.deEss * 0.52, (this.highEnv - 0.012) * 18));
+        y -= dryHigh * reduction;
+      }
+
       out[i] = Math.max(-0.98, Math.min(0.98, y * p.outputGain));
     }
     for (let c = 1; c < outputs[0].length; c++) outputs[0][c].set(out);

@@ -1,4 +1,5 @@
-import { dbToLin, encodeWavMono, linToDb, normalizeParams } from "./dsp-core.js";
+import { clamp, dbToLin, encodeWavMono, linToDb, normalizeParams } from "./dsp-core.js";
+import { studioPolishIntensityById } from "./studio-polish.js";
 
 export class LiveAudioEngine extends EventTarget {
   constructor() {
@@ -9,6 +10,7 @@ export class LiveAudioEngine extends EventTarget {
     this.ready = false;
     this.params = {};
     this.rawParams = {};
+    this.studioPolishIntensity = "standard";
     this.recording = false;
     this.recordChunks = [];
     this.recordFrames = 0;
@@ -130,7 +132,7 @@ export class LiveAudioEngine extends EventTarget {
     this.rawParams = { ...rawParams };
     this.params = normalizeParams(rawParams);
     if (!this.ready) return;
-    const p = this.params;
+    const p = livePolishedParams(this.params, this.studioPolishIntensity);
     const n = this.nodes;
     const t = this.ctx.currentTime;
     const set = (param, value) => param.setTargetAtTime(value, t, 0.025);
@@ -156,6 +158,7 @@ export class LiveAudioEngine extends EventTarget {
       presence: p.presence / 100,
       air: p.air / 100,
       consonantSoftness: p.consonantSoftness / 100,
+      deEss: p.deEss / 100,
       saturation: p.saturation / 100,
       outputGain: dbToLin(p.outputGain)
     });
@@ -174,6 +177,11 @@ export class LiveAudioEngine extends EventTarget {
     set(n.wetMix.gain, Math.sin(wet * Math.PI / 2));
     set(n.dryMix.gain, Math.cos(wet * Math.PI / 2));
     n.limiter.threshold.setTargetAtTime(p.limiter, t, 0.025);
+  }
+
+  setStudioPolishIntensity(intensity) {
+    this.studioPolishIntensity = intensity || "standard";
+    if (this.ready) this.setParams(this.rawParams);
   }
 
   setMonitor(on) {
@@ -275,4 +283,16 @@ function meterPeak(buffer) {
 
 export function meterPercent(value) {
   return Math.max(0, Math.min(100, ((linToDb(value) + 60) / 60) * 100));
+}
+
+function livePolishedParams(params, intensityId) {
+  const intensity = studioPolishIntensityById(intensityId);
+  const factor = intensity.factor;
+  return {
+    ...params,
+    lowCut: Math.max(params.lowCut, 58 + factor * 34),
+    deEss: clamp(params.deEss + factor * 14, 0, 100),
+    compression: clamp(params.compression + factor * 8, 0, 100),
+    limiter: Math.min(params.limiter, -1)
+  };
 }

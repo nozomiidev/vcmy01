@@ -437,6 +437,183 @@ input[type="range"] {
   margin-left: auto;
 }
 
+.guided-studio {
+  display: grid;
+  gap: 10px;
+  margin: 14px 14px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, rgba(143,167,255,0.055), rgba(105,227,181,0.035)),
+    var(--panel-2);
+}
+
+.guided-studio.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 36%, var(--line));
+}
+
+.guided-studio.is-polish {
+  border-color: color-mix(in srgb, var(--warn) 38%, var(--line));
+}
+
+.guided-studio.is-repair {
+  border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
+}
+
+.guided-studio-head,
+.guided-studio-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.guided-studio-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.guided-studio-head strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.guided-studio-flow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.guided-step {
+  min-width: 0;
+  min-height: 54px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+}
+
+.guided-step.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 38%, var(--line));
+}
+
+.guided-step.is-polish {
+  border-color: color-mix(in srgb, var(--warn) 38%, var(--line));
+}
+
+.guided-step.is-repair {
+  border-color: color-mix(in srgb, var(--bad) 42%, var(--line));
+}
+
+.guided-step span,
+.studio-polish-card span,
+.studio-polish-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guided-step span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.guided-step strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.studio-polish-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.studio-polish-grid:empty,
+.studio-polish-patches:empty {
+  display: none;
+}
+
+.studio-polish-card {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,0.025);
+}
+
+.studio-polish-card.is-polish {
+  border-color: color-mix(in srgb, var(--warn) 34%, var(--line));
+}
+
+.studio-polish-card.is-repair {
+  border-color: color-mix(in srgb, var(--bad) 38%, var(--line));
+}
+
+.studio-polish-card span,
+.studio-polish-card small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.studio-polish-card span {
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.studio-polish-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.studio-polish-patches {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.studio-polish-patches span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.studio-polish-patches b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .source-fit {
   display: grid;
   gap: 10px;
@@ -3682,6 +3859,7 @@ audio {
   .recipe-flow { grid-template-columns: 1fr; }
   .scene-session-grid { grid-template-columns: 1fr; }
   .scene-session-head { align-items: flex-start; flex-direction: column; }
+  .guided-studio-flow, .studio-polish-grid { grid-template-columns: 1fr; }
   .source-fit-grid { grid-template-columns: 1fr; }
   .voice-route-list { grid-template-columns: 1fr; }
   .character-chain-flow { grid-template-columns: 1fr; }

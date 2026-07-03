@@ -51,9 +51,15 @@ export function drawAnalysisCards(host, source, rendered) {
     entries.push(["Source F0", formatHz(source.analysis.pitchMedianHz)]);
     entries.push(["Voiced", formatPct(source.analysis.voicedRatio)]);
     entries.push(["Brightness", formatPct(source.analysis.brightnessRatio)]);
+    if (source.studioAnalysis) {
+      entries.push(["Studio Score", `${source.studioAnalysis.score}%`]);
+      entries.push(["Noise Floor", `${source.studioAnalysis.noiseFloorDb.toFixed(1)} dB`]);
+    }
   }
   if (rendered) {
     entries.push(["Render Mode", rendered.region?.isFull ? "Full" : "Preview"]);
+    entries.push(["Render Stage", rendered.stage === "polish" ? "Polish" : "Character"]);
+    if (rendered.studioPolish?.enabled) entries.push(["Studio Polish", rendered.studioPolish.intensity]);
     if (rendered.region && !rendered.region.isFull) entries.push(["Region", `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)} s`]);
     entries.push(["Render RMS", `${rendered.analysis.rmsDb.toFixed(1)} dB`]);
     entries.push(["Render Peak", `${rendered.analysis.peakDb.toFixed(1)} dB`]);

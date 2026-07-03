@@ -197,6 +197,19 @@
                   Upload Audio
                 </label>
               </div>
+              <div class="guided-studio" id="guidedStudioPanel">
+                <div class="guided-studio-head">
+                  <span>Guided Studio</span>
+                  <strong id="guidedStudioStatus">No source</strong>
+                </div>
+                <div class="guided-studio-flow" id="guidedStudioFlow"></div>
+                <div class="guided-studio-controls">
+                  <select class="select-command" id="polishIntensity" aria-label="Studio polish intensity"></select>
+                  <button class="command" id="renderPolishOnly" type="button" disabled>Render Polish</button>
+                </div>
+                <div class="studio-polish-grid" id="studioPolishGrid"></div>
+                <div class="studio-polish-patches" id="studioPolishPatches"></div>
+              </div>
               <div class="source-fit" id="sourceFitPanel">
                 <div class="source-fit-head">
                   <span>Source Fit</span>
@@ -315,6 +328,8 @@
                 </label>
                 <button class="command" id="playCompare" type="button" disabled>A/B Compare</button>
                 <button class="command" id="downloadRender" type="button" disabled>Download WAV</button>
+                <button class="command" id="downloadWebm" type="button" disabled>Download WebM</button>
+                <button class="command" id="downloadZip" type="button" disabled>Download ZIP</button>
               </div>
               <canvas id="renderWave" class="scope" height="120" aria-label="Rendered waveform"></canvas>
               <audio id="renderAudio" controls></audio>

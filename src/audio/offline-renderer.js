@@ -8,6 +8,7 @@ import {
   referenceVoiceProfileById
 } from "./dsp-core.js";
 import { automationSummary, renderScriptAutomation } from "./performance-script.js";
+import { analyzeStudioVoice, buildStudioPolishPlan, processStudioPolish } from "./studio-polish.js";
 
 export class OfflineRenderer {
   constructor() {
@@ -27,7 +28,8 @@ export class OfflineRenderer {
       sampleRate,
       samples,
       blob,
-      analysis: this.profile
+      analysis: this.profile,
+      studioAnalysis: analyzeStudioVoice(samples, sampleRate)
     };
     this.rendered = null;
     return this.source;
@@ -46,7 +48,8 @@ export class OfflineRenderer {
       sampleRate: audioBuffer.sampleRate,
       samples,
       blob: encodeWavMono(samples, audioBuffer.sampleRate),
-      analysis: this.profile
+      analysis: this.profile,
+      studioAnalysis: analyzeStudioVoice(samples, audioBuffer.sampleRate)
     };
     this.rendered = null;
     return this.source;
@@ -56,6 +59,7 @@ export class OfflineRenderer {
     if (!this.source) throw new Error("No source audio loaded.");
     this.profile = buildCalibrationProfile(this.source.samples, this.source.sampleRate);
     this.source.analysis = this.profile;
+    this.source.studioAnalysis = analyzeStudioVoice(this.source.samples, this.source.sampleRate);
     return this.profile;
   }
 
@@ -72,12 +76,17 @@ export class OfflineRenderer {
     const sourceSamples = region.isFull
       ? this.source.samples
       : this.source.samples.slice(region.startSample, region.endSample);
-    const automation = options.automatePerformance && options.performanceScript
-      ? renderScriptAutomation(sourceSamples, this.source.sampleRate, appliedParams, options.performanceScript, options.automationOptions)
+    const studioPolish = renderStudioPolish(sourceSamples, this.source.sampleRate, options.studioPolish);
+    const characterInput = studioPolish ? studioPolish.samples : sourceSamples;
+    const stage = options.stage || "character";
+    const automation = stage !== "polish" && options.automatePerformance && options.performanceScript
+      ? renderScriptAutomation(characterInput, this.source.sampleRate, appliedParams, options.performanceScript, options.automationOptions)
       : null;
-    const samples = automation
+    const samples = stage === "polish"
+      ? characterInput
+      : automation
       ? automation.samples
-      : processVoiceBuffer(sourceSamples, this.source.sampleRate, appliedParams);
+      : processVoiceBuffer(characterInput, this.source.sampleRate, appliedParams);
     const blob = encodeWavMono(samples, this.source.sampleRate);
     const mode = options.mode || (region.isFull ? "full" : "preview");
     this.rendered = {
@@ -86,8 +95,25 @@ export class OfflineRenderer {
       samples,
       blob,
       analysis: analyzeBuffer(samples, this.source.sampleRate),
+      studioAnalysis: analyzeStudioVoice(samples, this.source.sampleRate),
       region,
       mode,
+      stage,
+      studioPolish: studioPolish ? {
+        enabled: true,
+        intensity: studioPolish.plan.intensity,
+        label: studioPolish.plan.label,
+        plan: studioPolish.plan,
+        inputAnalysis: studioPolish.inputAnalysis,
+        outputAnalysis: studioPolish.outputAnalysis
+      } : {
+        enabled: false,
+        intensity: "off",
+        label: "Studio Polish Off",
+        plan: null,
+        inputAnalysis: analyzeStudioVoice(sourceSamples, this.source.sampleRate),
+        outputAnalysis: null
+      },
       autoCalibrated: !!options.autoCalibrate,
       scriptAutomated: !!automation,
       performanceScript: options.performanceScript ? {
@@ -111,6 +137,14 @@ export class OfflineRenderer {
     if (!this.profile) this.analyze();
     return sourceFitReport(params, this.profile, target, this.source);
   }
+}
+
+function renderStudioPolish(sourceSamples, sampleRate, option = "standard") {
+  if (option === false || option === "off") return null;
+  const intensity = typeof option === "string" ? option : option?.intensity || "standard";
+  const inputAnalysis = analyzeStudioVoice(sourceSamples, sampleRate);
+  const plan = buildStudioPolishPlan(inputAnalysis, intensity);
+  return processStudioPolish(sourceSamples, sampleRate, plan);
 }
 
 export function sourceFitReport(params = {}, profile = {}, target = null, source = {}) {

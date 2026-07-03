@@ -30,6 +30,8 @@ import { buildSceneSession, sceneSessionSummary } from "../src/audio/scene-sessi
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, snapshotParamPatch } from "../src/audio/voice-memory.js";
 import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectParamPatch } from "../src/audio/project-vault.js";
 import { buildSourceTimeline, cueRegion, nearestCueIdForRegion, sourceTimelineSummary } from "../src/audio/source-timeline.js";
+import { analyzeStudioVoice, buildStudioPolishPlan, processStudioPolish, runStudioPolishQualitySuite } from "../src/audio/studio-polish.js";
+import { buildExportManifest, renderedBaseName, studioPolishResearchNotes } from "../src/audio/export-session.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -39,6 +41,7 @@ import {
   generateTestVoice,
   granularShift,
   normalizeParams,
+  peak,
   processVoiceBuffer,
   REFERENCE_VOICE_PROFILES,
   runPresetQualitySuite,
@@ -56,6 +59,32 @@ function concatFloat32(chunks) {
   for (const chunk of chunks) {
     out.set(chunk, offset);
     offset += chunk.length;
+  }
+  return out;
+}
+
+function studioPolishFixture(base, sampleRate) {
+  const out = new Float32Array(base);
+  let seed = 9091;
+  for (let i = 0; i < out.length; i++) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    out[i] += ((seed / 0xffffffff) * 2 - 1) * 0.0045;
+  }
+  for (const sec of [0.12, 0.62, 0.96]) {
+    const start = Math.round(sec * sampleRate);
+    const len = Math.round(0.075 * sampleRate);
+    for (let i = 0; i < len && start + i < out.length; i++) {
+      const env = 1 - i / len;
+      out[start + i] += Math.sin((i / sampleRate) * Math.PI * 2 * 58) * 0.2 * env;
+    }
+  }
+  for (const sec of [0.24, 0.52, 0.77, 1.05]) {
+    const index = Math.round(sec * sampleRate);
+    if (index > 2 && index + 2 < out.length) {
+      out[index - 1] -= 0.22;
+      out[index] += 0.5;
+      out[index + 1] -= 0.28;
+    }
   }
   return out;
 }
@@ -79,6 +108,20 @@ const sourceAnalysis = analyzeBuffer(source, sampleRate);
 assert.ok(sourceAnalysis.rms > 0.02, "generated sample should contain audible energy");
 assert.ok(sourceAnalysis.pitchMedianHz > 90 && sourceAnalysis.pitchMedianHz < 240, "generated sample exposes a plausible F0");
 assert.ok(Number.isFinite(sourceAnalysis.brightnessRatio), "generated sample exposes brightness analysis");
+const dirtyStudioSource = studioPolishFixture(source, sampleRate);
+const dirtyStudioAnalysis = analyzeStudioVoice(dirtyStudioSource, sampleRate);
+const studioPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard");
+const studioPolished = processStudioPolish(dirtyStudioSource, sampleRate, studioPolishPlan);
+assert.equal(studioPolished.samples.length, dirtyStudioSource.length, "studio polish preserves source length");
+assert.equal(studioPolishPlan.stages.highPassHz >= 54, true, "studio polish plan should choose a valid adaptive high-pass");
+assert.ok(studioPolishPlan.stages.deplosive > 0 || studioPolishPlan.stages.mouthClick > 0, "studio polish plan should react to dirty speech artifacts");
+assert.ok(Number.isFinite(studioPolished.outputAnalysis.rms), "studio polish output should have finite rms");
+assert.ok(peak(studioPolished.samples) <= 1, "studio polish output should be limited");
+assert.ok(studioPolished.outputAnalysis.problemScores.sibilance <= dirtyStudioAnalysis.problemScores.sibilance + 16, "studio polish should not create a sibilance regression");
+assert.ok(studioPolished.outputAnalysis.problemScores.harsh <= dirtyStudioAnalysis.problemScores.harsh + 18, "studio polish should not create a harshness regression");
+const studioPolishQuality = runStudioPolishQualitySuite({ sampleRate, duration: 0.36 });
+assert.equal(studioPolishQuality.ok, true, "studio polish quality suite should pass");
+assert.equal(studioPolishQuality.results.length, REFERENCE_VOICE_PROFILES.length, "studio polish suite should cover reference profiles");
 const sourceTrace = analyzePerformanceTrace(source, sampleRate);
 assert.ok(sourceTrace.frames.length > 10, "performance trace should create time frames");
 assert.ok(sourceTrace.summary.pitchMedianHz > 90 && sourceTrace.summary.pitchMedianHz < 240, "performance trace should expose frame-level F0");
@@ -528,6 +571,9 @@ assert.ok(lowKawaiiStack.stages.find((stage) => stage.id === "input").patch.leng
 assert.ok(Object.keys(bestEffectStackPatch(lowKawaiiStack)).length > 0, "effect stack should expose an actionable next signal-path patch");
 const autoRendered = offline.render(kawaii, { autoCalibrate: true });
 assert.equal(autoRendered.autoCalibrated, true, "offline render should preserve auto calibration metadata");
+assert.equal(autoRendered.studioPolish.enabled, true, "offline render should run Studio Polish before character processing");
+assert.equal(autoRendered.studioPolish.intensity, "standard", "offline render should default to standard Studio Polish");
+assert.equal(autoRendered.stage, "character", "offline render should default to character stage after Studio Polish");
 assert.equal(autoRendered.region.isFull, true, "default offline render should cover the full source");
 assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "pitch" && item.delta > 0), "auto render should lift low-source pitch for kawaii");
 assert.ok(autoRendered.calibrationDelta.some((item) => item.key === "formant" && item.delta > 0), "auto render should lift low-source formant for kawaii");
@@ -538,6 +584,36 @@ assert.ok(tunedLowToKawaiiFit.score > lowToKawaiiFit.score, "source fit should i
 const autoReview = renderReview(offline.source, autoRendered);
 assert.ok(autoReview.score >= 70, "render review should score usable offline renders");
 assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.includes("+")), "render review should expose apparent F0 movement");
+assert.ok(autoReview.items.some((item) => item.id === "studio-polish"), "render review should expose Studio Polish evidence");
+const polishOnlyRender = offline.render(kawaii, { stage: "polish", studioPolish: "light", mode: "preview", region: { startSec: 0, durationSec: 0.6 } });
+assert.equal(polishOnlyRender.stage, "polish", "offline render should support polish-only preview");
+assert.equal(polishOnlyRender.scriptAutomated, false, "polish-only render should not apply acting automation");
+assert.equal(polishOnlyRender.samples.length, Math.round(sampleRate * 0.6), "polish-only render should preserve region length");
+const extremeRender = offline.render(paramsForPreset("kawaii", {
+  pitch: 11,
+  formant: 11,
+  breath: 95,
+  whisper: 70,
+  romanticBreath: 100
+}), { studioPolish: "standard", region: { startSec: 0, durationSec: 0.6 }, mode: "preview" });
+const extremeReview = renderReview(offline.source, extremeRender);
+assert.equal(extremeReview.status, "risk", "render review should flag extreme character transforms as risk");
+assert.ok(extremeReview.items.some((item) => item.id === "guardrail"), "render review should include character guardrail evidence");
+const exportManifest = buildExportManifest({
+  source: offline.source,
+  rendered: autoRendered,
+  params: kawaii,
+  presetId: "kawaii",
+  presetName: "Kawaii Bright",
+  lineReadId: kawaiiSpark.id,
+  lineReadName: kawaiiSpark.name,
+  review: autoReview,
+  compressed: { blob: { size: 1234 }, mimeType: "audio/webm;codecs=opus" }
+});
+assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest should retain Studio Polish metadata");
+assert.equal(exportManifest.files.webm.endsWith(".webm"), true, "export manifest should name compressed WebM output");
+assert.equal(renderedBaseName(autoRendered).includes("VoiceForge"), true, "export base name should derive from render name");
+assert.ok(studioPolishResearchNotes(autoRendered).includes("Studio Polish First"), "export research notes should document the polish workflow");
 const memoryStudioPlan = buildStudioPlan({
   hasSource: true,
   sourceFit: mockReadySourceFit,

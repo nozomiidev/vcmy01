@@ -14,6 +14,7 @@ import {
   topTargetGaps
 } from "./audio/performance-targets.js";
 import { encodeWavMono, REFERENCE_VOICE_PROFILES, runPresetQualitySuite, runReferenceQualitySuite, selfTestDspCore } from "./audio/dsp-core.js";
+import { buildRenderZipPackage, encodeRenderedWebmOpus, preferredOpusMimeType, renderedBaseName } from "./audio/export-session.js";
 import { LiveAudioEngine, meterPercent } from "./audio/engine.js";
 import { OfflineRenderer } from "./audio/offline-renderer.js";
 import { auditionVariantSummary, buildAuditionVariants } from "./audio/audition-variants.js";
@@ -31,6 +32,7 @@ import { buildSceneSession, sceneSessionSummary } from "./audio/scene-session.js
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, sanitizeVoiceSnapshots } from "./audio/voice-memory.js";
 import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectParamPatch, sanitizeProjectSnapshots } from "./audio/project-vault.js";
 import { buildSourceTimeline, cueRegion, nearestCueIdForRegion, sourceTimelineSummary } from "./audio/source-timeline.js";
+import { buildStudioPolishPlan, STUDIO_POLISH_INTENSITIES } from "./audio/studio-polish.js";
 import { ProjectStore, TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
@@ -43,10 +45,13 @@ const state = {
   presetId: savedPresetId,
   params: prefs.get("params", null),
   theme: prefs.get("theme", "dark"),
+  polishIntensity: prefs.get("polishIntensity", "standard"),
   monitor: false,
   bypass: false,
   takes: [],
   renderUrl: null,
+  webmUrl: null,
+  lastWebmBlob: null,
   sourceUrl: null,
   offlineRegion: { startSec: 0, durationSec: 0 },
   sourceTimeline: null,
@@ -75,6 +80,7 @@ function persist() {
   prefs.set("presetId", state.presetId);
   prefs.set("params", state.params);
   prefs.set("lineReadId", state.lineReadId);
+  prefs.set("polishIntensity", state.polishIntensity);
 }
 
 function persistVoiceSnapshots() {
@@ -90,6 +96,8 @@ function init() {
   document.documentElement.dataset.theme = state.theme;
   renderPresets();
   renderReferenceSelectors();
+  renderGuidedStudio();
+  engine.setStudioPolishIntensity(state.polishIntensity);
   renderControls();
   renderLineReadPanel();
   renderLineReadLibrary();
@@ -137,9 +145,66 @@ function renderReferenceSelectors() {
   $("sampleProfile").innerHTML = REFERENCE_VOICE_PROFILES.map((profile) => (
     `<option value="${profile.id}">${profile.name}</option>`
   )).join("");
+  $("polishIntensity").innerHTML = STUDIO_POLISH_INTENSITIES.map((item) => (
+    `<option value="${item.id}">${item.label}</option>`
+  )).join("");
+  $("polishIntensity").value = state.polishIntensity;
   $("qualityProfile").innerHTML = [
     `<option value="all">All Sources</option>`,
     ...REFERENCE_VOICE_PROFILES.map((profile) => `<option value="${profile.id}">${profile.name}</option>`)
+  ].join("");
+}
+
+function renderGuidedStudio() {
+  const panel = $("guidedStudioPanel");
+  if (!panel) return;
+  const source = offline.source;
+  const rendered = offline.rendered;
+  const analysis = source?.studioAnalysis || null;
+  const plan = analysis ? buildStudioPolishPlan(analysis, state.polishIntensity) : null;
+  const opusType = preferredOpusMimeType();
+  const steps = [
+    { id: "source", label: "Source", status: source ? "ready" : "waiting", value: source ? source.name : "No source" },
+    { id: "clean", label: "Clean", status: analysis ? analysis.status : "waiting", value: analysis ? `${analysis.score}%` : "Waiting" },
+    { id: "polish", label: "Polish", status: rendered?.studioPolish?.enabled ? "ready" : source ? "polish" : "waiting", value: rendered?.studioPolish?.enabled ? rendered.studioPolish.intensity : state.polishIntensity },
+    { id: "character", label: "Character", status: rendered?.stage === "character" ? "ready" : source ? "polish" : "waiting", value: rendered?.stage === "character" ? presetById(state.presetId).name : "Pending" },
+    { id: "export", label: "Export", status: rendered ? "ready" : "waiting", value: rendered ? (opusType ? "WAV/WebM/ZIP" : "WAV/ZIP") : "Pending" }
+  ];
+  panel.className = `guided-studio is-${analysis?.status || "waiting"}`;
+  $("guidedStudioStatus").textContent = analysis ? `${analysis.score}% ${studioStatusLabel(analysis.status)}` : "No source";
+  $("guidedStudioFlow").innerHTML = steps.map((step, index) => `
+    <div class="guided-step is-${step.status}" data-step="${step.id}">
+      <span>${String(index + 1).padStart(2, "0")} ${escapeHtml(step.label)}</span>
+      <strong>${escapeHtml(step.value)}</strong>
+    </div>
+  `).join("");
+  $("renderPolishOnly").disabled = !source;
+  $("downloadWebm").disabled = !rendered || !opusType;
+  $("downloadZip").disabled = !rendered;
+  if (!analysis || !plan) {
+    $("studioPolishGrid").innerHTML = "";
+    $("studioPolishPatches").innerHTML = "";
+    return;
+  }
+  $("studioPolishGrid").innerHTML = analysis.items.map((item) => `
+    <div class="studio-polish-card is-${item.status}" data-polish="${item.id}">
+      <span>${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <small>${escapeHtml(item.detail)}</small>
+    </div>
+  `).join("");
+  const stagePills = [
+    ["De-plosive", `${Math.round(plan.stages.deplosive)}%`],
+    ["Mouth", `${Math.round(plan.stages.mouthClick)}%`],
+    ["Noise", `${Math.round(plan.stages.noiseReduction)}%`],
+    ["HPF", `${Math.round(plan.stages.highPassHz)} Hz`],
+    ["De-ess", `${Math.round(plan.stages.deEss)}%`],
+    ["Level", `${Math.round(plan.stages.leveler)}%`],
+    ["Out", `${plan.stages.outputGainDb > 0 ? "+" : ""}${plan.stages.outputGainDb.toFixed(1)} dB`]
+  ];
+  $("studioPolishPatches").innerHTML = [
+    ...stagePills.map(([label, value]) => `<span>${escapeHtml(label)} <b>${escapeHtml(value)}</b></span>`),
+    ...plan.notes.slice(0, 3).map((note) => `<span>${escapeHtml(note)} <b>on</b></span>`)
   ].join("");
 }
 
@@ -896,6 +961,16 @@ function bindOffline() {
 
   $("applyCalibration").addEventListener("click", tuneCurrentSource);
 
+  $("polishIntensity").addEventListener("change", () => {
+    state.polishIntensity = $("polishIntensity").value;
+    persist();
+    engine.setStudioPolishIntensity(state.polishIntensity);
+    renderGuidedStudio();
+    renderStudioPlan();
+  });
+
+  $("renderPolishOnly").addEventListener("click", () => renderOfflineToPreview(true, { stage: "polish" }));
+
   $("previewOffline").addEventListener("click", () => renderOfflineToPreview(true));
 
   $("renderOffline").addEventListener("click", () => renderOfflineToPreview(false));
@@ -920,14 +995,9 @@ function bindOffline() {
     renderStudioPlan();
   });
 
-  $("downloadRender").addEventListener("click", () => {
-    if (!offline.rendered) return;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(offline.rendered.blob);
-    a.download = offline.rendered.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-  });
+  $("downloadRender").addEventListener("click", downloadCurrentWav);
+  $("downloadWebm").addEventListener("click", downloadCurrentWebm);
+  $("downloadZip").addEventListener("click", downloadCurrentZip);
 
   $("playCompare").addEventListener("click", async () => {
     if (!offline.source || !offline.rendered) return;
@@ -1054,6 +1124,7 @@ function analyzeOfflineSource() {
     $("sourceStatus").textContent = `${offline.source.name} - ${profile.range} source`;
     drawSourceWaveform();
     drawAnalysisCards($("offlineAnalysis"), offline.source, offline.rendered);
+    renderGuidedStudio();
     updateSourceFit();
     updateRoutePlanner();
     renderCharacterChain();
@@ -1073,6 +1144,7 @@ function tuneCurrentSource() {
     engine.setParams(state.params);
     renderControls();
     updateLineReadScore();
+    renderGuidedStudio();
     updateSourceFit();
     updateRoutePlanner();
     renderCharacterChain();
@@ -1094,6 +1166,7 @@ function useOfflineSource(source) {
   $("sourceStatus").textContent = `${source.name} - ${source.analysis.range} source`;
   $("renderStatus").textContent = "Ready";
   updateRegionControls();
+  renderGuidedStudio();
   renderSourceTimeline();
   drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
   updateSourceFit();
@@ -1104,17 +1177,21 @@ function useOfflineSource(source) {
   renderProjectVault();
 }
 
-function renderOfflineToPreview(preview) {
+function renderOfflineToPreview(preview, renderOptions = {}) {
   try {
     const autoTune = $("autoTuneRender").checked;
     const scriptAuto = $("scriptAutomationRender")?.checked ?? true;
+    const stage = renderOptions.stage || "character";
     const rendered = offline.render(state.params, {
       autoCalibrate: autoTune,
-      automatePerformance: scriptAuto,
+      automatePerformance: stage === "character" && scriptAuto,
       performanceScript: currentPerformanceScript(),
       region: preview ? currentRegion() : null,
-      mode: preview ? "preview" : "full"
+      mode: preview ? "preview" : "full",
+      stage,
+      studioPolish: state.polishIntensity
     });
+    state.lastWebmBlob = null;
     setAudioPreview("renderAudio", "render", rendered.blob, rendered.samples, rendered.sampleRate);
     drawWaveform($("renderWave"), rendered.samples, "#8fa7ff");
     drawAnalysisCards($("offlineAnalysis"), offline.source, rendered);
@@ -1126,12 +1203,16 @@ function renderOfflineToPreview(preview) {
     renderRenderDeck();
     renderProjectVault();
     $("renderStatus").textContent = preview
-      ? autoTune ? "Preview - tuned" : "Preview ready"
+      ? stage === "polish" ? "Polish preview" : autoTune ? "Preview - tuned" : "Preview ready"
       : autoTune ? "Rendered - tuned" : "Rendered";
     $("downloadRender").disabled = false;
+    $("downloadWebm").disabled = !preferredOpusMimeType();
+    $("downloadZip").disabled = false;
     $("playCompare").disabled = false;
+    renderGuidedStudio();
     const scope = preview ? `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)}s` : "full source";
     const renderNote = [
+      stage === "polish" ? "Studio Polish only" : "Studio Polish -> Character",
       scope,
       autoTune ? describeCalibrationDelta(rendered.baseParams, rendered.appliedParams) : "manual chain rendered",
       rendered.scriptAutomated ? `${rendered.scriptAutomation?.frameCount || 0} script frames` : "static script"
@@ -1142,6 +1223,76 @@ function renderOfflineToPreview(preview) {
   }
 }
 
+function downloadCurrentWav() {
+  if (!offline.rendered) return;
+  downloadBlob(offline.rendered.blob, offline.rendered.name || `${renderedBaseName(offline.rendered)}.wav`);
+  toast("WAV exported", `${renderedBaseName(offline.rendered)}.wav`);
+}
+
+async function downloadCurrentWebm() {
+  if (!offline.rendered) return;
+  try {
+    $("renderStatus").textContent = "Encoding WebM";
+    const blob = await encodeRenderedWebmOpus(offline.rendered);
+    state.lastWebmBlob = blob;
+    downloadBlob(blob, `${renderedBaseName(offline.rendered)}.webm`);
+    $("renderStatus").textContent = offline.rendered.mode === "preview" ? "Preview ready" : "Rendered";
+    renderGuidedStudio();
+    toast("WebM exported", `${Math.round(blob.size / 1024)} KB Opus audio.`);
+  } catch (error) {
+    $("renderStatus").textContent = offline.rendered.mode === "preview" ? "Preview ready" : "Rendered";
+    renderGuidedStudio();
+    toast("WebM unavailable", error.message || "This browser did not expose Opus export.", "bad");
+  }
+}
+
+async function downloadCurrentZip() {
+  if (!offline.rendered) return;
+  let webmBlob = state.lastWebmBlob;
+  let webmError = "";
+  if (!webmBlob && preferredOpusMimeType()) {
+    try {
+      $("renderStatus").textContent = "Encoding package";
+      webmBlob = await encodeRenderedWebmOpus(offline.rendered);
+      state.lastWebmBlob = webmBlob;
+    } catch (error) {
+      webmError = error.message || "Compressed audio unavailable.";
+    }
+  }
+  try {
+    const target = lineReadById(state.lineReadId);
+    const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
+    const pack = await buildRenderZipPackage({
+      source: offline.source,
+      rendered: offline.rendered,
+      params: state.params,
+      presetId: state.presetId,
+      presetName: presetById(state.presetId).name,
+      lineReadId: target.id,
+      lineReadName: target.name,
+      review,
+      webmBlob
+    });
+    downloadBlob(pack.blob, pack.name);
+    $("renderStatus").textContent = offline.rendered.mode === "preview" ? "Preview ready" : "Rendered";
+    renderGuidedStudio();
+    toast("ZIP exported", webmBlob ? "WAV, WebM, settings, analysis, and research notes." : `WAV package exported. ${webmError || "Compressed audio was not available."}`);
+  } catch (error) {
+    $("renderStatus").textContent = offline.rendered.mode === "preview" ? "Preview ready" : "Rendered";
+    renderGuidedStudio();
+    toast("ZIP export failed", error.message || "Package export could not be created.", "bad");
+  }
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
 function addRenderedTakeToDeck(rendered, preview, variant = null, stackAudition = null) {
   const review = renderReview(offline.source, rendered);
   const auditionVariant = variant || rendered.auditionVariant || null;
@@ -1149,12 +1300,13 @@ function addRenderedTakeToDeck(rendered, preview, variant = null, stackAudition 
   const badge = auditionVariant || stackLayer;
   const target = lineReadById(state.lineReadId);
   const sceneBeat = sceneBeatByTargetId(target.id);
+  const stageTitle = rendered.stage === "polish" ? "Studio Polish" : presetById(state.presetId).name;
   rendered.lineReadId = target.id;
   rendered.sceneKitId = sceneBeat?.kit?.id || target.sceneKitId || null;
   rendered.sceneBeatId = sceneBeat?.beat?.id || target.sceneBeatId || null;
   const item = {
     id: `render-${Date.now()}-${state.renderDeckSeq += 1}`,
-    title: badge ? `${presetById(state.presetId).name} / ${badge.label}` : presetById(state.presetId).name,
+    title: badge ? `${stageTitle} / ${badge.label}` : stageTitle,
     target: target.name,
     targetId: target.id,
     sceneKitId: rendered.sceneKitId,
@@ -1182,7 +1334,11 @@ function selectRenderDeckItem(id) {
   drawAnalysisCards($("offlineAnalysis"), offline.source, item.rendered);
   $("renderStatus").textContent = item.rendered.mode === "preview" ? "Preview ready" : "Rendered";
   $("downloadRender").disabled = false;
+  $("downloadWebm").disabled = !preferredOpusMimeType();
+  $("downloadZip").disabled = false;
   $("playCompare").disabled = false;
+  state.lastWebmBlob = null;
+  renderGuidedStudio();
   renderCharacterChain();
   renderPerformanceTrace();
   renderRenderDeck();
@@ -1300,7 +1456,8 @@ function renderStackAuditionSet(auditionId = null) {
       performanceScript: auditionScript,
       automationOptions: { intensity: audition.automationIntensity },
       region,
-      mode: "preview"
+      mode: "preview",
+      studioPolish: state.polishIntensity
     });
     rendered.stackAudition = {
       id: audition.id,
@@ -1331,7 +1488,11 @@ function renderStackAuditionSet(auditionId = null) {
   renderAuditionVariants();
   renderStackAuditions();
   $("downloadRender").disabled = false;
+  $("downloadWebm").disabled = !preferredOpusMimeType();
+  $("downloadZip").disabled = false;
   $("playCompare").disabled = false;
+  state.lastWebmBlob = null;
+  renderGuidedStudio();
   $("renderStatus").textContent = auditionId ? "Stack layer ready" : "Stack set ready";
   toast(
     auditionId ? "Stack audition rendered" : "Stack audition set rendered",
@@ -1363,7 +1524,8 @@ function renderAuditionVariantSet(variantId = null) {
       performanceScript: variantScript,
       automationOptions: { intensity: variant.automationIntensity },
       region,
-      mode: "preview"
+      mode: "preview",
+      studioPolish: state.polishIntensity
     });
     rendered.auditionVariant = {
       id: variant.id,
@@ -1390,7 +1552,11 @@ function renderAuditionVariantSet(variantId = null) {
   renderProjectVault();
   renderAuditionVariants();
   $("downloadRender").disabled = false;
+  $("downloadWebm").disabled = !preferredOpusMimeType();
+  $("downloadZip").disabled = false;
   $("playCompare").disabled = false;
+  state.lastWebmBlob = null;
+  renderGuidedStudio();
   $("renderStatus").textContent = variantId ? "Variant ready" : "Variants ready";
   toast(
     variantId ? "Variant rendered" : "Variant set rendered",
@@ -1832,7 +1998,11 @@ function restoreProjectDeck(project) {
     drawWaveform($("renderWave"), offline.rendered.samples, "#8fa7ff");
     $("renderStatus").textContent = offline.rendered.mode === "preview" ? "Preview restored" : "Render restored";
     $("downloadRender").disabled = false;
+    $("downloadWebm").disabled = !preferredOpusMimeType();
+    $("downloadZip").disabled = false;
     $("playCompare").disabled = !offline.source;
+    state.lastWebmBlob = null;
+    renderGuidedStudio();
   } else {
     clearOfflineRenderPreview();
     $("renderStatus").textContent = "Project restored";
@@ -2473,6 +2643,13 @@ function sourceFitStatusLabel(status) {
   return "Risk";
 }
 
+function studioStatusLabel(status) {
+  if (status === "ready") return "Ready";
+  if (status === "polish") return "Polish";
+  if (status === "repair") return "Repair";
+  return "Waiting";
+}
+
 function routeStatusLabel(status) {
   if (status === "ready") return "Ready";
   if (status === "tune") return "Tune";
@@ -2565,7 +2742,11 @@ function clearOfflineRenderPreview() {
   $("renderAudio").load();
   drawWaveform($("renderWave"), null, "#8fa7ff");
   $("downloadRender").disabled = true;
+  $("downloadWebm").disabled = true;
+  $("downloadZip").disabled = true;
   $("playCompare").disabled = true;
+  state.lastWebmBlob = null;
+  renderGuidedStudio();
 }
 
 function describeCalibrationDelta(before, after) {

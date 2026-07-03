@@ -263,8 +263,11 @@ function sanitizeRenderDeck(deck = [], options = {}) {
         name: cleanText(rendered.name || "VoiceForge render.wav", 160),
         sampleRate: Number(rendered.sampleRate || 0),
         analysis: sanitizeAnalysis(rendered.analysis),
+        studioAnalysis: sanitizeStudioAnalysis(rendered.studioAnalysis),
         region: sanitizeRegion(rendered.region),
         mode: cleanText(rendered.mode || "preview", 32),
+        stage: cleanText(rendered.stage || "character", 32),
+        studioPolish: sanitizeStudioPolish(rendered.studioPolish),
         autoCalibrated: !!rendered.autoCalibrated,
         scriptAutomated: !!rendered.scriptAutomated,
         performanceScript: rendered.performanceScript || null,
@@ -431,6 +434,46 @@ function sanitizeAnalysis(analysis = null) {
     dark: !!analysis.dark,
     breathyOrNoisy: !!analysis.breathyOrNoisy
   };
+}
+
+function sanitizeStudioAnalysis(analysis = null) {
+  if (!analysis) return null;
+  return {
+    ...sanitizeAnalysis(analysis),
+    status: cleanText(analysis.status || "", 32),
+    score: clampScore(analysis.score),
+    noiseFloorDb: finiteNumber(analysis.noiseFloorDb),
+    headroomDb: finiteNumber(analysis.headroomDb),
+    loudnessProxyDb: finiteNumber(analysis.loudnessProxyDb),
+    dynamicRangeDb: finiteNumber(analysis.dynamicRangeDb),
+    problemScores: sanitizeProblemScores(analysis.problemScores)
+  };
+}
+
+function sanitizeStudioPolish(polish = null) {
+  if (!polish) return null;
+  return {
+    enabled: !!polish.enabled,
+    intensity: cleanText(polish.intensity || "off", 32),
+    label: cleanText(polish.label || "", 80),
+    plan: polish.plan ? {
+      id: cleanText(polish.plan.id || "", 80),
+      intensity: cleanText(polish.plan.intensity || "", 32),
+      label: cleanText(polish.plan.label || "", 80),
+      targetRmsDb: finiteNumber(polish.plan.targetRmsDb),
+      stages: sanitizeProblemScores(polish.plan.stages),
+      notes: Array.isArray(polish.plan.notes) ? polish.plan.notes.slice(0, 8).map((note) => cleanText(note, 120)) : []
+    } : null,
+    inputAnalysis: sanitizeStudioAnalysis(polish.inputAnalysis),
+    outputAnalysis: sanitizeStudioAnalysis(polish.outputAnalysis)
+  };
+}
+
+function sanitizeProblemScores(scores = null) {
+  if (!scores || typeof scores !== "object") return null;
+  const out = {};
+  for (const [key, value] of Object.entries(scores).slice(0, 32)) out[cleanText(key, 48)] = finiteNumber(value);
+  return out;
 }
 
 function normalizeProjectParams(params = {}) {
