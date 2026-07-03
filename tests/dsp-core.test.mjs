@@ -42,7 +42,7 @@ import {
   runStudioPolishQualitySuite,
   STUDIO_PRODUCTION_TARGETS
 } from "../src/audio/studio-polish.js";
-import { auditionComparisonNotes, buildAuditionComparison, buildExportManifest, renderedBaseName, studioPolishResearchNotes } from "../src/audio/export-session.js";
+import { auditionComparisonNotes, buildAuditionComparison, buildExportManifest, renderedBaseName, studioPolishResearchNotes, takeDecisionNotes } from "../src/audio/export-session.js";
 import { applyCharacterSafety, characterSafetySummary } from "../src/audio/character-safety.js";
 import { analyzeSpectralVoice, spectralVoiceSummary } from "../src/audio/spectral-voice.js";
 import { analyzeLoudness, loudnessTargetReview } from "../src/audio/loudness-meter.js";
@@ -875,6 +875,8 @@ assert.equal(exportManifest.review.comfort.score, autoReview.comfort.score, "exp
 assert.equal(exportManifest.review.performanceBudget.status, autoReview.performanceBudget.status, "export manifest should retain review performance-budget metadata");
 assert.equal(exportManifest.takeDecision.candidate.qc.blockers.includes("comfort"), true, "export manifest should retain take QC blockers");
 assert.equal(exportManifest.takeDecision.blockedCount, 1, "export manifest should count QC-blocked deck items");
+assert.ok(takeDecisionNotes(exportTakeDecision).includes("QC Hold"), "take decision notes should explain held candidates");
+assert.ok(takeDecisionNotes(exportTakeDecision).includes("- comfort"), "take decision notes should list QC blockers");
 assert.equal(exportManifest.audition.status, "ready", "export manifest should retain A/B audition status");
 assert.ok(exportManifest.audition.stages.some((stage) => stage.id === "character-render"), "export manifest should retain final audition stage metadata");
 assert.equal(exportManifest.source.sourceKind, "generated", "export manifest should retain source import kind");

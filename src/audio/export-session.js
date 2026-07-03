@@ -179,6 +179,58 @@ export function auditionComparisonNotes(audition = null) {
   return `${lines.join("\n")}\n`;
 }
 
+export function takeDecisionNotes(decision = null) {
+  const lines = [
+    "# VoiceForge Take Decision",
+    ""
+  ];
+  if (!decision) {
+    lines.push("No render-deck decision was available for this export.");
+    return `${lines.join("\n")}\n`;
+  }
+  const candidate = decision.winner || decision.candidate || null;
+  lines.push(
+    `Status: ${decision.status || "waiting"}`,
+    `Score: ${Math.round(Number(decision.score || 0))}%`,
+    `Summary: ${decision.summary || "No summary"}`,
+    ""
+  );
+  if (decision.winner) {
+    lines.push(
+      "Keeper:",
+      `- ${decision.winner.label || decision.winner.id || "Take"} (${Math.round(Number(decision.winner.score || 0))}%)`,
+      `- Weakest evidence: ${decision.winner.weakest || "unknown"}`,
+      ""
+    );
+  } else if (candidate) {
+    lines.push(
+      "QC Hold:",
+      `- Candidate: ${candidate.label || candidate.id || "Take"} (${Math.round(Number(candidate.score || 0))}%)`,
+      `- Weakest evidence: ${candidate.weakest || "QC Gate"}`,
+      `- QC: ${candidate.qc?.summary || "repair before keeper"}`,
+      ""
+    );
+    if (candidate.qc?.blockers?.length) {
+      lines.push("Blockers:");
+      for (const blocker of candidate.qc.blockers.slice(0, 8)) lines.push(`- ${blocker}`);
+      lines.push("");
+    }
+    if (candidate.qc?.checks?.length) {
+      lines.push("Checks:");
+      for (const check of candidate.qc.checks.slice(0, 8)) lines.push(`- ${check}`);
+      lines.push("");
+    }
+  }
+  lines.push(
+    "How to use this:",
+    "- A keeper is a take that passed delivery QC well enough to preserve.",
+    "- A QC-held candidate may still be useful, but should be repaired and re-rendered before export approval.",
+    "- Compare takes at matched loudness; louder is not automatically better.",
+    ""
+  );
+  return `${lines.join("\n")}\n`;
+}
+
 export function studioPolishResearchNotes(rendered = null) {
   const polish = rendered?.studioPolish;
   const notes = [
@@ -378,6 +430,7 @@ export async function buildRenderZipPackage({
   }
   zip.file("settings.json", JSON.stringify(manifest.voice, null, 2));
   zip.file("analysis.json", JSON.stringify(manifest, null, 2));
+  if (takeDecision) zip.file("take-decision-notes.md", takeDecisionNotes(takeDecision));
   zip.file("research-notes.md", studioPolishResearchNotes(rendered));
   const blob = await zip.generateAsync({
     type: "blob",
