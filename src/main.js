@@ -198,6 +198,7 @@ function renderGuidedStudio() {
   $("downloadZip").disabled = !rendered;
   if (!analysis || !plan) {
     $("studioPolishGrid").innerHTML = "";
+    $("sourceReactiveGrid").innerHTML = "";
     $("studioPolishPatches").innerHTML = "";
     return;
   }
@@ -208,6 +209,13 @@ function renderGuidedStudio() {
       <span>${escapeHtml(item.label)}</span>
       <strong>${escapeHtml(item.value)}</strong>
       <small>${escapeHtml(repairByCard.get(item.id)?.action || item.detail)}</small>
+    </div>
+  `).join("");
+  $("sourceReactiveGrid").innerHTML = sourceReactiveCards(plan).map((card) => `
+    <div class="source-reactive-card is-${card.status}" data-reactive="${card.id}">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.value)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
     </div>
   `).join("");
   const stagePills = [
@@ -251,6 +259,45 @@ function studioRepairCardKey(id) {
   if (id === "level") return "dynamics";
   if (id === "target") return "tone";
   return id;
+}
+
+function sourceReactiveCards(plan) {
+  const reactive = plan?.reactivePlan || {};
+  const ride = reactive.levelRide || {};
+  const lanes = reactive.eventLanes || {};
+  const micro = plan?.microRepair || {};
+  const room = plan?.roomShaper || {};
+  const tone = plan?.toneSurgery || {};
+  return [
+    {
+      id: "micro",
+      label: "Event Lanes",
+      value: `${Math.round(lanes.eventsPerMinute || micro.eventsPerMinute || 0)}/min`,
+      detail: `M${Math.round(lanes.mouth || 0)} P${Math.round(lanes.plosive || 0)} S${Math.round(lanes.sibilance || 0)} / de-ess ${Math.round(lanes.adaptiveDeEss || plan?.stages?.deEss || 0)}%`,
+      status: (micro.eventCount || 0) > 24 ? "check" : "ready"
+    },
+    {
+      id: "ride",
+      label: "Phrase Ride",
+      value: ride.rangeDb ? `${Number(ride.rangeDb).toFixed(1)} dB` : "off",
+      detail: ride.mode ? `${Math.round(ride.attackMs || 0)}ms attack / ${Math.round(ride.releaseMs || 0)}ms release` : "No source-reactive level ride.",
+      status: ride.amount > 0 ? "ready" : "waiting"
+    },
+    {
+      id: "room",
+      label: "Room Floor",
+      value: room.active ? `${room.rangeDb} dB` : "idle",
+      detail: room.active ? `${room.thresholdDb} dB threshold; ${room.roomTonePolicy}` : "Room floor is already low enough.",
+      status: room.active ? "check" : "ready"
+    },
+    {
+      id: "tone",
+      label: "Tone Surgery",
+      value: tone.activeCount ? `${tone.activeCount} bands` : "clear",
+      detail: tone.summary || "No dynamic tone cuts needed.",
+      status: tone.activeCount ? "check" : "ready"
+    }
+  ];
 }
 
 function formatMicroRepairPill(timeline = null) {

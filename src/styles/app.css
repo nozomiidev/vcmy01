@@ -707,8 +707,15 @@ input[type="range"] {
 }
 
 .studio-polish-grid:empty,
+.source-reactive-grid:empty,
 .studio-polish-patches:empty {
   display: none;
+}
+
+.source-reactive-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .studio-polish-card {
@@ -721,6 +728,16 @@ input[type="range"] {
   background: rgba(255,255,255,0.025);
 }
 
+.source-reactive-card {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+}
+
 .studio-polish-card.is-polish {
   border-color: color-mix(in srgb, var(--warn) 34%, var(--line));
 }
@@ -729,25 +746,49 @@ input[type="range"] {
   border-color: color-mix(in srgb, var(--bad) 38%, var(--line));
 }
 
+.source-reactive-card.is-ready {
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--line));
+}
+
+.source-reactive-card.is-check {
+  border-color: color-mix(in srgb, var(--warn) 34%, var(--line));
+}
+
+.source-reactive-card.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 38%, var(--line));
+}
+
 .studio-polish-card span,
-.studio-polish-card small {
+.studio-polish-card small,
+.source-reactive-card span,
+.source-reactive-card small {
   color: var(--muted);
   font-size: 11px;
 }
 
-.studio-polish-card span {
+.studio-polish-card span,
+.source-reactive-card span {
   font-weight: 900;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.studio-polish-card strong {
+.studio-polish-card strong,
+.source-reactive-card strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--ink);
   font-size: 13px;
+}
+
+.source-reactive-card span,
+.source-reactive-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .studio-polish-patches {
@@ -4024,7 +4065,7 @@ audio {
   .recipe-flow { grid-template-columns: 1fr; }
   .scene-session-grid { grid-template-columns: 1fr; }
   .scene-session-head { align-items: flex-start; flex-direction: column; }
-  .guided-studio-flow, .studio-polish-grid { grid-template-columns: 1fr; }
+  .guided-studio-flow, .studio-polish-grid, .source-reactive-grid { grid-template-columns: 1fr; }
   .source-fit-grid { grid-template-columns: 1fr; }
   .voice-route-list { grid-template-columns: 1fr; }
   .character-chain-flow { grid-template-columns: 1fr; }

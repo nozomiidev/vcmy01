@@ -855,3 +855,19 @@ https://auphonic.com/help/algorithms/singletrack.html
 https://podcasters.apple.com/support/893-audio-requirements
 https://transom.org/2015/podcasting-basics-part-3-audio-levels-and-processing/
 https://rode.com/en-us/about/news-info/a-guide-to-audio-processing-and-fx-for-podcasting
+
+## Source Reactive Evidence Loop
+
+The follow-up pass makes source-adaptive DSP visible. The restored `docs/koreyare.md` design note reframes VoiceForge as a source/filter/perception/studio workflow, not a static preset bank. The product should show that it is reacting to the uploaded voice's event density, phrase dynamics, room floor, and spectral crowding.
+
+Research decisions:
+
+- Segment-aware processing is a production norm: leveling and repair should react to phrases, noise floors, and local events rather than applying one fixed gain or EQ curve everywhere.
+- Mouth clicks, plosives, and sibilance are local time events. They should be surfaced as event lanes so the user can see why a repair was chosen.
+- A phrase-aware level ride and downward room-floor control are different from generic compression or hard gating; the UI should not collapse them into a vague "quality" number.
+
+Implementation response:
+
+- Added a `Source Reactive` card row inside Guided Studio with Event Lanes, Phrase Ride, Room Floor, and Tone Surgery cards.
+- The cards expose micro event density, adaptive de-ess intensity, phrase-ride range, expander threshold/range, and dynamic tone-band count.
+- Restored `docs/koreyare.md` into a readable architecture note covering source-filter theory, perceptual tone maps, source-reactive repair, prosody, QC, and AI-after-DSP boundaries.
