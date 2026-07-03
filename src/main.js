@@ -1218,7 +1218,7 @@ function rebuildSourceTimeline(options = {}) {
   let timeline = currentSourceTimeline();
   if (options.selectBest && timeline.bestCue) {
     state.activeSourceCueId = timeline.bestCue.id;
-    state.offlineRegion = cueRegion(timeline.bestCue) || state.offlineRegion;
+    state.offlineRegion = limitPreviewRegion(cueRegion(timeline.bestCue), options.maxDurationSec) || state.offlineRegion;
     timeline = currentSourceTimeline();
   } else if (timeline.cues.length && !timeline.cues.some((cue) => cue.id === state.activeSourceCueId)) {
     state.activeSourceCueId = timeline.bestCue?.id || timeline.cues[0].id;
@@ -1226,6 +1226,14 @@ function rebuildSourceTimeline(options = {}) {
   }
   state.sourceTimeline = timeline;
   return timeline;
+}
+
+function limitPreviewRegion(region, maxDurationSec = null) {
+  if (!region || !Number.isFinite(maxDurationSec)) return region;
+  return {
+    ...region,
+    durationSec: Math.min(region.durationSec, maxDurationSec)
+  };
 }
 
 function renderSourceTimeline() {
@@ -1341,7 +1349,7 @@ function useOfflineSource(source) {
   clearOfflineRenderPreview();
   setDefaultRegion(source);
   state.activeSourceCueId = null;
-  rebuildSourceTimeline({ selectBest: true });
+  rebuildSourceTimeline({ selectBest: true, maxDurationSec: 1.25 });
   $("sourceStatus").textContent = `${source.name} - ${source.analysis.range} source`;
   $("renderStatus").textContent = "Ready";
   updateRegionControls();
