@@ -65,6 +65,7 @@ export function drawAnalysisCards(host, source, rendered) {
       const target = rendered.studioPolish.target?.label || rendered.studioPolish.plan?.target?.label || rendered.studioPolish.intensity;
       entries.push(["Studio Polish", rendered.studioPolish.optimized ? `${target} + Director` : `${target} / ${rendered.studioPolish.intensity}`]);
       if (rendered.studioPolish.plan?.microRepair) entries.push(["Polish Events", formatMicroRepair(rendered.studioPolish.plan.microRepair)]);
+      if (rendered.studioPolish.plan?.roomShaper) entries.push(["Room Floor", formatRoomShaper(rendered.studioPolish.plan.roomShaper)]);
       if (rendered.studioPolish.plan?.toneSurgery) entries.push(["Tone Surgery", rendered.studioPolish.plan.toneSurgery.summary || "No dynamic cuts"]);
     }
     if (rendered.region && !rendered.region.isFull) entries.push(["Region", `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)} s`]);
@@ -116,6 +117,11 @@ function formatSpectral(spectral) {
   if (!spectral) return "No spectral map";
   const tilt = Number(spectral.tiltDbPerOctave || 0).toFixed(1);
   return `${Math.round(spectral.centroidHz || 0)} Hz / ${Math.round(spectral.rolloff85Hz || 0)} Hz / ${tilt} dB/oct`;
+}
+
+function formatRoomShaper(room) {
+  if (!room) return "Off";
+  return `${Number(room.thresholdDb || 0).toFixed(0)} dB / ${Number(room.rangeDb || 0).toFixed(0)} dB`;
 }
 
 function signed(value) {

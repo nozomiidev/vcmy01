@@ -326,6 +326,7 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard", target
     repairMap,
     microRepair: analysis.microRepair || null,
     toneSurgery: buildToneSurgery(analysis, target, f, stages),
+    roomShaper: buildRoomShaper(analysis, target, f, stages),
     targetRmsDb,
     stages,
     notes: planNotes(analysis, intensity.id, target)
@@ -406,6 +407,28 @@ function pickSpectralPeak(spectral, lowHz, highHz) {
   return peaks
     .filter((peak) => peak.hz >= lowHz && peak.hz <= highHz)
     .sort((a, b) => (b.prominenceDb || 0) - (a.prominenceDb || 0))[0] || null;
+}
+
+function buildRoomShaper(analysis, target, factor, stages) {
+  const noiseScore = clamp(analysis?.problemScores?.noise || 0, 0, 100);
+  const noiseFloorDb = Number.isFinite(analysis?.noiseFloorDb) ? analysis.noiseFloorDb : -72;
+  const thresholdDb = noiseFloorDb < -90
+    ? -58
+    : clamp(noiseFloorDb + (Number(analysis?.activeRatio || 0) < 0.25 ? -28 : 14), -62, -46);
+  const rangeDb = -clamp(3 + noiseScore * 0.075 * factor + (stages.noiseReduction || 0) * 0.05, 2.5, target?.id === "radio" ? 14 : 10);
+  const releaseMs = target?.id === "radio" ? 180 : 260;
+  return {
+    mode: "downward-expander-room-floor",
+    thresholdDb: Number(thresholdDb.toFixed(1)),
+    rangeDb: Number(rangeDb.toFixed(1)),
+    attackMs: 8,
+    holdMs: 85,
+    releaseMs,
+    minGainDb: Number(rangeDb.toFixed(1)),
+    roomTonePolicy: "attenuate, never hard-mute",
+    active: (stages.noiseReduction || 0) > 1,
+    reason: "Smooth the room floor between words without dead-silence pumping."
+  };
 }
 
 export function processStudioPolish(input, sampleRate, planOrOptions = "standard") {
@@ -660,7 +683,7 @@ function applyStudioPolishPlan(samples, sampleRate, plan) {
   work = applyMicroRepairEvents(work, sampleRate, plan.microRepair, p);
   work = reducePlosives(work, sampleRate, p.deplosive);
   work = reduceMouthClicks(work, sampleRate, p.mouthClick, p.mouthClickPasses);
-  work = reduceRoomNoise(work, p.noiseReduction);
+  work = reduceRoomNoise(work, sampleRate, p.noiseReduction, plan.roomShaper);
   work = applyBiquad(work, sampleRate, "highpass", p.highPassHz, 0.72, 0);
   work = applyToneSurgery(work, sampleRate, plan.toneSurgery, p);
   work = dynamicDeEss(work, sampleRate, p.deEss, p.deEssLookaheadMs);
@@ -831,6 +854,7 @@ function clonePlan(plan) {
     repairMap: plan.repairMap ? cloneRepairMap(plan.repairMap) : null,
     microRepair: plan.microRepair ? cloneMicroRepair(plan.microRepair) : null,
     toneSurgery: plan.toneSurgery ? cloneToneSurgery(plan.toneSurgery) : null,
+    roomShaper: plan.roomShaper ? { ...plan.roomShaper } : null,
     stages: { ...(plan.stages || {}) },
     notes: [...(plan.notes || [])],
     optimization: plan.optimization ? { ...plan.optimization } : undefined
@@ -1230,19 +1254,29 @@ function reduceMouthClickPass(input, sampleRate, amount) {
   return out;
 }
 
-function reduceRoomNoise(input, amountPct) {
+function reduceRoomNoise(input, sampleRate, amountPct, shaper = null) {
   const amount = clamp(amountPct / 100, 0, 1);
   if (amount <= 0.001) return input;
   const out = new Float32Array(input.length);
   let env = 0;
-  let floor = 0.004;
+  let gateGain = 1;
+  let hold = 0;
+  const threshold = dbToLin(shaper?.thresholdDb ?? -52);
+  const minGain = dbToLin(shaper?.minGainDb ?? -10);
+  const attack = 1 - Math.exp(-1 / Math.max(1, sampleRate * (Number(shaper?.attackMs || 8) / 1000)));
+  const release = 1 - Math.exp(-1 / Math.max(1, sampleRate * (Number(shaper?.releaseMs || 240) / 1000)));
+  const holdSamples = Math.max(0, Math.round(sampleRate * Number(shaper?.holdMs || 80) / 1000));
   for (let i = 0; i < input.length; i++) {
     const a = Math.abs(input[i]);
-    env += (a - env) * (a > env ? 0.06 : 0.0018);
-    floor += (Math.min(env, floor * 1.08 + 0.00002) - floor) * 0.0009;
-    const quiet = clamp((floor * 3.4 - env) / Math.max(1e-6, floor * 3.4), 0, 1);
-    const gain = 1 - quiet * amount * 0.58;
-    out[i] = input[i] * gain;
+    env += (a - env) * (a > env ? 0.05 : 0.0022);
+    const open = env >= threshold;
+    if (open) hold = holdSamples;
+    else if (hold > 0) hold--;
+    const quiet = clamp((threshold - env) / Math.max(1e-6, threshold), 0, 1);
+    const targetGain = open || hold > 0 ? 1 : 1 - (1 - minGain) * quiet * amount;
+    const coeff = targetGain > gateGain ? attack : release;
+    gateGain += (targetGain - gateGain) * coeff;
+    out[i] = input[i] * gateGain;
   }
   return out;
 }

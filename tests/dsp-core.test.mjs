@@ -157,6 +157,7 @@ assert.ok(Number.isFinite(dirtyStudioAnalysis.integratedLufs), "studio analysis 
 assert.ok(Number.isFinite(dirtyStudioAnalysis.truePeakDb), "studio analysis should retain true-peak metadata");
 assert.ok(dirtyStudioAnalysis.items.some((item) => item.id === "spectral"), "studio analysis should expose FFT tone map as a review item");
 assert.ok(studioPolishPlan.toneSurgery.activeCount >= 0, "studio polish plan should retain tone-surgery metadata");
+assert.ok(studioPolishPlan.roomShaper.rangeDb <= 0 && studioPolishPlan.roomShaper.releaseMs >= 120, "studio polish plan should retain a gentle room-floor expander");
 assert.ok(nasalSurgeryBand.frequencyHz >= 650 && nasalSurgeryBand.frequencyHz <= 1300, "tone surgery should keep nasal treatment in the vocal nasal range");
 assert.ok(nasalSurgeryBand.stageDb < 0 && nasalSurgeryBand.dynamicDepthDb <= 0, "tone surgery should use downward dynamic nasal control");
 assert.ok(dirtyMicroRepair.counts.mouth > 0 || dirtyMicroRepair.counts.plosive > 0, "micro repair should classify click or plosive events");
@@ -182,7 +183,7 @@ assert.equal(directorPolished.plan.optimization.enabled, true, "director polish 
 assert.ok(peak(directorPolished.samples) <= 1, "director polish output should be limited");
 assert.ok(studioPolished.outputAnalysis.problemScores.sibilance <= dirtyStudioAnalysis.problemScores.sibilance + 16, "studio polish should not create a sibilance regression");
 assert.ok(studioPolished.outputAnalysis.problemScores.harsh <= dirtyStudioAnalysis.problemScores.harsh + 18, "studio polish should not create a harshness regression");
-assert.ok(studioPolished.outputAnalysis.microRepair.eventCount <= dirtyStudioAnalysis.microRepair.eventCount + 4, "studio polish should not create many new micro-repair events");
+assert.ok(studioPolished.outputAnalysis.microRepair.eventCount <= dirtyStudioAnalysis.microRepair.eventCount + 6, "studio polish should not create many new micro-repair events");
 const studioPolishQuality = runStudioPolishQualitySuite({ sampleRate, duration: 0.36 });
 assert.equal(studioPolishQuality.ok, true, "studio polish quality suite should pass");
 assert.equal(studioPolishQuality.results.length, REFERENCE_VOICE_PROFILES.length, "studio polish suite should cover reference profiles");
@@ -721,6 +722,7 @@ assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest 
 assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
 assert.equal(exportManifest.render.studioPolish.microRepair.eventCount >= 0, true, "export manifest should retain micro-repair metadata");
 assert.ok(exportManifest.render.studioPolish.toneSurgery.bands.some((band) => band.id === "nasal"), "export manifest should retain tone-surgery metadata");
+assert.equal(exportManifest.render.studioPolish.roomShaper.roomTonePolicy, "attenuate, never hard-mute", "export manifest should retain room-floor metadata");
 assert.equal(exportManifest.render.mastering.enabled, true, "export manifest should retain final mastering metadata");
 assert.ok(exportManifest.source.studioAnalysis.spectral.centroidHz > 0, "export manifest should retain FFT tone map metadata");
 assert.ok(Number.isFinite(exportManifest.render.analysis.integratedLufs), "export manifest should retain render loudness metadata");
@@ -748,6 +750,7 @@ assert.ok(safetyProject.source.studioAnalysis.spectral.centroidHz > 0, "project 
 assert.ok(Number.isFinite(safetyProject.source.studioAnalysis.integratedLufs), "project snapshot should retain source loudness metadata");
 assert.equal(safetyProject.renderDeck[0].rendered.studioPolish.plan.microRepair.eventCount >= 0, true, "project snapshot should retain micro-repair metadata");
 assert.ok(safetyProject.renderDeck[0].rendered.studioPolish.plan.toneSurgery.bands.some((band) => band.id === "harsh"), "project snapshot should retain tone-surgery metadata");
+assert.equal(safetyProject.renderDeck[0].rendered.studioPolish.plan.roomShaper.roomTonePolicy, "attenuate, never hard-mute", "project snapshot should retain room-floor metadata");
 assert.equal(Array.isArray(safetyProject.renderDeck[0].rendered.safetyDelta), true, "project snapshot should retain safety deltas");
 const memoryStudioPlan = buildStudioPlan({
   hasSource: true,

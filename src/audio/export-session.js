@@ -142,6 +142,10 @@ export function studioPolishResearchNotes(rendered = null) {
         notes.push(`  - ${band.label}: ${Math.round(band.frequencyHz)} Hz, ${round(band.stageDb, 2)} dB, ${band.evidence}`);
       }
     }
+    if (polish.plan?.roomShaper) {
+      const room = polish.plan.roomShaper;
+      notes.push(`- Room floor: ${round(room.thresholdDb, 1)} dB threshold, ${round(room.rangeDb, 1)} dB range, ${room.roomTonePolicy}`);
+    }
     if (rendered?.mastering?.enabled) {
       notes.push(`- Final mastering: ${round(rendered.mastering.gainDb, 2)} dB to ${round(rendered.mastering.targetLufs, 1)} LUFS / ${round(rendered.mastering.truePeakCeilingDb, 1)} dBTP ceiling`);
     }
@@ -332,6 +336,7 @@ function compactStudioPolish(polish = null) {
     optimization: polish.plan?.optimization || null,
     microRepair: compactMicroRepair(polish.plan?.microRepair),
     toneSurgery: compactToneSurgery(polish.plan?.toneSurgery),
+    roomShaper: compactRoomShaper(polish.plan?.roomShaper),
     repairMap: compactRepairMap(polish.plan?.repairMap),
     stages: polish.plan?.stages || null,
     input: compactStudioAnalysis(polish.inputAnalysis),
@@ -425,6 +430,22 @@ function compactToneSurgery(surgery = null) {
       evidence: band.evidence,
       reason: band.reason
     }))
+  };
+}
+
+function compactRoomShaper(room = null) {
+  if (!room) return null;
+  return {
+    mode: room.mode || "",
+    thresholdDb: round(room.thresholdDb, 1),
+    rangeDb: round(room.rangeDb, 1),
+    attackMs: round(room.attackMs, 1),
+    holdMs: round(room.holdMs, 1),
+    releaseMs: round(room.releaseMs, 1),
+    minGainDb: round(room.minGainDb, 1),
+    roomTonePolicy: room.roomTonePolicy || "",
+    active: !!room.active,
+    reason: room.reason || ""
   };
 }
 

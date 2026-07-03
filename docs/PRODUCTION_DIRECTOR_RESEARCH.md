@@ -190,6 +190,30 @@ https://aes.org/resources/audio-topics/loudness-project/learn-more/
 https://auphonic.com/blog/2011/07/25/loudness-normalization-and-compression-podcasts-and-speech-audio/
 https://auphonic.com/features/loudnorm
 
+## Room Floor Shaping Loop
+
+The ninth production-director pass improves the silence and room-floor behavior between phrases. A professional voice track should not pump, chatter, or drop into unnatural digital silence, but low-level room/device noise should not be lifted by later compression and mastering.
+
+Research decisions:
+
+- Podcast and voiceover workflows typically place cleanup before compression because compression makes noise, breaths, and mouth tails more audible.
+- RX-style dialogue tools separate dialogue isolation/noise reduction from mouth repair; both should be conservative because over-reduction can create watery tails, chopped consonants, or dead room tone.
+- Gate/expander practice for spoken voice favors threshold, range, hold, and release over hard muting. A downward expander with limited range is safer than an infinite gate for natural speech.
+- Breath and room tone are not always defects. The product should attenuate room floor and messy tails while preserving enough continuity that close speech still feels embodied.
+
+Implementation response:
+
+- `buildStudioPolishPlan()` now emits `roomShaper` metadata with threshold, range, attack, hold, release, and room-tone policy.
+- `reduceRoomNoise()` is now a bounded downward-expander-style room floor shaper rather than a simple quiet-sample gain dip.
+- Export notes, Project Vault snapshots, render cards, tests, and quality reports retain room-floor evidence.
+
+Sources:
+https://rode.com/en-us/about/news-info/a-guide-to-audio-processing-and-fx-for-podcasting
+https://s3.amazonaws.com/izotopedownloads/docs/rx9/en/dialogue-isolate/index.html
+https://downloads.izotope.com/docs/rx6/36-voice-de-noise/index.html
+https://transom.org/2015/podcasting-basics-part-3-audio-levels-and-processing/
+https://www.reddit.com/r/audioengineering/comments/10rw2ym/how_much_magic_to_put_on_a_podcast/
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
@@ -263,6 +287,7 @@ https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/de
 - FFT Tone Map was verified in the in-app Browser with the same private fixture. The source analysis showed `FFT Tone 616 Hz / 563 Hz / -12.1 dB/oct` alongside Micro Repair evidence, so tone risks now have spectral evidence in UI, exports, and project snapshots.
 - Dynamic Tone Surgery was verified in the in-app Browser with the same private fixture, Kawaii / Anime target, and Director Optimize enabled. The rendered metric card showed `Low-Mid Mud 255Hz / Nasal Ring 1050Hz / Presence Harshness 3469Hz`, and WAV/WebM/ZIP export controls were enabled after full render.
 - Loudness Mastering was verified in the in-app Browser through the static deep link `?audio=/tests/data/konichiwabokunonamaewayamadatarodesu.webm&target=kawaii&polish=standard&director=1&render=full`. The source showed `-24.0 LUFS / -5.8 dBTP`, final mastering showed `+6.8 dB -> -19.2 LUFS`, and the render showed `-19.2 LUFS / -1.6 dBTP` with WAV/WebM/ZIP controls enabled.
+- Room Floor Shaping was verified through the same private-fixture deep link. The rendered metric card showed `Room Floor -58 dB / -3 dB`, while Tone Surgery, Master Gain, Render Loudness, Render True Peak, and WAV/WebM/ZIP export readiness remained visible.
 
 Open follow-up:
 

@@ -494,6 +494,7 @@ function sanitizeStudioPolish(polish = null) {
       stages: sanitizeProblemScores(polish.plan.stages),
       microRepair: sanitizeMicroRepair(polish.plan.microRepair),
       toneSurgery: sanitizeToneSurgery(polish.plan.toneSurgery),
+      roomShaper: sanitizeRoomShaper(polish.plan.roomShaper),
       repairMap: sanitizeRepairMap(polish.plan.repairMap),
       optimization: polish.plan.optimization ? {
         enabled: !!polish.plan.optimization.enabled,
@@ -612,6 +613,22 @@ function sanitizeToneSurgery(surgery = null) {
       evidence: cleanText(band.evidence || "", 180),
       reason: cleanText(band.reason || "", 180)
     }))
+  };
+}
+
+function sanitizeRoomShaper(room = null) {
+  if (!room) return null;
+  return {
+    mode: cleanText(room.mode || "", 80),
+    thresholdDb: finiteNumber(room.thresholdDb),
+    rangeDb: finiteNumber(room.rangeDb),
+    attackMs: finiteNumber(room.attackMs),
+    holdMs: finiteNumber(room.holdMs),
+    releaseMs: finiteNumber(room.releaseMs),
+    minGainDb: finiteNumber(room.minGainDb),
+    roomTonePolicy: cleanText(room.roomTonePolicy || "", 120),
+    active: !!room.active,
+    reason: cleanText(room.reason || "", 180)
   };
 }
 
