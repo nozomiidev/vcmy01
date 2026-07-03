@@ -42,6 +42,7 @@ import {
 } from "../src/audio/studio-polish.js";
 import { buildExportManifest, renderedBaseName, studioPolishResearchNotes } from "../src/audio/export-session.js";
 import { applyCharacterSafety, characterSafetySummary } from "../src/audio/character-safety.js";
+import { analyzeSpectralVoice, spectralVoiceSummary } from "../src/audio/spectral-voice.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -115,9 +116,14 @@ assert.equal(new Set(voiceRouteTargets().map((target) => target.presetId)).size,
 assert.ok(REFERENCE_VOICE_PROFILES.length >= 4, "reference profiles should cover varied source voices");
 assert.equal(source.length, Math.round(sampleRate * 1.25), "generated sample length");
 const sourceAnalysis = analyzeBuffer(source, sampleRate);
+const sourceSpectral = analyzeSpectralVoice(source, sampleRate);
 assert.ok(sourceAnalysis.rms > 0.02, "generated sample should contain audible energy");
 assert.ok(sourceAnalysis.pitchMedianHz > 90 && sourceAnalysis.pitchMedianHz < 240, "generated sample exposes a plausible F0");
 assert.ok(Number.isFinite(sourceAnalysis.brightnessRatio), "generated sample exposes brightness analysis");
+assert.ok(sourceSpectral.frameCount > 0, "spectral voice analysis should inspect FFT frames");
+assert.ok(sourceSpectral.centroidHz > 0 && sourceSpectral.rolloff85Hz >= sourceSpectral.centroidHz, "spectral voice analysis should expose plausible centroid and rolloff");
+assert.ok(Number.isFinite(sourceSpectral.tiltDbPerOctave), "spectral voice analysis should expose finite spectral tilt");
+assert.ok(spectralVoiceSummary(sourceSpectral).includes("centroid"), "spectral summary should describe centroid evidence");
 const dirtyStudioSource = studioPolishFixture(source, sampleRate);
 const dirtyStudioAnalysis = analyzeStudioVoice(dirtyStudioSource, sampleRate);
 const dirtyMicroRepair = buildMicroRepairTimeline(dirtyStudioSource, sampleRate);
@@ -134,6 +140,8 @@ const directorPolished = processStudioPolish(dirtyStudioSource, sampleRate, {
 });
 assert.equal(studioPolished.samples.length, dirtyStudioSource.length, "studio polish preserves source length");
 assert.ok(dirtyMicroRepair.eventCount > 0, "micro repair should detect local artifact events");
+assert.ok(dirtyStudioAnalysis.spectral.centroidHz > 0, "studio analysis should retain FFT tone map");
+assert.ok(dirtyStudioAnalysis.items.some((item) => item.id === "spectral"), "studio analysis should expose FFT tone map as a review item");
 assert.ok(dirtyMicroRepair.counts.mouth > 0 || dirtyMicroRepair.counts.plosive > 0, "micro repair should classify click or plosive events");
 assert.equal(studioPolishPlan.microRepair.eventCount, dirtyStudioAnalysis.microRepair.eventCount, "studio polish plan should retain micro-repair timeline");
 assert.equal(studioPolished.plan.microRepair.eventCount, dirtyStudioAnalysis.microRepair.eventCount, "studio polish render should carry micro-repair evidence");
@@ -692,6 +700,7 @@ const exportManifest = buildExportManifest({
 assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest should retain Studio Polish metadata");
 assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
 assert.equal(exportManifest.render.studioPolish.microRepair.eventCount >= 0, true, "export manifest should retain micro-repair metadata");
+assert.ok(exportManifest.source.studioAnalysis.spectral.centroidHz > 0, "export manifest should retain FFT tone map metadata");
 assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
 assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");
 assert.equal(exportManifest.source.sourceKind, "generated", "export manifest should retain source import kind");
@@ -710,6 +719,7 @@ const safetyProject = createProjectSnapshot({
   renderDeck: [{ id: "safety-render", title: "Safety Render", target: kawaiiSpark.name, targetId: kawaiiSpark.id, review: autoReview, rendered: autoRendered }]
 }, { id: "project-safety", title: "Safety metadata project", includeAudio: false });
 assert.equal(safetyProject.renderDeck[0].rendered.characterSafety.enabled, true, "project snapshot should retain character-safety metadata");
+assert.ok(safetyProject.source.studioAnalysis.spectral.centroidHz > 0, "project snapshot should retain source FFT tone map");
 assert.equal(safetyProject.renderDeck[0].rendered.studioPolish.plan.microRepair.eventCount >= 0, true, "project snapshot should retain micro-repair metadata");
 assert.equal(Array.isArray(safetyProject.renderDeck[0].rendered.safetyDelta), true, "project snapshot should retain safety deltas");
 const memoryStudioPlan = buildStudioPlan({

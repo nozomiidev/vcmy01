@@ -54,6 +54,7 @@ export function drawAnalysisCards(host, source, rendered) {
     if (source.studioAnalysis) {
       entries.push(["Studio Score", `${source.studioAnalysis.score}%`]);
       entries.push(["Noise Floor", `${source.studioAnalysis.noiseFloorDb.toFixed(1)} dB`]);
+      if (source.studioAnalysis.spectral) entries.push(["FFT Tone", formatSpectral(source.studioAnalysis.spectral)]);
       if (source.studioAnalysis.microRepair) entries.push(["Micro Repair", formatMicroRepair(source.studioAnalysis.microRepair)]);
     }
   }
@@ -95,6 +96,12 @@ function formatMicroRepair(timeline) {
   if (!count) return "0 events";
   const c = timeline.counts || {};
   return `${count} events / M${c.mouth || 0} P${c.plosive || 0} S${c.sibilance || 0}`;
+}
+
+function formatSpectral(spectral) {
+  if (!spectral) return "No spectral map";
+  const tilt = Number(spectral.tiltDbPerOctave || 0).toFixed(1);
+  return `${Math.round(spectral.centroidHz || 0)} Hz / ${Math.round(spectral.rolloff85Hz || 0)} Hz / ${tilt} dB/oct`;
 }
 
 function signed(value) {

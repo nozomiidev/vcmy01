@@ -9,6 +9,7 @@ import {
   REFERENCE_VOICE_PROFILES,
   rms
 } from "./dsp-core.js";
+import { analyzeSpectralVoice } from "./spectral-voice.js";
 
 export const STUDIO_POLISH_INTENSITIES = Object.freeze([
   { id: "light", label: "Light", factor: 0.45, targetRmsDb: -21.5 },
@@ -148,6 +149,7 @@ export function analyzeStudioVoice(input, sampleRate) {
   const dynamicRangeDb = linToDb(p85) - linToDb(p15);
   const band = bandProfile(samples, sampleRate);
   const microRepair = buildMicroRepairTimeline(samples, sampleRate, { band });
+  const spectral = analyzeSpectralVoice(samples, sampleRate);
   const mouthClick = Math.max(mouthClickScore(samples, sampleRate, band), microRepair.problemScores.mouthClick);
   const plosive = Math.max(plosiveScore(samples, sampleRate), microRepair.problemScores.plosive);
   const levelScore = levelProblemScore(base);
@@ -156,14 +158,14 @@ export function analyzeStudioVoice(input, sampleRate) {
     clamp((band.sibilanceRatio - 0.045) * 1050 + Math.max(0, base.zeroCrossingsPerSecond - 3200) * 0.018, 0, 100),
     microRepair.problemScores.sibilance
   );
-  const mud = clamp((band.mudRatio - 0.22) * 360, 0, 100);
-  const nasal = clamp((band.nasalRatio - 0.2) * 410, 0, 100);
-  const harsh = clamp((band.harshRatio - 0.13) * 620, 0, 100);
-  const brightnessProblem = base.brightnessRatio < 0.16
+  const mud = Math.max(clamp((band.mudRatio - 0.22) * 360, 0, 100), spectral.risks.mud);
+  const nasal = Math.max(clamp((band.nasalRatio - 0.2) * 410, 0, 100), spectral.risks.nasal);
+  const harsh = Math.max(clamp((band.harshRatio - 0.13) * 620, 0, 100), spectral.risks.harsh);
+  const brightnessProblem = Math.max(base.brightnessRatio < 0.16
     ? clamp((0.16 - base.brightnessRatio) * 420, 0, 100)
     : base.brightnessRatio > 0.42
       ? clamp((base.brightnessRatio - 0.42) * 380, 0, 100)
-      : 0;
+      : 0, spectral.risks.dark, spectral.risks.thin * 0.7);
   const score = studioScore({
     levelScore,
     noiseScore,
@@ -193,6 +195,7 @@ export function analyzeStudioVoice(input, sampleRate) {
     dynamicRangeDb,
     band,
     microRepair,
+    spectral,
     levelScore,
     noiseScore,
     mouthClick,
@@ -214,6 +217,7 @@ export function analyzeStudioVoice(input, sampleRate) {
     dynamicRangeDb,
     band,
     microRepair,
+    spectral,
     problemScores,
     items
   });
@@ -229,6 +233,7 @@ export function analyzeStudioVoice(input, sampleRate) {
     dynamicRangeDb,
     band,
     microRepair,
+    spectral,
     problemScores,
     items,
     repairMap
@@ -456,6 +461,7 @@ function studioAnalysisItems(metrics) {
     item("mouth", "Mouth Clicks", metrics.mouthClick, `${Math.round(metrics.mouthClick)} risk`, "Short mouth transients and lip-smack-like events."),
     item("sibilance", "Sibilance", metrics.sibilance, `${Math.round(metrics.band.sibilanceRatio * 100)}% high`, "Sharp S and fricative energy needing dynamic control."),
     item("tone", "Tone Balance", Math.max(metrics.mud, metrics.nasal, metrics.harsh, metrics.brightnessProblem), toneValue(metrics), "Mud, nasal resonance, harshness, and brightness balance."),
+    item("spectral", "FFT Tone Map", Math.max(metrics.spectral?.risks?.dark || 0, metrics.spectral?.risks?.thin || 0, metrics.spectral?.risks?.nasal || 0, metrics.spectral?.risks?.harsh || 0), metrics.spectral?.summary || "No spectral analysis", "FFT centroid, rolloff, tilt, and resonant peak evidence."),
     item("dynamics", "Dynamics", clamp((metrics.dynamicRangeDb - 14) * 5, 0, 100), `${metrics.dynamicRangeDb.toFixed(1)} dB`, "Speech leveling before limiter and export.")
   ];
 }

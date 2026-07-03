@@ -456,6 +456,7 @@ function sanitizeStudioAnalysis(analysis = null) {
     loudnessProxyDb: finiteNumber(analysis.loudnessProxyDb),
     dynamicRangeDb: finiteNumber(analysis.dynamicRangeDb),
     problemScores: sanitizeProblemScores(analysis.problemScores),
+    spectral: sanitizeSpectral(analysis.spectral),
     microRepair: sanitizeMicroRepair(analysis.microRepair),
     repairMap: sanitizeRepairMap(analysis.repairMap)
   };
@@ -545,6 +546,27 @@ function sanitizeMicroRepair(timeline = null) {
     },
     topEvent: sanitizeMicroEvent(timeline.topEvent),
     events: (Array.isArray(timeline.events) ? timeline.events : []).slice(0, 12).map(sanitizeMicroEvent).filter(Boolean)
+  };
+}
+
+function sanitizeSpectral(spectral = null) {
+  if (!spectral) return null;
+  return {
+    frameSize: Math.max(0, Number(spectral.frameSize || 0)),
+    frameCount: Math.max(0, Number(spectral.frameCount || 0)),
+    centroidHz: finiteNumber(spectral.centroidHz),
+    rolloff85Hz: finiteNumber(spectral.rolloff85Hz),
+    rolloff95Hz: finiteNumber(spectral.rolloff95Hz),
+    flatness: finiteNumber(spectral.flatness),
+    tiltDbPerOctave: finiteNumber(spectral.tiltDbPerOctave),
+    risks: sanitizeProblemScores(spectral.risks),
+    bands: sanitizeProblemScores(spectral.bands),
+    summary: cleanText(spectral.summary || "", 160),
+    peaks: (Array.isArray(spectral.peaks) ? spectral.peaks : []).slice(0, 6).map((peak) => ({
+      hz: finiteNumber(peak.hz),
+      db: finiteNumber(peak.db),
+      prominenceDb: finiteNumber(peak.prominenceDb)
+    }))
   };
 }
 

@@ -116,6 +116,28 @@ https://s3.amazonaws.com/izotopedownloads/docs/rx8/en/mouth-de-click/index.html
 https://transom.org/2016/p-pops-plosives/
 https://www.production-expert.com/production-expert-1/how-to-reduce-plosive-thumps-in-vocal-recordings
 
+## FFT Tone Map Loop
+
+The sixth production-director pass adds Fourier-domain voice evidence to Studio Polish. The previous band profile used IIR-filtered RMS bands, which is useful, but professional AutoEQ and spectrum-analyzer workflows rely on visible spectral shape, resonant peaks, centroid/brightness, rolloff, and tilt.
+
+Research decisions:
+
+- Auphonic describes AutoEQ as automatically analyzing and optimizing the frequency spectrum of voice recordings to avoid speech that sounds sharp, muddy, or unpleasant.
+- FabFilter Pro-Q emphasizes spectrum-analyzer visibility and dynamic EQ as a way to perform subtle surgical edits when resonances or harsh bands appear.
+- Spectral descriptors such as centroid, rolloff, flatness, and spectral slope are standard low-level audio features. They are not "the sound" by themselves, but they are useful objective evidence for brightness, noisy texture, and spectral balance.
+
+Implementation response:
+
+- `analyzeSpectralVoice()` performs a bounded radix-2 FFT analysis over a small set of Hann-windowed frames, returning centroid, 85/95% rolloff, flatness, dB/octave tilt, relative vocal bands, and resonant peaks.
+- `analyzeStudioVoice()` now combines FFT risks with the existing IIR band profile for dark/thin/mud/nasal/harsh/sibilance decisions.
+- Source cards, export metadata, Project Vault snapshots, tests, and quality reports retain FFT Tone Map evidence.
+
+Sources:
+https://auphonic.com/help/algorithms/singletrack.html
+https://auphonic.com/blog/2023/01/24/autoeq-beta/
+https://www.fabfilter.com/help/pro-q/using/analyzer
+https://www.mathworks.com/help/audio/ug/spectral-descriptors.html
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
@@ -186,6 +208,7 @@ https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/de
 - URL import was verified in the in-app Browser with the private local fixture `/tests/data/konichiwabokunonamaewayamadatarodesu.webm`. The app decoded a 7.0s source locally, analyzed it as a medium source, showed repair steps for Mouth De-click, Tone Surgery, De-ess, and Level / Dynamics, then completed Polish -> Character render with WAV/WebM/ZIP enabled.
 - Character Safety was verified in the in-app Browser with the same private fixture and Kawaii / Anime target. The Guided Studio and Render Deck showed `Safety Guarded` with pitch, formant-like, and air clamps, while WAV, WebM, and ZIP export controls became available.
 - Micro Repair Timeline was verified in the in-app Browser with the same private fixture. The source analysis showed `43 events / M27 P3 S13`, Guided Studio showed the same micro count before rendering, and the rendered analysis preserved `Polish Events` with WAV/WebM/ZIP enabled.
+- FFT Tone Map was verified in the in-app Browser with the same private fixture. The source analysis showed `FFT Tone 616 Hz / 563 Hz / -12.1 dB/oct` alongside Micro Repair evidence, so tone risks now have spectral evidence in UI, exports, and project snapshots.
 
 Open follow-up:
 

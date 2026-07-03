@@ -295,6 +295,7 @@ function compactStudioAnalysis(analysis = null) {
     loudnessProxyDb: round(analysis.loudnessProxyDb, 2),
     dynamicRangeDb: round(analysis.dynamicRangeDb, 2),
     problemScores: analysis.problemScores || null,
+    spectral: compactSpectral(analysis.spectral),
     microRepair: compactMicroRepair(analysis.microRepair),
     repairMap: compactRepairMap(analysis.repairMap)
   };
@@ -355,6 +356,23 @@ function compactMicroRepair(timeline = null) {
       endSec: round(event.endSec, 3),
       risk: Math.round(event.risk || 0)
     }))
+  };
+}
+
+function compactSpectral(spectral = null) {
+  if (!spectral) return null;
+  return {
+    frameSize: spectral.frameSize || 0,
+    frameCount: spectral.frameCount || 0,
+    centroidHz: round(spectral.centroidHz, 1),
+    rolloff85Hz: round(spectral.rolloff85Hz, 1),
+    rolloff95Hz: round(spectral.rolloff95Hz, 1),
+    flatness: round(spectral.flatness, 4),
+    tiltDbPerOctave: round(spectral.tiltDbPerOctave, 2),
+    risks: spectral.risks || null,
+    bands: spectral.bands || null,
+    peaks: (spectral.peaks || []).slice(0, 6),
+    summary: spectral.summary || ""
   };
 }
 
