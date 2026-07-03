@@ -329,6 +329,33 @@ https://docs.rs/pitch-detection/latest/pitch_detection/detector/yin/index.html
 https://www.mathworks.com/help/audio/ug/pitch-tracking-using-multiple-pitch-estimations-and-hmm.html
 https://dsp.stackexchange.com/questions/17758/pitch-detection-avoiding-frequency-doubling-halving
 
+## LPC Spectral Envelope Loop
+
+The fourteenth production-director pass follows the source-filter map in `docs/koreyare.md`: character voice conversion needs pitch/source features and vocal-tract/filter features to be measured separately. The previous tract layer was parameter-driven; this pass adds an observed LPC envelope so Studio Polish and future formant conversion can see the source's resonant shape.
+
+Research decisions:
+
+- LPC is a classical source-filter speech model: it approximates the smooth vocal-tract spectral envelope and is widely used for formant analysis and speech coding.
+- Praat's source-filter and formant documentation treats LPC parameter choices as important; model order and bandwidth assumptions can make formant values inaccurate, so the browser implementation should expose envelope evidence rather than pretend it is definitive formant truth.
+- DSP practice distinguishes spectral peaks from spectral-envelope peaks. For vocal tract work, the envelope is often the thing we want, not every harmonic peak.
+- LPC is strongest on stable voiced/vowel-like frames and less reliable on nasalized, noisy, or fricative-heavy speech; VoiceForge therefore uses it first as diagnostics and risk evidence, not as destructive resynthesis.
+
+Implementation response:
+
+- `analyzeSpectralVoice()` now computes an LPC autocorrelation envelope on the strongest speech frame.
+- Spectral risk scoring can use LPC-envelope prominence for nasal and harsh resonance evidence.
+- Export manifests, project snapshots, and the FFT Tone UI card retain/show LPC envelope metadata.
+
+Verification:
+
+- In-app Browser private-fixture Kawaii render showed FFT Tone `616 Hz / 563 Hz / -12.1 dB/oct / LPC 413 Hz`, Pitch Tracker `yin-autocorr-hybrid`, Render Loudness/True Peak cards, A/B Match, and enabled WAV/WebM/ZIP controls.
+
+Sources:
+https://support.ircam.fr/docs/AudioSculpt/3.0/co/LPC_1.html
+https://www.fon.hum.uva.nl/praat/manual/Source-filter_synthesis_4__Using_existing_sounds.html
+https://www.dsprelated.com/freebooks/pasp/Linear_Predictive_Coding_Speech.html
+https://dsp.stackexchange.com/questions/34985/understanding-lpc-for-formant-estimation
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

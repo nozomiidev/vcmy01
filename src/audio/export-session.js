@@ -669,7 +669,24 @@ function compactSpectral(spectral = null) {
     risks: spectral.risks || null,
     bands: spectral.bands || null,
     peaks: (spectral.peaks || []).slice(0, 6),
+    envelope: compactSpectralEnvelope(spectral.envelope),
     summary: spectral.summary || ""
+  };
+}
+
+function compactSpectralEnvelope(envelope = null) {
+  if (!envelope) return null;
+  return {
+    method: envelope.method || "",
+    order: Math.max(0, Number(envelope.order || 0)),
+    maxHz: round(envelope.maxHz, 1),
+    error: round(envelope.error, 8),
+    summary: envelope.summary || "",
+    peaks: (envelope.peaks || []).slice(0, 6).map((peak) => ({
+      hz: round(peak.hz, 1),
+      db: round(peak.db, 2),
+      prominenceDb: round(peak.prominenceDb, 2)
+    }))
   };
 }
 

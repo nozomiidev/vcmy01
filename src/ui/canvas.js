@@ -126,7 +126,8 @@ function formatMicroRepair(timeline) {
 function formatSpectral(spectral) {
   if (!spectral) return "No spectral map";
   const tilt = Number(spectral.tiltDbPerOctave || 0).toFixed(1);
-  return `${Math.round(spectral.centroidHz || 0)} Hz / ${Math.round(spectral.rolloff85Hz || 0)} Hz / ${tilt} dB/oct`;
+  const envelope = spectral.envelope?.peaks?.[0]?.hz ? ` / LPC ${Math.round(spectral.envelope.peaks[0].hz)} Hz` : "";
+  return `${Math.round(spectral.centroidHz || 0)} Hz / ${Math.round(spectral.rolloff85Hz || 0)} Hz / ${tilt} dB/oct${envelope}`;
 }
 
 function formatRoomShaper(room) {

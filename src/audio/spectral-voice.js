@@ -25,7 +25,8 @@ export function analyzeSpectralVoice(input, sampleRate, options = {}) {
   const tiltDbPerOctave = spectralTilt(averagePower, sampleRate, 120, Math.min(12000, sampleRate * 0.45));
   const bands = spectralBands(averagePower, sampleRate);
   const peaks = spectralPeaks(averagePower, sampleRate);
-  const risks = spectralRisks({ centroidHz, rolloff85Hz, tiltDbPerOctave, bands, peaks });
+  const envelope = lpcSpectralEnvelope(frames, sampleRate, options);
+  const risks = spectralRisks({ centroidHz, rolloff85Hz, tiltDbPerOctave, bands, peaks, envelope });
 
   return {
     frameSize,
@@ -37,8 +38,9 @@ export function analyzeSpectralVoice(input, sampleRate, options = {}) {
     tiltDbPerOctave: round(tiltDbPerOctave, 2),
     bands,
     peaks,
+    envelope,
     risks,
-    summary: spectralVoiceSummary({ centroidHz, rolloff85Hz, tiltDbPerOctave, risks })
+    summary: spectralVoiceSummary({ centroidHz, rolloff85Hz, tiltDbPerOctave, risks, envelope })
   };
 }
 
@@ -53,7 +55,8 @@ export function spectralVoiceSummary(spectral = null) {
   if ((risks.dark || 0) > 28) tags.push("dark");
   if ((risks.thin || 0) > 28) tags.push("thin");
   const core = `${Math.round(spectral.centroidHz || 0)} Hz centroid / ${Math.round(spectral.rolloff85Hz || 0)} Hz rolloff`;
-  return tags.length ? `${core} / ${tags.slice(0, 3).join(", ")}` : core;
+  const envelopePeak = spectral.envelope?.peaks?.[0]?.hz ? ` / LPC ${Math.round(spectral.envelope.peaks[0].hz)} Hz` : "";
+  return tags.length ? `${core}${envelopePeak} / ${tags.slice(0, 3).join(", ")}` : `${core}${envelopePeak}`;
 }
 
 function spectralFrames(samples, frameSize, maxFrames) {
@@ -201,15 +204,108 @@ function spectralPeaks(power, sampleRate) {
   return peaks.sort((a, b) => b.prominenceDb - a.prominenceDb).slice(0, 6);
 }
 
-function spectralRisks({ centroidHz, rolloff85Hz, tiltDbPerOctave, bands, peaks }) {
+function lpcSpectralEnvelope(frames, sampleRate, options = {}) {
+  if (!frames?.length) return emptyEnvelope();
+  const order = Math.max(8, Math.min(24, Math.round(options.lpcOrder || Math.min(18, 2 + sampleRate / 4000))));
+  const frame = frames.slice().sort((a, b) => frameEnergy(b) - frameEnergy(a))[0];
+  const coeffs = levinsonDurbin(autocorrelation(frame, order), order);
+  if (!coeffs?.a?.length || coeffs.error <= 1e-12) return emptyEnvelope(order);
+  const maxHz = Math.min(options.lpcMaxHz || 5500, sampleRate * 0.45);
+  const response = [];
+  const bins = 160;
+  for (let i = 1; i <= bins; i++) {
+    const hz = (i / bins) * maxHz;
+    const w = Math.PI * 2 * hz / sampleRate;
+    let re = 1;
+    let im = 0;
+    for (let k = 1; k < coeffs.a.length; k++) {
+      re += coeffs.a[k] * Math.cos(-w * k);
+      im += coeffs.a[k] * Math.sin(-w * k);
+    }
+    const mag = Math.sqrt(coeffs.error) / Math.max(1e-9, Math.sqrt(re * re + im * im));
+    response.push({ hz, db: linToDb(mag) });
+  }
+  const peaks = envelopePeaks(response);
+  return {
+    method: "lpc-autocorrelation-envelope",
+    order,
+    maxHz: round(maxHz, 1),
+    error: round(coeffs.error, 8),
+    peaks,
+    summary: peaks.length
+      ? peaks.slice(0, 3).map((peak) => `${Math.round(peak.hz)}Hz`).join(" / ")
+      : "No stable LPC envelope peaks"
+  };
+}
+
+function autocorrelation(frame, order) {
+  const out = new Float64Array(order + 1);
+  for (let lag = 0; lag <= order; lag++) {
+    let sum = 0;
+    for (let i = 0; i < frame.length - lag; i++) sum += frame[i] * frame[i + lag];
+    out[lag] = sum;
+  }
+  return out;
+}
+
+function levinsonDurbin(r, order) {
+  if (!r?.length || r[0] <= 1e-12) return null;
+  const a = new Float64Array(order + 1);
+  a[0] = 1;
+  let error = r[0];
+  for (let i = 1; i <= order; i++) {
+    let acc = r[i];
+    for (let j = 1; j < i; j++) acc += a[j] * r[i - j];
+    const reflection = -acc / Math.max(1e-12, error);
+    if (!Number.isFinite(reflection) || Math.abs(reflection) >= 0.998) break;
+    const next = new Float64Array(a);
+    next[i] = reflection;
+    for (let j = 1; j < i; j++) next[j] = a[j] + reflection * a[i - j];
+    a.set(next);
+    error *= 1 - reflection * reflection;
+    if (error <= 1e-12) break;
+  }
+  return { a, error };
+}
+
+function envelopePeaks(response) {
+  const peaks = [];
+  for (let i = 2; i < response.length - 2; i++) {
+    const prev = response[i - 1].db;
+    const cur = response[i].db;
+    const next = response[i + 1].db;
+    if (cur <= prev || cur <= next) continue;
+    const shoulder = Math.max(response[i - 2].db, response[i + 2].db);
+    const prominenceDb = cur - shoulder;
+    const hz = response[i].hz;
+    if (hz >= 180 && prominenceDb > 0.55) {
+      peaks.push({
+        hz: round(hz, 1),
+        db: round(cur, 2),
+        prominenceDb: round(prominenceDb, 2)
+      });
+    }
+  }
+  return peaks.sort((a, b) => b.prominenceDb - a.prominenceDb || a.hz - b.hz).slice(0, 6);
+}
+
+function frameEnergy(frame) {
+  let sum = 0;
+  for (let i = 0; i < frame.length; i++) sum += frame[i] * frame[i];
+  return sum / Math.max(1, frame.length);
+}
+
+function spectralRisks({ centroidHz, rolloff85Hz, tiltDbPerOctave, bands, peaks, envelope }) {
   const topNasal = maxPeak(peaks, 650, 1300);
   const topHarsh = maxPeak(peaks, 2500, 4500);
+  const envelopeNasal = maxPeak(envelope?.peaks || [], 650, 1300);
+  const envelopeHarsh = maxPeak(envelope?.peaks || [], 2500, 4500);
   return {
     dark: Math.round(clamp((1450 - centroidHz) * 0.045 + (-7.5 - tiltDbPerOctave) * 7, 0, 100)),
     thin: Math.round(clamp((centroidHz - 3100) * 0.035 + Math.max(0, rolloff85Hz - 8200) * 0.011, 0, 100)),
     mud: Math.round(clamp((bands.mud + 10) * 4.2, 0, 100)),
-    nasal: Math.round(clamp((bands.nasal + 11) * 4.5 + topNasal * 8, 0, 100)),
-    harsh: Math.round(clamp((bands.presence + 13) * 4.1 + topHarsh * 7, 0, 100)),
+    nasal: Math.round(clamp((bands.nasal + 11) * 4.5 + topNasal * 8 + envelopeNasal * 5.5, 0, 100)),
+    harsh: Math.round(clamp((bands.presence + 13) * 4.1 + topHarsh * 7 + envelopeHarsh * 4.2, 0, 100)),
     sibilance: Math.round(clamp((bands.sibilance + 18) * 3.8, 0, 100)),
     air: Math.round(clamp((bands.air + 26) * 2.2, 0, 100))
   };
@@ -258,8 +354,20 @@ function emptySpectral(frameSize) {
     tiltDbPerOctave: 0,
     bands: {},
     peaks: [],
+    envelope: emptyEnvelope(),
     risks: { dark: 0, thin: 0, mud: 0, nasal: 0, harsh: 0, sibilance: 0, air: 0 },
     summary: "No spectral analysis"
+  };
+}
+
+function emptyEnvelope(order = 0) {
+  return {
+    method: "lpc-autocorrelation-envelope",
+    order,
+    maxHz: 0,
+    error: 0,
+    peaks: [],
+    summary: "No stable LPC envelope peaks"
   };
 }
 

@@ -645,7 +645,24 @@ function sanitizeSpectral(spectral = null) {
     risks: sanitizeProblemScores(spectral.risks),
     bands: sanitizeProblemScores(spectral.bands),
     summary: cleanText(spectral.summary || "", 160),
+    envelope: sanitizeSpectralEnvelope(spectral.envelope),
     peaks: (Array.isArray(spectral.peaks) ? spectral.peaks : []).slice(0, 6).map((peak) => ({
+      hz: finiteNumber(peak.hz),
+      db: finiteNumber(peak.db),
+      prominenceDb: finiteNumber(peak.prominenceDb)
+    }))
+  };
+}
+
+function sanitizeSpectralEnvelope(envelope = null) {
+  if (!envelope) return null;
+  return {
+    method: cleanText(envelope.method || "", 80),
+    order: Math.max(0, Number(envelope.order || 0)),
+    maxHz: finiteNumber(envelope.maxHz),
+    error: finiteNumber(envelope.error),
+    summary: cleanText(envelope.summary || "", 160),
+    peaks: (Array.isArray(envelope.peaks) ? envelope.peaks : []).slice(0, 6).map((peak) => ({
       hz: finiteNumber(peak.hz),
       db: finiteNumber(peak.db),
       prominenceDb: finiteNumber(peak.prominenceDb)

@@ -142,6 +142,9 @@ assert.ok(Number.isFinite(sourceLoudnessReview.gainToTargetDb), "loudness target
 assert.ok(sourceSpectral.frameCount > 0, "spectral voice analysis should inspect FFT frames");
 assert.ok(sourceSpectral.centroidHz > 0 && sourceSpectral.rolloff85Hz >= sourceSpectral.centroidHz, "spectral voice analysis should expose plausible centroid and rolloff");
 assert.ok(Number.isFinite(sourceSpectral.tiltDbPerOctave), "spectral voice analysis should expose finite spectral tilt");
+assert.equal(sourceSpectral.envelope.method, "lpc-autocorrelation-envelope", "spectral voice analysis should expose LPC envelope metadata");
+assert.ok(sourceSpectral.envelope.order >= 8, "LPC envelope should use a bounded speech-analysis order");
+assert.ok(sourceSpectral.envelope.peaks.every((peak) => Number.isFinite(peak.hz)), "LPC envelope peaks should expose finite frequencies");
 assert.ok(spectralVoiceSummary(sourceSpectral).includes("centroid"), "spectral summary should describe centroid evidence");
 const dirtyStudioSource = studioPolishFixture(source, sampleRate);
 const dirtyStudioAnalysis = analyzeStudioVoice(dirtyStudioSource, sampleRate);
@@ -751,6 +754,7 @@ assert.ok(exportManifest.render.studioPolish.toneSurgery.bands.some((band) => ba
 assert.equal(exportManifest.render.studioPolish.roomShaper.roomTonePolicy, "attenuate, never hard-mute", "export manifest should retain room-floor metadata");
 assert.equal(exportManifest.render.mastering.enabled, true, "export manifest should retain final mastering metadata");
 assert.ok(exportManifest.source.studioAnalysis.spectral.centroidHz > 0, "export manifest should retain FFT tone map metadata");
+assert.equal(exportManifest.source.studioAnalysis.spectral.envelope.method, "lpc-autocorrelation-envelope", "export manifest should retain LPC envelope metadata");
 assert.ok(Number.isFinite(exportManifest.render.analysis.integratedLufs), "export manifest should retain render loudness metadata");
 assert.ok(Number.isFinite(exportManifest.render.analysis.truePeakDb), "export manifest should retain render true-peak metadata");
 assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
@@ -775,6 +779,7 @@ const safetyProject = createProjectSnapshot({
 assert.equal(safetyProject.renderDeck[0].rendered.characterSafety.enabled, true, "project snapshot should retain character-safety metadata");
 assert.equal(safetyProject.renderDeck[0].rendered.mastering.enabled, true, "project snapshot should retain mastering metadata");
 assert.ok(safetyProject.source.studioAnalysis.spectral.centroidHz > 0, "project snapshot should retain source FFT tone map");
+assert.equal(safetyProject.source.studioAnalysis.spectral.envelope.method, "lpc-autocorrelation-envelope", "project snapshot should retain LPC envelope metadata");
 assert.ok(Number.isFinite(safetyProject.source.studioAnalysis.integratedLufs), "project snapshot should retain source loudness metadata");
 assert.equal(safetyProject.renderDeck[0].rendered.studioPolish.plan.microRepair.eventCount >= 0, true, "project snapshot should retain micro-repair metadata");
 assert.ok(safetyProject.renderDeck[0].rendered.studioPolish.plan.toneSurgery.bands.some((band) => band.id === "harsh"), "project snapshot should retain tone-surgery metadata");
