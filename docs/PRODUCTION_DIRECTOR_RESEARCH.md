@@ -785,6 +785,7 @@ Implementation response:
 - Project and Voice Memory capture are blocked while render speed, listening comfort, or render review status is risky. A project snapshot should be a reusable studio state, not a bookmark to an obviously broken or too-slow take.
 - Listening Comfort now keeps up to five ranked QC issues instead of only the two displayed summary reasons. Sibilance, harshness, micro-events, loudness, dynamics, nasal focus, and mud can therefore all feed downstream repair decisions when they coexist.
 - Effect Stack priority now boosts Comfort-derived patches, so tone/texture/guard cleanup can outrank performance or target-drift tweaks when the current take is fatiguing.
+- `npm run quality` now prints a Comfort column for Studio Polish and Director Polish suites, making fatigue/loudness/micro-event regressions visible in routine CLI verification.
 - Export manifests retain the review performance budget so QA can connect a render's audible result with its browser cost.
 
 Sources:

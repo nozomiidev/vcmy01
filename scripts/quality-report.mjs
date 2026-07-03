@@ -2,6 +2,7 @@ import { runReferenceQualitySuite } from "../src/audio/dsp-core.js";
 import { runStudioPolishQualitySuite } from "../src/audio/studio-polish.js";
 import { applyCharacterSafety, characterSafetySummary } from "../src/audio/character-safety.js";
 import { paramsForPreset } from "../src/audio/presets.js";
+import { listeningComfortReview } from "../src/audio/render-review.js";
 
 const suite = runReferenceQualitySuite({ duration: 0.52 });
 const polishSuite = runStudioPolishQualitySuite({ duration: 0.52 });
@@ -30,6 +31,7 @@ console.table(polishSuite.results.map((item) => ({
   source: item.sourceProfile.name,
   before: `${item.before.score}% ${item.before.status}`,
   after: `${item.after.score}% ${item.after.status}`,
+  comfort: comfortCell(item.before, item.after),
   rms: `${item.after.rmsDb.toFixed(1)} dB`,
   peak: `${item.after.peakDb.toFixed(1)} dB`,
   lufs: `${item.after.integratedLufs.toFixed(1)} LUFS`,
@@ -48,6 +50,7 @@ console.table(directorSuite.results.map((item) => ({
   target: directorSuite.target,
   before: `${item.before.score}% ${item.before.status}`,
   after: `${item.after.score}% ${item.after.status}`,
+  comfort: comfortCell(item.before, item.after),
   opt: item.plan.optimization ? `${item.plan.optimization.scoreBefore}->${item.plan.optimization.scoreAfter}` : "off",
   rms: `${item.after.rmsDb.toFixed(1)} dB`,
   peak: `${item.after.peakDb.toFixed(1)} dB`,
@@ -83,6 +86,15 @@ if (!suite.ok || !polishSuite.ok || !directorSuite.ok || !safetySuite.ok) proces
 
 function signed(value) {
   return value > 0 ? `+${value}` : String(value);
+}
+
+function comfortCell(before, after) {
+  const comfort = listeningComfortReview(before, after, after, {
+    targetLufs: -19,
+    truePeakCeilingDb: -1
+  });
+  const reasons = comfort.reasons?.slice(0, 2).join("/") || "ok";
+  return `${comfort.score}% ${comfort.status} ${reasons}`;
 }
 
 function runCharacterSafetyAudit() {
