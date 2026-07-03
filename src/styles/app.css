@@ -2398,6 +2398,104 @@ input[type="range"] {
   background: var(--panel-2);
 }
 
+.current-review {
+  display: grid;
+  gap: 10px;
+  margin: 12px 14px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, rgba(105,227,181,0.045), rgba(143,167,255,0.035)),
+    var(--panel-2);
+}
+
+.current-review.is-empty {
+  display: none;
+}
+
+.current-review.is-check {
+  border-color: color-mix(in srgb, var(--warn) 38%, var(--line));
+}
+
+.current-review.is-risk {
+  border-color: color-mix(in srgb, var(--bad) 42%, var(--line));
+}
+
+.current-review-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.current-review-head span,
+.current-review-card span,
+.current-review-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.current-review-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.current-review-head strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.current-review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.current-review-card {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 58px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #08090d;
+}
+
+.current-review-card span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.current-review-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.current-review-card small {
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
 .render-deck-head {
   display: flex;
   justify-content: space-between;

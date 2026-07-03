@@ -1348,6 +1348,7 @@ function useOfflineSource(source) {
   renderGuidedStudio();
   renderSourceTimeline();
   drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
+  renderCurrentReviewPanel();
   updateSourceFit();
   updateRoutePlanner();
   renderCharacterChain();
@@ -1377,6 +1378,7 @@ function renderOfflineToPreview(preview, renderOptions = {}) {
     setAudioPreview("renderAudio", "render", rendered.blob, rendered.samples, rendered.sampleRate);
     drawWaveform($("renderWave"), rendered.samples, "#8fa7ff");
     drawAnalysisCards($("offlineAnalysis"), offline.source, rendered);
+    renderCurrentReviewPanel();
     addRenderedTakeToDeck(rendered, preview);
     updateSourceFit();
     updateRoutePlanner();
@@ -1405,6 +1407,38 @@ function renderOfflineToPreview(preview, renderOptions = {}) {
   } catch (error) {
     toast(preview ? "Preview needs a source" : "Render needs a source", error.message || "Generate or upload audio first.");
   }
+}
+
+function renderCurrentReviewPanel() {
+  const host = $("currentReviewPanel");
+  if (!host) return;
+  const review = offline.source && offline.rendered ? renderReview(offline.source, offline.rendered) : null;
+  if (!review) {
+    host.className = "current-review is-empty";
+    host.innerHTML = "";
+    return;
+  }
+  const preferred = new Set(["comfort", "studio-polish", "character-safety", "performance", "level"]);
+  const items = [
+    ...review.items.filter((item) => preferred.has(item.id)),
+    ...review.items.filter((item) => !preferred.has(item.id))
+  ].slice(0, 5);
+  host.className = `current-review is-${review.status}`;
+  host.innerHTML = `
+    <div class="current-review-head">
+      <span>Current Review</span>
+      <strong>${review.score}% ${escapeHtml(renderReviewStatusLabel(review.status))}</strong>
+    </div>
+    <div class="current-review-grid">
+      ${items.map((item) => `
+        <div class="current-review-card" data-review="${escapeHtml(item.id)}">
+          <span>${escapeHtml(item.label)}</span>
+          <strong>${escapeHtml(item.value)}</strong>
+          <small>${escapeHtml(item.detail)}</small>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 function downloadCurrentWav() {
@@ -1518,6 +1552,7 @@ function selectRenderDeckItem(id) {
   setAudioPreview("renderAudio", "render", item.rendered.blob, item.rendered.samples, item.rendered.sampleRate);
   drawWaveform($("renderWave"), item.rendered.samples, "#8fa7ff");
   drawAnalysisCards($("offlineAnalysis"), offline.source, item.rendered);
+  renderCurrentReviewPanel();
   $("renderStatus").textContent = item.rendered.mode === "preview" ? "Preview ready" : "Rendered";
   $("downloadRender").disabled = false;
   $("downloadWebm").disabled = !preferredOpusMimeType();
@@ -2988,6 +3023,7 @@ function clearOfflineRenderPreview() {
   $("downloadZip").disabled = true;
   $("playCompare").disabled = true;
   state.lastWebmBlob = null;
+  renderCurrentReviewPanel();
   renderGuidedStudio();
 }
 
