@@ -975,6 +975,7 @@ function applySceneSessionStep() {
     return;
   }
   if (action.id === "preview-region") {
+    if (action.cueId) applySourceCue(action.cueId, false);
     renderOfflineToPreview(true);
     return;
   }

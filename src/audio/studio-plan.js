@@ -49,7 +49,7 @@ export function buildStudioPlan(options = {}) {
     stackStep(hasSource, effectStack, stackAuditionCount),
     memoryStep(hasSource, voiceMemory, review),
     scriptStep(script, scriptMatch, scriptAutomation),
-    auditionStep(hasSource, review, renderDeckCount, auditionVariantCount),
+    auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, sourceTimeline),
     traceStep(hasSource, review, trace),
     sceneStep(hasSource, sceneSession),
     deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision, keeperRefinement)
@@ -394,10 +394,11 @@ function shapeStep(hasSource, chain) {
   });
 }
 
-function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount) {
+function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, sourceTimeline = null) {
   if (!hasSource) {
     return waitingStep("audition", "Audition", "Waiting for source");
   }
+  const previewCueId = sourceTimeline?.activeCue?.id || sourceTimeline?.bestCue?.id || null;
   if (!review) {
     return step({
       id: "audition",
@@ -406,7 +407,7 @@ function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount) 
       score: 52,
       summary: "No preview",
       detail: "Render a region before trusting the current voice design.",
-      action: { id: "preview-region", label: "Preview Region" }
+      action: { id: "preview-region", label: "Preview Region", cueId: previewCueId }
     });
   }
   const performanceBudget = review.performanceBudget || null;
@@ -425,11 +426,11 @@ function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount) 
         ? `${auditionVariantCount} audition variants can test nearby character directions.`
         : "One take is ready; another take improves choice.",
     action: slowRender
-      ? { id: "preview-region", label: "Use Short Preview" }
+      ? { id: "preview-region", label: "Use Short Preview", cueId: previewCueId }
       : review.status !== "ready" || renderDeckCount < 2
         ? auditionVariantCount && renderDeckCount
         ? { id: "render-variants", label: "Render Variants" }
-        : { id: "preview-region", label: renderDeckCount ? "Add Another Take" : "Preview Region" }
+        : { id: "preview-region", label: renderDeckCount ? "Add Another Take" : "Preview Region", cueId: previewCueId }
       : null
   });
 }

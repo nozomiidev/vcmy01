@@ -273,6 +273,7 @@ assert.equal(sourceTimelineSummary(sourceTimeline).cueCount, sourceTimeline.cueC
 
 const mockReadySourceFit = { status: "ready", score: 96, patches: [] };
 const mockReadyTimeline = { status: "ready", score: 94, cueCount: 2, activeCue: { label: "02 Body cue" }, nextAction: null };
+const mockCueTimeline = { ...mockReadyTimeline, activeCue: { id: "cue-02", label: "02 Body cue" }, bestCue: { id: "cue-02" } };
 const mockReadyStack = { status: "ready", score: 94, activeCount: 5, nextPatch: {}, summary: "Stack locked", stages: [] };
 const mockReadyMemory = { status: "ready", score: 94, count: 1, summary: "Design memory locked", nextAction: null, items: [], best: null };
 const mockRoute = {
@@ -346,11 +347,13 @@ const auditionStudioPlan = buildStudioPlan({
   routes: [mockRoute],
   activePresetId: "otome",
   activeLineReadId: "otome_promise",
+  sourceTimeline: mockCueTimeline,
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
   effectStack: mockReadyStack,
   renderDeckCount: 0
 });
 assert.equal(auditionStudioPlan.nextAction.id, "preview-region", "studio plan should request an audition before final judgment");
+assert.equal(auditionStudioPlan.nextAction.cueId, "cue-02", "studio plan should carry the active source cue into preview actions");
 
 const stackStudioPlan = buildStudioPlan({
   hasSource: true,
@@ -358,6 +361,7 @@ const stackStudioPlan = buildStudioPlan({
   routes: [mockRoute],
   activePresetId: "otome",
   activeLineReadId: "otome_promise",
+  sourceTimeline: mockCueTimeline,
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
   effectStack: {
     status: "check",
@@ -397,6 +401,7 @@ const sceneStudioPlan = buildStudioPlan({
   routes: [mockRoute],
   activePresetId: "otome",
   activeLineReadId: "otome_promise",
+  sourceTimeline: mockCueTimeline,
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
   effectStack: mockReadyStack,
   voiceMemory: mockReadyMemory,
@@ -882,6 +887,7 @@ const slowRenderStudioPlan = buildStudioPlan({
   routes: [mockRoute],
   activePresetId: "otome",
   activeLineReadId: "otome_promise",
+  sourceTimeline: mockCueTimeline,
   chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
   effectStack: mockReadyStack,
   voiceMemory: mockReadyMemory,
@@ -890,6 +896,7 @@ const slowRenderStudioPlan = buildStudioPlan({
 });
 assert.equal(slowRenderStudioPlan.nextAction.id, "preview-region", "studio plan should steer slow full renders back to short previews");
 assert.equal(slowRenderStudioPlan.nextAction.label, "Use Short Preview", "studio plan should make the slow-render action explicit");
+assert.equal(slowRenderStudioPlan.nextAction.cueId, "cue-02", "slow render preview action should carry the active source cue");
 const hotStack = buildEffectStack(paramsForPreset("streamer", { outputGain: 3, saturation: 62, compression: 80 }), {
   target: LINE_READ_TARGETS.find((target) => target.id === "streamer_hook"),
   renderReview: { status: "risk", score: 48, items: [] },
