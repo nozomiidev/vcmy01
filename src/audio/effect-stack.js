@@ -586,7 +586,8 @@ function stackStatus(score, stages) {
 function stagePriority(stage) {
   const status = stage.status === "risk" ? 280 : stage.status === "check" ? 160 : 70;
   const patchLoad = Math.min(70, stage.patch.reduce((sum, patch) => sum + Math.abs(patch.delta), 0));
-  return status + (100 - stage.score) + patchLoad + stage.weight * 8;
+  const comfortBoost = stage.patch.some((patch) => /^Comfort\b/i.test(patch.reason || "")) ? 180 : 0;
+  return status + (100 - stage.score) + patchLoad + stage.weight * 8 + comfortBoost;
 }
 
 function resolveTarget(targetOrId) {

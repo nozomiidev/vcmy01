@@ -961,6 +961,7 @@ const comfortStack = buildEffectStack(paramsForPreset("kawaii"), {
 const comfortPatch = bestEffectStackPatch(comfortStack);
 const comfortBase = paramsForPreset("kawaii");
 assert.ok(comfortStack.stages.some((stage) => stage.notes.some((note) => note.includes("Comfort"))), "effect stack should expose comfort evidence in stage notes");
+assert.ok(["tone", "texture", "guard"].includes(comfortStack.nextStageId), "effect stack should prioritize comfort repair layers when comfort is risky");
 assert.ok(Number(comfortPatch.deEss || 0) > Number(comfortBase.deEss || 0) || Number(comfortPatch.consonantSoftness || 0) > Number(comfortBase.consonantSoftness || 0), "effect stack should turn comfort issues into actionable cleanup patches");
 const previewRendered = offline.render(kawaii, { autoCalibrate: true, region: { startSec: 0.5, durationSec: 0.75 }, mode: "preview" });
 assert.equal(previewRendered.mode, "preview", "offline preview should preserve render mode");
