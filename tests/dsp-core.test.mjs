@@ -146,6 +146,10 @@ const studioPolished = processStudioPolish(dirtyStudioSource, sampleRate, studio
 const nasalSource = applyBiquad(source, sampleRate, "peaking", 1050, 1.2, 9);
 const nasalPlan = buildStudioPolishPlan(analyzeStudioVoice(nasalSource, sampleRate), "standard", "podcast");
 const nasalSurgeryBand = nasalPlan.toneSurgery.bands.find((band) => band.id === "nasal");
+const lowerEssSource = applyBiquad(source, sampleRate, "peaking", 3600, 1.6, 10);
+const lowerEssAnalysis = analyzeStudioVoice(lowerEssSource, sampleRate);
+const lowerEssPlan = buildStudioPolishPlan(lowerEssAnalysis, "standard", "podcast");
+const lowerEssPolished = processStudioPolish(lowerEssSource, sampleRate, lowerEssPlan);
 const kawaiiPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard", "kawaii");
 const kawaiiRepairMap = buildStudioRepairMap(dirtyStudioAnalysis, "kawaii");
 const directorPlan = optimizeStudioPolishPlan(dirtyStudioSource, sampleRate, kawaiiPolishPlan, { target: "kawaii", iterations: 10 });
@@ -176,6 +180,9 @@ assert.ok(kawaiiRepairMap.overprocessRisks.length > 0, "repair map should expose
 assert.equal(kawaiiPolishPlan.repairMap.target.id, "kawaii", "studio polish plan should retain target-aware repair map");
 assert.ok(kawaiiPolishPlan.stages.mouthClickPasses >= 1 && kawaiiPolishPlan.stages.mouthClickPasses <= 2, "mouth repair should use bounded staged passes");
 assert.ok(kawaiiPolishPlan.stages.deEssLookaheadMs === 0 || kawaiiPolishPlan.stages.deEssLookaheadMs === 8, "de-ess lookahead should be bounded");
+assert.ok(Number.isFinite(kawaiiPolishPlan.stages.deEssLow) && Number.isFinite(kawaiiPolishPlan.stages.deEssHigh), "de-ess should expose separate lower and upper bands");
+assert.ok(lowerEssPlan.stages.deEssLow > 0, "lower de-ess should react to painful 3-5k presence");
+assert.ok(lowerEssPolished.outputAnalysis.problemScores.harsh <= 40, "lower de-ess should keep post-polish harshness below the risk zone");
 assert.ok(kawaiiPolishPlan.stages.highPassHz >= studioPolishPlan.stages.highPassHz, "kawaii target should lift the cleanup high-pass boundary");
 assert.equal(directorPlan.optimization.enabled, true, "director optimizer should add optimization metadata");
 assert.ok(directorPlan.optimization.scoreAfter >= directorPlan.optimization.scoreBefore - 8, "director optimizer should avoid large objective regressions");

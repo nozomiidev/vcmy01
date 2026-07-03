@@ -272,6 +272,35 @@ https://transom.org/2015/podcasting-basics-part-3-audio-levels-and-processing/
 https://www.reddit.com/r/audioengineering/comments/1hnmimn/how_do_you_ab_with_your_reference_tracks/
 https://gearspace.com/board/mastering-forum/1364051-b-ing-level-matching-original-mix-your-master.html
 
+## Dual-Band De-Ess Loop
+
+The twelfth production-director pass focuses on the "pleasant professional voice" layer before character conversion. The practical problem is that a voice can be technically loud and bright but still feel cheap because lower ess/presence around 3-5 kHz stabs the ear, while classic sibilance above 5 kHz spits. Treating both with one broad high-frequency cut either misses the lower pain or dulls the whole voice.
+
+Research decisions:
+
+- iZotope's de-essing guidance distinguishes wideband and spectral approaches; the important production idea is to attenuate only the sibilant event instead of darkening every word.
+- Pro Audio Files' RX spectral de-ess walkthrough emphasizes previewing the ess-only path and backing off if whole words are being affected.
+- Community engineering practice commonly stacks or splits de-essing: lower harsh ess around 3-4 kHz and brighter sibilance around 5-8 kHz need different thresholds and depths.
+- Nasal cleanup stays in Tone Surgery around the 650-1300 Hz range; de-ess should not be used as a crude nasal remover.
+
+Implementation response:
+
+- Studio Polish plans now expose `deEssLow` and `deEssHigh` alongside the compatibility `deEss` value.
+- `dualBandDeEss()` runs a gentler 3.2-5.2 kHz lower-ess duck followed by the existing upper-ess duck above 5.2 kHz.
+- A light post-presence de-ess pass catches presence/air polish that reintroduces sharpness after the first repair pass.
+- Tests cover bounded lower/high de-ess planning and a 3.6 kHz harshness fixture.
+
+Verification:
+
+- `npm run quality` remained all-pass after the split de-ess pass.
+- In-app Browser private-fixture Kawaii render reported Polish Events 43 / M27 P3 S13, Tone Surgery 255/1050/3469 Hz, Master Gain +7.0 dB toward -19.2 LUFS, A/B Match Ready / 3 stages at -19.2 LUFS, Render Loudness -19.2 LUFS, Render True Peak -1.4 dBTP, and enabled WAV/WebM/ZIP controls.
+
+Sources:
+https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
+https://theproaudiofiles.com/video/rx-6-spectral-de-ess-tutorial/
+https://www.reddit.com/r/audioengineering/comments/1qtbfw5/vocal_eq_midrange_harshness_and_deessing/
+https://www.soundonsound.com/sound-advice/q-can-use-eq-fix-my-nasal-sounding-vocals
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

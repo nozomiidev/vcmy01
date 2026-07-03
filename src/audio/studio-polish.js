@@ -298,6 +298,9 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard", target
   const gainToTarget = targetRmsDb - Number(analysis.loudnessProxyDb ?? analysis.rmsDb ?? targetRmsDb);
   const headroomLimit = Math.max(-8, Number(analysis.headroomDb || 0) - 2.2);
   const outputGainDb = clamp(Math.min(gainToTarget, headroomLimit), -9, 8);
+  const lowerEssRisk = clamp(((analysis.band?.harshRatio || 0) - 0.065) * 900 + (scores.harsh || 0) * 0.35, 0, 100);
+  const deEssHigh = clamp((scores.sibilance || 0) * 0.9 * f + (scores.harsh || 0) * 0.22 * f, 0, 82);
+  const deEssLow = clamp(lowerEssRisk * 0.46 * f + (scores.sibilance || 0) * 0.14 * f, 0, 58);
   const stages = {
     inputGainDb: clamp((analysis.loudnessProxyDb < -34 ? 4 : 0) - ((analysis.truePeakDb ?? analysis.peakDb) > -2 ? 3 : 0), -6, 6),
     deplosive: clamp(((scores.plosive || 0) - 8) * 1.15 * f, 0, 100),
@@ -308,12 +311,14 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard", target
     mudDb: -clamp(((scores.mud || 0) - 8) * 0.072 * f, 0, 5.5),
     nasalDb: -clamp(((scores.nasal || 0) - 8) * 0.068 * f, 0, 4.8),
     harshDb: -clamp(((scores.harsh || 0) - 8) * 0.058 * f, 0, 4.8),
-    deEss: clamp((scores.sibilance || 0) * 0.9 * f + (scores.harsh || 0) * 0.22 * f, 0, 82),
+    deEss: deEssHigh,
+    deEssLow,
+    deEssHigh,
     deEssLookaheadMs: (scores.sibilance || 0) > 16 ? 8 : 0,
     leveler: clamp(22 + Math.max(0, analysis.dynamicRangeDb - 13) * 2.4 + f * 24 + target.compressionBias * 0.45, 12, 78),
     compression: clamp(20 + Math.max(0, analysis.dynamicRangeDb - 12) * 1.5 + f * 20 + target.compressionBias, 12, 78),
-    presenceDb: clamp((analysis.brightnessRatio < 0.18 ? 1.2 : analysis.brightnessRatio > 0.36 ? -0.65 : 0.4) * f - Math.max(0, scores.harsh || 0) * 0.01 + target.presenceBias, -1.8, 3.2),
-    airDb: clamp((analysis.brightnessRatio < 0.2 ? 1.4 : analysis.brightnessRatio > 0.36 ? -0.9 : 0.5) * f - Math.max(0, scores.sibilance || 0) * 0.018 + target.airBias, -2.1, 3.1),
+    presenceDb: clamp((analysis.brightnessRatio < 0.18 ? 1.2 : analysis.brightnessRatio > 0.36 ? -0.65 : 0.4) * f - Math.max(0, scores.harsh || 0) * 0.01 - lowerEssRisk * 0.05 + target.presenceBias, -1.8, 3.2),
+    airDb: clamp((analysis.brightnessRatio < 0.2 ? 1.4 : analysis.brightnessRatio > 0.36 ? -0.9 : 0.5) * f - Math.max(0, scores.sibilance || 0) * 0.018 - lowerEssRisk * 0.012 + target.airBias, -2.1, 3.1),
     saturation: clamp(4 + f * 8 - Math.max(0, scores.harsh || 0) * 0.04 + target.saturationBias, 0, 16),
     outputGainDb,
     limiterDb: target.ceilingDb
@@ -686,11 +691,17 @@ function applyStudioPolishPlan(samples, sampleRate, plan) {
   work = reduceRoomNoise(work, sampleRate, p.noiseReduction, plan.roomShaper);
   work = applyBiquad(work, sampleRate, "highpass", p.highPassHz, 0.72, 0);
   work = applyToneSurgery(work, sampleRate, plan.toneSurgery, p);
-  work = dynamicDeEss(work, sampleRate, p.deEss, p.deEssLookaheadMs);
+  work = dualBandDeEss(work, sampleRate, p);
   work = speechLeveler(work, p.leveler);
   work = speechCompressor(work, p.compression);
   work = applyBiquad(work, sampleRate, "peaking", 2300, 0.8, p.presenceDb);
   work = applyBiquad(work, sampleRate, "highshelf", 7200, 0.72, p.airDb);
+  work = dualBandDeEss(work, sampleRate, {
+    ...p,
+    deEssLow: (p.deEssLow || 0) * 0.55,
+    deEssHigh: (p.deEssHigh || p.deEss || 0) * 0.42,
+    deEssLookaheadMs: 0
+  });
   work = lightSaturation(work, p.saturation);
   work = applyGain(work, p.outputGainDb);
   work = limiter(work, p.limiterDb);
@@ -1281,18 +1292,31 @@ function reduceRoomNoise(input, sampleRate, amountPct, shaper = null) {
   return out;
 }
 
-function dynamicDeEss(input, sampleRate, amountPct, lookaheadMs = 0) {
+function dualBandDeEss(input, sampleRate, stages = {}) {
+  const highAmount = Number.isFinite(stages.deEssHigh) ? stages.deEssHigh : stages.deEss;
+  const lowAmount = Number.isFinite(stages.deEssLow) ? stages.deEssLow : (stages.deEss || 0) * 0.42;
+  const lookaheadMs = stages.deEssLookaheadMs || 0;
+  let work = dynamicDeEss(input, sampleRate, lowAmount, Math.min(lookaheadMs, 5), 3200, 5200);
+  work = dynamicDeEss(work, sampleRate, highAmount, lookaheadMs, 5200, Math.min(11000, sampleRate * 0.46));
+  return work;
+}
+
+function dynamicDeEss(input, sampleRate, amountPct, lookaheadMs = 0, lowHz = 5200, highHz = 0) {
   const amount = clamp(amountPct / 100, 0, 1);
   if (amount <= 0.001) return input;
-  const high = applyBiquad(input, sampleRate, "highpass", 5200, 0.72, 0);
+  let band = applyBiquad(input, sampleRate, "highpass", lowHz, 0.72, 0);
+  if (highHz && highHz < sampleRate * 0.47) band = applyBiquad(band, sampleRate, "lowpass", highHz, 0.72, 0);
   const out = new Float32Array(input.length);
   let env = 0;
   const lookahead = Math.max(0, Math.min(Math.round(sampleRate * 0.015), Math.round(sampleRate * (lookaheadMs || 0) / 1000)));
+  const threshold = lowHz < 5000 ? 0.014 : 0.018;
+  const sensitivity = lowHz < 5000 ? 12 : 16;
+  const maxReduction = lowHz < 5000 ? 0.52 : 0.72;
   for (let i = 0; i < input.length; i++) {
-    const h = Math.abs(high[Math.min(high.length - 1, i + lookahead)]);
+    const h = Math.abs(band[Math.min(band.length - 1, i + lookahead)]);
     env += (h - env) * (h > env ? 0.16 : 0.006);
-    const reduction = clamp((env - 0.018) * 16, 0, 0.72 * amount);
-    out[i] = input[i] - high[i] * reduction;
+    const reduction = clamp((env - threshold) * sensitivity, 0, maxReduction * amount);
+    out[i] = input[i] - band[i] * reduction;
   }
   return out;
 }
