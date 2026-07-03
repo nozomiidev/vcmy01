@@ -218,6 +218,7 @@ function renderGuidedStudio() {
     ["HPF", `${Math.round(plan.stages.highPassHz)} Hz`],
     ["De-ess", `${Math.round(plan.stages.deEss)}%`],
     ["Level", `${Math.round(plan.stages.leveler)}%`],
+    ["Ride", plan.reactivePlan?.levelRide ? `${plan.reactivePlan.levelRide.rangeDb} dB` : "off"],
     ["Out", `${plan.stages.outputGainDb > 0 ? "+" : ""}${plan.stages.outputGainDb.toFixed(1)} dB`]
   ];
   if (rendered?.studioPolish?.plan?.optimization?.enabled) {

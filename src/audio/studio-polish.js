@@ -332,6 +332,7 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard", target
     microRepair: analysis.microRepair || null,
     toneSurgery: buildToneSurgery(analysis, target, f, stages),
     roomShaper: buildRoomShaper(analysis, target, f, stages),
+    reactivePlan: buildSourceReactivePlan(analysis, target, f, stages),
     targetRmsDb,
     stages,
     notes: planNotes(analysis, intensity.id, target)
@@ -474,6 +475,74 @@ function buildRoomShaper(analysis, target, factor, stages) {
     roomTonePolicy: "attenuate, never hard-mute",
     active: (stages.noiseReduction || 0) > 1,
     reason: "Smooth the room floor between words without dead-silence pumping."
+  };
+}
+
+export function buildSourceReactivePlan(analysis, target = DEFAULT_TARGET, factor = 1, stages = {}) {
+  const scores = analysis?.problemScores || {};
+  const micro = analysis?.microRepair || {};
+  const loudnessDb = Number.isFinite(analysis?.loudnessProxyDb)
+    ? analysis.loudnessProxyDb
+    : Number.isFinite(analysis?.rmsDb)
+      ? analysis.rmsDb
+      : -28;
+  const targetRmsDb = Number.isFinite(target?.targetRmsDb) ? target.targetRmsDb : -20;
+  const phraseTargetDb = clamp(targetRmsDb - 2.3, -24.5, -18.8);
+  const rangeDb = clamp(
+    2.2 +
+      Math.max(0, Number(analysis?.dynamicRangeDb || 0) - 10) * 0.2 +
+      factor * 1.05 +
+      Math.max(0, Number(scores.level || 0) - 18) * 0.026,
+    1.6,
+    7.4
+  );
+  const boostDb = clamp(rangeDb * (loudnessDb < targetRmsDb ? 0.78 : 0.48), 0.8, 5.6);
+  const cutDb = clamp(
+    rangeDb * 0.74 + Math.max(0, Number(analysis?.truePeakDb ?? analysis?.peakDb ?? -9) + 3) * 0.55,
+    1.0,
+    7.2
+  );
+  const eventsPerMinute = Number(micro.eventsPerMinute || 0);
+  const microDensity = clamp(eventsPerMinute / 90, 0, 1);
+  const sibilanceBias = clamp(Number(scores.sibilance || 0) / 100, 0, 1);
+  const plosiveBias = clamp(Number(scores.plosive || 0) / 100, 0, 1);
+  const targetId = target?.id || DEFAULT_TARGET.id;
+  const speedMs = targetId === "radio" ? 130 : targetId === "kawaii" || targetId === "anime" ? 155 : 210;
+  const noiseFloorDb = Number.isFinite(analysis?.noiseFloorDb) ? analysis.noiseFloorDb : -72;
+  const noiseGateDb = clamp(noiseFloorDb + 13, -58, -42);
+  const active = (stages.leveler || 0) > 8 || rangeDb > 2.4 || micro.eventCount > 0;
+  const notes = [
+    "phrase-aware gain riding before compression",
+    micro.eventCount ? "event density feeds transient safety" : "no dense local repairs",
+    sibilanceBias > 0.24 ? "sibilance lane biases de-ess" : "",
+    plosiveBias > 0.24 ? "plosive lane biases low-burst ducking" : ""
+  ].filter(Boolean);
+  return {
+    mode: "source-reactive-control",
+    active,
+    levelRide: {
+      mode: "phrase-aware-fader-ride",
+      targetDb: Number(phraseTargetDb.toFixed(1)),
+      rangeDb: Number(rangeDb.toFixed(1)),
+      boostDb: Number(boostDb.toFixed(1)),
+      cutDb: Number(cutDb.toFixed(1)),
+      speedMs,
+      attackMs: 34,
+      releaseMs: speedMs,
+      holdMs: 72,
+      noiseGateDb: Number(noiseGateDb.toFixed(1)),
+      amount: Math.round(clamp(stages.leveler || 0, 0, 100)),
+      naturalMode: true
+    },
+    eventLanes: {
+      eventsPerMinute,
+      microDensity: Number(microDensity.toFixed(3)),
+      mouth: clamp((micro.counts?.mouth || 0) * 8 + Number(scores.mouthClick || 0) * 0.3, 0, 100),
+      plosive: clamp((micro.counts?.plosive || 0) * 16 + Number(scores.plosive || 0) * 0.5, 0, 100),
+      sibilance: clamp((micro.counts?.sibilance || 0) * 9 + Number(scores.sibilance || 0) * 0.48, 0, 100),
+      adaptiveDeEss: clamp((stages.deEss || 0) + sibilanceBias * 12 + microDensity * 8, 0, 92)
+    },
+    notes
   };
 }
 
@@ -733,7 +802,7 @@ function applyStudioPolishPlan(samples, sampleRate, plan) {
   work = applyBiquad(work, sampleRate, "highpass", p.highPassHz, 0.72, 0);
   work = applyToneSurgery(work, sampleRate, plan.toneSurgery, p);
   work = dualBandDeEss(work, sampleRate, p);
-  work = speechLeveler(work, p.leveler);
+  work = phraseAwareLeveler(work, sampleRate, plan.reactivePlan?.levelRide, p.leveler);
   work = speechCompressor(work, p.compression);
   work = applyBiquad(work, sampleRate, "peaking", 2300, 0.8, p.presenceDb);
   work = applyBiquad(work, sampleRate, "highshelf", 7200, 0.72, p.airDb);
@@ -907,9 +976,19 @@ function clonePlan(plan) {
     microRepair: plan.microRepair ? cloneMicroRepair(plan.microRepair) : null,
     toneSurgery: plan.toneSurgery ? cloneToneSurgery(plan.toneSurgery) : null,
     roomShaper: plan.roomShaper ? { ...plan.roomShaper } : null,
+    reactivePlan: plan.reactivePlan ? cloneReactivePlan(plan.reactivePlan) : null,
     stages: { ...(plan.stages || {}) },
     notes: [...(plan.notes || [])],
     optimization: plan.optimization ? { ...plan.optimization } : undefined
+  };
+}
+
+function cloneReactivePlan(plan) {
+  return {
+    ...plan,
+    levelRide: plan.levelRide ? { ...plan.levelRide } : null,
+    eventLanes: plan.eventLanes ? { ...plan.eventLanes } : null,
+    notes: [...(plan.notes || [])]
   };
 }
 
@@ -1359,6 +1438,48 @@ function dynamicDeEss(input, sampleRate, amountPct, lookaheadMs = 0, lowHz = 520
     const reduction = clamp((env - threshold) * sensitivity, 0, maxReduction * amount);
     out[i] = input[i] - band[i] * reduction;
   }
+  return out;
+}
+
+function phraseAwareLeveler(input, sampleRate, ride = null, fallbackAmountPct = 0) {
+  const amountPct = Number.isFinite(ride?.amount) ? ride.amount : fallbackAmountPct;
+  const amount = clamp(amountPct / 100, 0, 1);
+  if (amount <= 0.001) return input;
+  const target = dbToLin(Number.isFinite(ride?.targetDb) ? ride.targetDb : -22);
+  const maxBoost = dbToLin(clamp(Number(ride?.boostDb || 3.2), 0.5, 8));
+  const maxCut = dbToLin(-clamp(Number(ride?.cutDb || 3.2), 0.5, 9));
+  const noiseGate = dbToLin(Number.isFinite(ride?.noiseGateDb) ? ride.noiseGateDb : -54);
+  const attack = 1 - Math.exp(-1 / Math.max(1, sampleRate * clamp(Number(ride?.attackMs || 34), 8, 120) / 1000));
+  const release = 1 - Math.exp(-1 / Math.max(1, sampleRate * clamp(Number(ride?.releaseMs || 180), 60, 520) / 1000));
+  const phraseRelease = 1 - Math.exp(-1 / Math.max(1, sampleRate * 0.48));
+  const out = new Float32Array(input.length);
+  let fastEnv = 0;
+  let phraseEnv = 0;
+  let gain = 1;
+  let hold = 0;
+  const holdSamples = Math.round(sampleRate * clamp(Number(ride?.holdMs || 72), 0, 180) / 1000);
+  for (let i = 0; i < input.length; i++) {
+    const a = Math.abs(input[i]);
+    fastEnv += (a - fastEnv) * (a > fastEnv ? 0.04 : 0.004);
+    phraseEnv += (a - phraseEnv) * (a > phraseEnv ? attack * 0.42 : phraseRelease);
+    if (phraseEnv > noiseGate) hold = holdSamples;
+    else if (hold > 0) hold--;
+
+    let desired = 1;
+    if (phraseEnv > noiseGate || hold > 0) {
+      desired = clamp(target / Math.max(target * 0.42, phraseEnv), maxCut, maxBoost);
+      const emphasized = fastEnv > phraseEnv * 1.72 && fastEnv > target * 0.82;
+      if (ride?.naturalMode && emphasized) {
+        desired = desired < 1 ? 1 - (1 - desired) * 0.62 : 1 + (desired - 1) * 0.66;
+      }
+    }
+    const blended = 1 + (desired - 1) * amount * 0.62;
+    gain += (blended - gain) * (blended < gain ? attack * 1.35 : release);
+    out[i] = input[i] * gain;
+  }
+  const baseline = speechLeveler(input, amountPct);
+  const blend = clamp(amount * 0.46, 0, 0.5);
+  for (let i = 0; i < out.length; i++) out[i] = baseline[i] * (1 - blend) + out[i] * blend;
   return out;
 }
 

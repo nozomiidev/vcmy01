@@ -33,6 +33,7 @@ import { buildSourceTimeline, cueRegion, nearestCueIdForRegion, sourceTimelineSu
 import {
   analyzeStudioVoice,
   buildMicroRepairTimeline,
+  buildSourceReactivePlan,
   buildStudioRepairMap,
   buildStudioPolishPlan,
   optimizeStudioPolishPlan,
@@ -153,6 +154,12 @@ const dirtyStudioSource = studioPolishFixture(source, sampleRate);
 const dirtyStudioAnalysis = analyzeStudioVoice(dirtyStudioSource, sampleRate);
 const dirtyMicroRepair = buildMicroRepairTimeline(dirtyStudioSource, sampleRate);
 const studioPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard");
+const standaloneReactivePlan = buildSourceReactivePlan(
+  dirtyStudioAnalysis,
+  STUDIO_PRODUCTION_TARGETS.find((target) => target.id === "podcast"),
+  1,
+  studioPolishPlan.stages
+);
 const studioPolished = processStudioPolish(dirtyStudioSource, sampleRate, studioPolishPlan);
 const nasalSource = applyBiquad(source, sampleRate, "peaking", 1050, 1.2, 9);
 const nasalPlan = buildStudioPolishPlan(analyzeStudioVoice(nasalSource, sampleRate), "standard", "podcast");
@@ -178,6 +185,11 @@ assert.ok(Number.isFinite(dirtyStudioAnalysis.truePeakDb), "studio analysis shou
 assert.ok(dirtyStudioAnalysis.items.some((item) => item.id === "spectral"), "studio analysis should expose FFT tone map as a review item");
 assert.ok(studioPolishPlan.toneSurgery.activeCount >= 0, "studio polish plan should retain tone-surgery metadata");
 assert.ok(studioPolishPlan.roomShaper.rangeDb <= 0 && studioPolishPlan.roomShaper.releaseMs >= 120, "studio polish plan should retain a gentle room-floor expander");
+assert.equal(studioPolishPlan.reactivePlan.mode, "source-reactive-control", "studio polish plan should include source-reactive control metadata");
+assert.equal(standaloneReactivePlan.mode, studioPolishPlan.reactivePlan.mode, "standalone source-reactive planner should match the embedded plan mode");
+assert.equal(studioPolishPlan.reactivePlan.levelRide.mode, "phrase-aware-fader-ride", "source-reactive plan should use phrase-aware fader riding");
+assert.ok(studioPolishPlan.reactivePlan.levelRide.rangeDb > 0 && studioPolishPlan.reactivePlan.levelRide.rangeDb <= 7.4, "source-reactive ride should keep a bounded range");
+assert.ok(studioPolishPlan.reactivePlan.eventLanes.adaptiveDeEss >= studioPolishPlan.stages.deEss, "source-reactive lane should bias de-ess from detected source events");
 assert.ok(nasalSurgeryBand.frequencyHz >= 650 && nasalSurgeryBand.frequencyHz <= 1300, "tone surgery should keep nasal treatment in the vocal nasal range");
 assert.ok(nasalSurgeryBand.stageDb < 0 && nasalSurgeryBand.dynamicDepthDb <= 0, "tone surgery should use downward dynamic nasal control");
 assert.ok(nasalSurgeryBand.perceptual && nasalSurgeryBand.evidence.includes("ERB band"), "tone surgery should prefer ERB ear-band evidence when nasal energy crowds perception");
@@ -783,6 +795,7 @@ assert.equal(exportManifest.render.studioPolish.microRepair.eventCount >= 0, tru
 assert.ok(exportManifest.render.studioPolish.toneSurgery.bands.some((band) => band.id === "nasal"), "export manifest should retain tone-surgery metadata");
 assert.ok(exportManifest.render.studioPolish.toneSurgery.bands.some((band) => band.perceptual?.salience >= 0), "export manifest should retain perceptual tone-surgery evidence");
 assert.equal(exportManifest.render.studioPolish.roomShaper.roomTonePolicy, "attenuate, never hard-mute", "export manifest should retain room-floor metadata");
+assert.equal(exportManifest.render.studioPolish.reactivePlan.levelRide.mode, "phrase-aware-fader-ride", "export manifest should retain source-reactive level ride metadata");
 assert.equal(exportManifest.render.mastering.enabled, true, "export manifest should retain final mastering metadata");
 assert.ok(exportManifest.source.studioAnalysis.spectral.centroidHz > 0, "export manifest should retain FFT tone map metadata");
 assert.equal(exportManifest.source.studioAnalysis.spectral.envelope.method, "lpc-autocorrelation-envelope", "export manifest should retain LPC envelope metadata");

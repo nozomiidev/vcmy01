@@ -517,6 +517,39 @@ https://www.izotope.com/en/learn/how-to-eq-vocals.html
 https://www.dsprelated.com/freebooks/sasp/Equivalent_Rectangular_Bandwidth.html
 https://support.ircam.fr/docs/AudioSculpt/3.0/co/LPC_1.html
 
+## Source-Reactive Control Loop
+
+The twenty-first production-director pass turns Studio Polish from mostly static parameter application into a source-reactive control layer. The goal is not to replace a human mix engineer, but to encode the core studio habit: repair and tone stages react to evidence in the signal, while phrase-level gain rides smooth speech before compression.
+
+Research decisions:
+
+- Vocal riding is a separate production stage from compression. Waves Vocal Rider describes vocal production as recording, comping, mix positioning, sound character work, and gain riding; it automates level moves to avoid over-compression.
+- Mouth/click repair must keep detection and processing amount bounded. RX De-click/Mouth De-click expose sensitivity, frequency skew, and click widening, while warning that over-detection can damage original speech or plosives.
+- De-essing should be detection-aware and can be split-band. FabFilter Pro-DS documents Single Vocal detection and split-band processing so high-frequency sibilance can be reduced without dragging the whole voice down.
+- Podcast production workflows routinely treat EQ, de-essing, compression, gate/expander, and ducking as distinct processors. That supports a layered design instead of a single macro filter.
+
+Implementation response:
+
+- Studio Polish plans now include a `source-reactive-control` plan with a phrase-aware fader ride and event lanes for mouth, plosive, and sibilance pressure.
+- The actual render chain now uses `phraseAwareLeveler()` before compression, bounded by boost/cut limits, phrase speed, noise floor, and natural-mode emphasis preservation.
+- Verification showed that replacing the existing natural leveler outright increased post-render micro-repair detections. The final design blends the old stable leveler with the new phrase-reactive curve, matching studio practice: preserve the proven tone path and add automation on top.
+- Export manifests retain the reactive plan, so a rendered WAV/WebM/ZIP package can explain its fader-ride and event-lane decisions.
+- The Guided Studio UI exposes a `Ride` pill so users see the adaptive range without needing to understand every compressor parameter.
+
+Verification:
+
+- `npm test` passed after the blend fix, with the dirty speech fixture moving from 20 to 25 micro-repair events after polish instead of exceeding the safety threshold.
+- `npm run quality` passed 44/0/0 with Studio Polish 4/0/0 and Director Polish 4/0/0.
+- In-app Browser verification with the private Yamada Taro fixture showed `Kawaii Bright / Safety Guarded`, `Ride`, `Spectral Fit`, WAV/WebM/ZIP export actions, and zero console errors after the first heavy render settled.
+
+Sources:
+https://assets.wavescdn.com/pdf/plugins/vocal-rider.pdf
+https://downloads.izotope.com/docs/rx6/21-de-click/index.html
+https://s3.amazonaws.com/izotopedownloads/docs/rx8/en/mouth-de-click/index.html
+https://www.fabfilter.com/help/pro-ds/using/basiccontrols
+https://www.fabfilter.com/help/pro-ds/using/advancedcontrols
+https://rode.com/en-us/about/news-info/a-guide-to-audio-processing-and-fx-for-podcasting
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

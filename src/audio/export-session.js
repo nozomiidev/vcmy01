@@ -544,6 +544,7 @@ function compactStudioPolish(polish = null) {
     microRepair: compactMicroRepair(polish.plan?.microRepair),
     toneSurgery: compactToneSurgery(polish.plan?.toneSurgery),
     roomShaper: compactRoomShaper(polish.plan?.roomShaper),
+    reactivePlan: compactReactivePlan(polish.plan?.reactivePlan),
     repairMap: compactRepairMap(polish.plan?.repairMap),
     stages: polish.plan?.stages || null,
     input: compactStudioAnalysis(polish.inputAnalysis),
@@ -667,6 +668,36 @@ function compactRoomShaper(room = null) {
     roomTonePolicy: room.roomTonePolicy || "",
     active: !!room.active,
     reason: room.reason || ""
+  };
+}
+
+function compactReactivePlan(plan = null) {
+  if (!plan) return null;
+  return {
+    mode: plan.mode || "",
+    active: !!plan.active,
+    levelRide: plan.levelRide ? {
+      mode: plan.levelRide.mode || "",
+      targetDb: round(plan.levelRide.targetDb, 1),
+      rangeDb: round(plan.levelRide.rangeDb, 1),
+      boostDb: round(plan.levelRide.boostDb, 1),
+      cutDb: round(plan.levelRide.cutDb, 1),
+      speedMs: round(plan.levelRide.speedMs, 1),
+      attackMs: round(plan.levelRide.attackMs, 1),
+      releaseMs: round(plan.levelRide.releaseMs, 1),
+      noiseGateDb: round(plan.levelRide.noiseGateDb, 1),
+      amount: Math.round(plan.levelRide.amount || 0),
+      naturalMode: !!plan.levelRide.naturalMode
+    } : null,
+    eventLanes: plan.eventLanes ? {
+      eventsPerMinute: Math.max(0, Number(plan.eventLanes.eventsPerMinute || 0)),
+      microDensity: round(plan.eventLanes.microDensity, 3),
+      mouth: round(plan.eventLanes.mouth, 1),
+      plosive: round(plan.eventLanes.plosive, 1),
+      sibilance: round(plan.eventLanes.sibilance, 1),
+      adaptiveDeEss: round(plan.eventLanes.adaptiveDeEss, 1)
+    } : null,
+    notes: (plan.notes || []).slice(0, 4)
   };
 }
 
