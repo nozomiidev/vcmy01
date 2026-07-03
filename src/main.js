@@ -3186,6 +3186,8 @@ function renderQualityMatrix(suite) {
           <th class="numeric">RTx</th>
           <th class="numeric">RMS</th>
           <th class="numeric">Peak</th>
+          <th class="numeric">LUFS</th>
+          <th class="numeric">TP</th>
           <th class="numeric">F0</th>
           <th class="numeric">dF0</th>
           <th class="numeric">Bright</th>
@@ -3204,6 +3206,8 @@ function renderQualityMatrix(suite) {
             <td class="numeric">${item.realtimeFactor.toFixed(2)}</td>
             <td class="numeric">${item.analysis.rmsDb.toFixed(1)} dB</td>
             <td class="numeric">${item.analysis.peakDb.toFixed(1)} dB</td>
+            <td class="numeric">${item.analysis.integratedLufs.toFixed(1)}</td>
+            <td class="numeric">${item.analysis.truePeakDb.toFixed(1)} dBTP</td>
             <td class="numeric">${Math.round(item.analysis.pitchMedianHz || 0)} Hz</td>
             <td class="numeric">${signed(Math.round(item.deltas.pitchHz || 0))} Hz</td>
             <td class="numeric">${signed(Math.round(item.deltas.brightness * 100))}%</td>

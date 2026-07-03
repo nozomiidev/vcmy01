@@ -3954,7 +3954,7 @@ audio {
 
 .quality-table {
   width: 100%;
-  min-width: 940px;
+  min-width: 1080px;
   border-collapse: collapse;
   font-size: 12px;
 }

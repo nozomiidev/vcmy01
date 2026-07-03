@@ -871,4 +871,5 @@ Implementation response:
 - Added a `Source Reactive` card row inside Guided Studio with Event Lanes, Phrase Ride, Room Floor, and Tone Surgery cards.
 - The cards expose micro event density, adaptive de-ess intensity, phrase-ride range, expander threshold/range, and dynamic tone-band count.
 - ZIP `research-notes.md` now records source-reactive control evidence, including phrase ride timing/range and event-lane intensity, so exported packages keep the same rationale visible in the app.
+- Diagnostics Quality Matrix now shows LUFS and true peak columns, aligning the in-app regression view with podcast/export QC instead of relying on RMS/peak alone.
 - Restored `docs/koreyare.md` into a readable architecture note covering source-filter theory, perceptual tone maps, source-reactive repair, prosody, QC, and AI-after-DSP boundaries.
