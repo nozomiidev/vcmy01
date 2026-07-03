@@ -356,6 +356,32 @@ https://www.fon.hum.uva.nl/praat/manual/Source-filter_synthesis_4__Using_existin
 https://www.dsprelated.com/freebooks/pasp/Linear_Predictive_Coding_Speech.html
 https://dsp.stackexchange.com/questions/34985/understanding-lpc-for-formant-estimation
 
+## Perceptual Tone Map Loop
+
+The fifteenth production-director pass follows the hearing map in `docs/koreyare.md`: raw FFT peaks are useful, but listeners hear grouped critical bands, masking, and cochlear-like frequency resolution. Studio Polish should therefore expose a psychoacoustic map before using stronger dynamic EQ or character tone moves.
+
+Research decisions:
+
+- ERB spacing is a good browser-friendly approximation for auditory filters because it gives narrower low-frequency resolution and wider high-frequency resolution without requiring a heavy gammatone filter bank.
+- Bark/critical-band language is still useful for production judgment: if one ear band dominates, the voice can feel boxy, nasal, harsh, or sibilant even when a raw FFT peak list is noisy.
+- This pass should remain diagnostic. A static browser product can later use the map for perceptual dynamic EQ, but the first safe move is to report salience and crowding without pretending to be a full cochlear model.
+
+Implementation response:
+
+- `analyzeSpectralVoice()` now computes an `erb-critical-band-tone-map` with 24 bounded perceptual bands, Bark/ERB coordinates, weighted ear center, adjacent contrast, and the most crowded speech band.
+- Spectral risk scoring receives a small crowding boost for mud, nasal, presence, or sibilance when the perceptual map shows a dominant neighboring band.
+- Export manifests, Project Vault snapshots, and the FFT Tone UI card retain/show the perceptual crowding band as `Ear xxx Hz`.
+
+Verification:
+
+- In-app Browser private-fixture Kawaii render showed `FFT Tone 616 Hz / 563 Hz / -12.1 dB/oct / LPC 413 Hz / Ear 387 Hz`, Pitch Tracker `yin-autocorr-hybrid`, Render Loudness/True Peak cards, A/B Match, no console errors, and enabled WAV/WebM/ZIP controls.
+
+Sources:
+https://www.mathworks.com/help/audio/ref/gammatonefilterbank-system-object.html
+https://www.dsprelated.com/freebooks/sasp/Equivalent_Rectangular_Bandwidth.html
+https://www.dsprelated.com/freebooks/sasp/Bark_Frequency_Scale.html
+https://ansyshelp.ansys.com/public/Views/Secured/corp/v251/en/Sound_SAS_UG/Sound/UG_SAS/bark_scale_and_critical_bands_179506.html
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

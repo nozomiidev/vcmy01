@@ -26,7 +26,8 @@ export function analyzeSpectralVoice(input, sampleRate, options = {}) {
   const bands = spectralBands(averagePower, sampleRate);
   const peaks = spectralPeaks(averagePower, sampleRate);
   const envelope = lpcSpectralEnvelope(frames, sampleRate, options);
-  const risks = spectralRisks({ centroidHz, rolloff85Hz, tiltDbPerOctave, bands, peaks, envelope });
+  const perceptual = perceptualToneMap(averagePower, sampleRate, options);
+  const risks = spectralRisks({ centroidHz, rolloff85Hz, tiltDbPerOctave, bands, peaks, envelope, perceptual });
 
   return {
     frameSize,
@@ -39,8 +40,9 @@ export function analyzeSpectralVoice(input, sampleRate, options = {}) {
     bands,
     peaks,
     envelope,
+    perceptual,
     risks,
-    summary: spectralVoiceSummary({ centroidHz, rolloff85Hz, tiltDbPerOctave, risks, envelope })
+    summary: spectralVoiceSummary({ centroidHz, rolloff85Hz, tiltDbPerOctave, risks, envelope, perceptual })
   };
 }
 
@@ -56,7 +58,10 @@ export function spectralVoiceSummary(spectral = null) {
   if ((risks.thin || 0) > 28) tags.push("thin");
   const core = `${Math.round(spectral.centroidHz || 0)} Hz centroid / ${Math.round(spectral.rolloff85Hz || 0)} Hz rolloff`;
   const envelopePeak = spectral.envelope?.peaks?.[0]?.hz ? ` / LPC ${Math.round(spectral.envelope.peaks[0].hz)} Hz` : "";
-  return tags.length ? `${core}${envelopePeak} / ${tags.slice(0, 3).join(", ")}` : `${core}${envelopePeak}`;
+  const crowded = spectral.perceptual?.crowding?.band?.centerHz
+    ? ` / Ear ${Math.round(spectral.perceptual.crowding.band.centerHz)} Hz`
+    : "";
+  return tags.length ? `${core}${envelopePeak}${crowded} / ${tags.slice(0, 3).join(", ")}` : `${core}${envelopePeak}${crowded}`;
 }
 
 function spectralFrames(samples, frameSize, maxFrames) {
@@ -204,6 +209,75 @@ function spectralPeaks(power, sampleRate) {
   return peaks.sort((a, b) => b.prominenceDb - a.prominenceDb).slice(0, 6);
 }
 
+function perceptualToneMap(power, sampleRate, options = {}) {
+  const nyquist = sampleRate * 0.5;
+  const maxHz = Math.min(options.perceptualMaxHz || 12000, nyquist * 0.92);
+  const bandCount = Math.max(12, Math.min(36, Math.round(options.perceptualBands || 24)));
+  const minErb = hzToErbRate(80);
+  const maxErb = hzToErbRate(maxHz);
+  const bands = [];
+  let total = 0;
+  for (let i = 0; i < bandCount; i++) {
+    const lowErb = minErb + (maxErb - minErb) * i / bandCount;
+    const highErb = minErb + (maxErb - minErb) * (i + 1) / bandCount;
+    const centerErb = (lowErb + highErb) * 0.5;
+    const lowHz = erbRateToHz(lowErb);
+    const highHz = erbRateToHz(highErb);
+    const centerHz = erbRateToHz(centerErb);
+    const energy = bandEnergy(power, sampleRate, lowHz, highHz);
+    total += energy;
+    bands.push({
+      index: i + 1,
+      lowHz: round(lowHz, 1),
+      highHz: round(highHz, 1),
+      centerHz: round(centerHz, 1),
+      bark: round(hzToBark(centerHz), 2),
+      erbRate: round(centerErb, 2),
+      energy,
+      db: round(linToDb(Math.sqrt(energy / Math.max(1, highHz - lowHz))), 2)
+    });
+  }
+  const maxEnergy = bands.reduce((max, band) => Math.max(max, band.energy), 0);
+  const weightedCenter = bands.reduce((sum, band) => sum + band.centerHz * band.energy, 0) / Math.max(1e-18, total);
+  const lowEnergy = perceptualEnergy(bands, 80, 520);
+  const speechEnergy = perceptualEnergy(bands, 520, 2600);
+  const presenceEnergy = perceptualEnergy(bands, 2600, 5200);
+  const airEnergy = perceptualEnergy(bands, 5200, maxHz);
+  const totalSafe = Math.max(1e-18, total);
+  const normalized = bands.map((band) => ({
+    ...band,
+    weight: round(band.energy / totalSafe, 5),
+    salience: round(band.energy / Math.max(1e-18, maxEnergy), 4)
+  }));
+  const crowded = normalized
+    .filter((band) => band.centerHz >= 250 && band.centerHz <= 5200)
+    .sort((a, b) => b.salience - a.salience)[0] || null;
+  const adjacentContrastDb = perceptualAdjacentContrast(normalized);
+  return {
+    method: "erb-critical-band-tone-map",
+    bandCount,
+    maxHz: round(maxHz, 1),
+    weightedCenterHz: round(weightedCenter, 1),
+    lowWeight: round(lowEnergy / totalSafe, 4),
+    speechWeight: round(speechEnergy / totalSafe, 4),
+    presenceWeight: round(presenceEnergy / totalSafe, 4),
+    airWeight: round(airEnergy / totalSafe, 4),
+    adjacentContrastDb: round(adjacentContrastDb, 2),
+    crowding: crowded ? {
+      score: Math.round(clamp(crowded.salience * 100 + Math.max(0, adjacentContrastDb - 8) * 3, 0, 100)),
+      band: compactPerceptualBand(crowded),
+      risk: crowded.centerHz < 650 ? "mud"
+        : crowded.centerHz < 1500 ? "nasal"
+        : crowded.centerHz < 4200 ? "presence"
+        : "sibilance"
+    } : null,
+    bands: normalized.map(compactPerceptualBand).slice(0, bandCount),
+    summary: crowded
+      ? `${Math.round(weightedCenter)} Hz ear center / crowded ${Math.round(crowded.centerHz)} Hz ${Math.round(crowded.salience * 100)}%`
+      : `${Math.round(weightedCenter)} Hz ear center`
+  };
+}
+
 function lpcSpectralEnvelope(frames, sampleRate, options = {}) {
   if (!frames?.length) return emptyEnvelope();
   const order = Math.max(8, Math.min(24, Math.round(options.lpcOrder || Math.min(18, 2 + sampleRate / 4000))));
@@ -295,18 +369,20 @@ function frameEnergy(frame) {
   return sum / Math.max(1, frame.length);
 }
 
-function spectralRisks({ centroidHz, rolloff85Hz, tiltDbPerOctave, bands, peaks, envelope }) {
+function spectralRisks({ centroidHz, rolloff85Hz, tiltDbPerOctave, bands, peaks, envelope, perceptual }) {
   const topNasal = maxPeak(peaks, 650, 1300);
   const topHarsh = maxPeak(peaks, 2500, 4500);
   const envelopeNasal = maxPeak(envelope?.peaks || [], 650, 1300);
   const envelopeHarsh = maxPeak(envelope?.peaks || [], 2500, 4500);
+  const crowded = perceptual?.crowding || null;
+  const crowdedBoost = crowded?.score ? Math.max(0, crowded.score - 42) * 0.34 : 0;
   return {
     dark: Math.round(clamp((1450 - centroidHz) * 0.045 + (-7.5 - tiltDbPerOctave) * 7, 0, 100)),
     thin: Math.round(clamp((centroidHz - 3100) * 0.035 + Math.max(0, rolloff85Hz - 8200) * 0.011, 0, 100)),
-    mud: Math.round(clamp((bands.mud + 10) * 4.2, 0, 100)),
-    nasal: Math.round(clamp((bands.nasal + 11) * 4.5 + topNasal * 8 + envelopeNasal * 5.5, 0, 100)),
-    harsh: Math.round(clamp((bands.presence + 13) * 4.1 + topHarsh * 7 + envelopeHarsh * 4.2, 0, 100)),
-    sibilance: Math.round(clamp((bands.sibilance + 18) * 3.8, 0, 100)),
+    mud: Math.round(clamp((bands.mud + 10) * 4.2 + (crowded?.risk === "mud" ? crowdedBoost : 0), 0, 100)),
+    nasal: Math.round(clamp((bands.nasal + 11) * 4.5 + topNasal * 8 + envelopeNasal * 5.5 + (crowded?.risk === "nasal" ? crowdedBoost : 0), 0, 100)),
+    harsh: Math.round(clamp((bands.presence + 13) * 4.1 + topHarsh * 7 + envelopeHarsh * 4.2 + (crowded?.risk === "presence" ? crowdedBoost : 0), 0, 100)),
+    sibilance: Math.round(clamp((bands.sibilance + 18) * 3.8 + (crowded?.risk === "sibilance" ? crowdedBoost : 0), 0, 100)),
     air: Math.round(clamp((bands.air + 26) * 2.2, 0, 100))
   };
 }
@@ -322,6 +398,54 @@ function bandDb(power, sampleRate, lowHz, highHz) {
   const start = Math.max(1, Math.floor(lowHz / sampleRate * n));
   const end = Math.min(power.length, Math.ceil(highHz / sampleRate * n));
   return linToDb(Math.sqrt(sumRange(power, start, end) / Math.max(1, end - start)));
+}
+
+function bandEnergy(power, sampleRate, lowHz, highHz) {
+  const n = power.length * 2;
+  const start = Math.max(1, Math.floor(lowHz / sampleRate * n));
+  const end = Math.min(power.length, Math.ceil(highHz / sampleRate * n));
+  return sumRange(power, start, end);
+}
+
+function perceptualEnergy(bands, lowHz, highHz) {
+  return bands
+    .filter((band) => band.centerHz >= lowHz && band.centerHz < highHz)
+    .reduce((sum, band) => sum + band.energy, 0);
+}
+
+function perceptualAdjacentContrast(bands) {
+  let max = 0;
+  for (let i = 1; i < bands.length; i++) {
+    max = Math.max(max, Math.abs((bands[i].db || 0) - (bands[i - 1].db || 0)));
+  }
+  return max;
+}
+
+function compactPerceptualBand(band) {
+  return {
+    index: band.index,
+    centerHz: round(band.centerHz, 1),
+    lowHz: round(band.lowHz, 1),
+    highHz: round(band.highHz, 1),
+    bark: round(band.bark, 2),
+    erbRate: round(band.erbRate, 2),
+    db: round(band.db, 2),
+    weight: round(band.weight || 0, 5),
+    salience: round(band.salience || 0, 4)
+  };
+}
+
+function hzToErbRate(hz) {
+  return 21.4 * Math.log10(1 + 0.00437 * Math.max(0, hz));
+}
+
+function erbRateToHz(rate) {
+  return (Math.pow(10, Math.max(0, rate) / 21.4) - 1) / 0.00437;
+}
+
+function hzToBark(hz) {
+  const f = Math.max(0, hz);
+  return 13 * Math.atan(0.00076 * f) + 3.5 * Math.atan(Math.pow(f / 7500, 2));
 }
 
 function sumRange(values, start, end) {
@@ -355,6 +479,7 @@ function emptySpectral(frameSize) {
     bands: {},
     peaks: [],
     envelope: emptyEnvelope(),
+    perceptual: emptyPerceptual(),
     risks: { dark: 0, thin: 0, mud: 0, nasal: 0, harsh: 0, sibilance: 0, air: 0 },
     summary: "No spectral analysis"
   };
@@ -368,6 +493,23 @@ function emptyEnvelope(order = 0) {
     error: 0,
     peaks: [],
     summary: "No stable LPC envelope peaks"
+  };
+}
+
+function emptyPerceptual() {
+  return {
+    method: "erb-critical-band-tone-map",
+    bandCount: 0,
+    maxHz: 0,
+    weightedCenterHz: 0,
+    lowWeight: 0,
+    speechWeight: 0,
+    presenceWeight: 0,
+    airWeight: 0,
+    adjacentContrastDb: 0,
+    crowding: null,
+    bands: [],
+    summary: "No perceptual tone map"
   };
 }
 

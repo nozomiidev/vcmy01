@@ -670,6 +670,7 @@ function compactSpectral(spectral = null) {
     bands: spectral.bands || null,
     peaks: (spectral.peaks || []).slice(0, 6),
     envelope: compactSpectralEnvelope(spectral.envelope),
+    perceptual: compactPerceptualToneMap(spectral.perceptual),
     summary: spectral.summary || ""
   };
 }
@@ -687,6 +688,43 @@ function compactSpectralEnvelope(envelope = null) {
       db: round(peak.db, 2),
       prominenceDb: round(peak.prominenceDb, 2)
     }))
+  };
+}
+
+function compactPerceptualToneMap(perceptual = null) {
+  if (!perceptual) return null;
+  return {
+    method: perceptual.method || "",
+    bandCount: Math.max(0, Number(perceptual.bandCount || 0)),
+    maxHz: round(perceptual.maxHz, 1),
+    weightedCenterHz: round(perceptual.weightedCenterHz, 1),
+    lowWeight: round(perceptual.lowWeight, 4),
+    speechWeight: round(perceptual.speechWeight, 4),
+    presenceWeight: round(perceptual.presenceWeight, 4),
+    airWeight: round(perceptual.airWeight, 4),
+    adjacentContrastDb: round(perceptual.adjacentContrastDb, 2),
+    crowding: perceptual.crowding ? {
+      score: Math.round(perceptual.crowding.score || 0),
+      risk: perceptual.crowding.risk || "",
+      band: compactPerceptualBand(perceptual.crowding.band)
+    } : null,
+    summary: perceptual.summary || "",
+    bands: (perceptual.bands || []).slice(0, 24).map(compactPerceptualBand)
+  };
+}
+
+function compactPerceptualBand(band = null) {
+  if (!band) return null;
+  return {
+    index: Math.max(0, Number(band.index || 0)),
+    centerHz: round(band.centerHz, 1),
+    lowHz: round(band.lowHz, 1),
+    highHz: round(band.highHz, 1),
+    bark: round(band.bark, 2),
+    erbRate: round(band.erbRate, 2),
+    db: round(band.db, 2),
+    weight: round(band.weight, 5),
+    salience: round(band.salience, 4)
   };
 }
 

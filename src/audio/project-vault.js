@@ -646,6 +646,7 @@ function sanitizeSpectral(spectral = null) {
     bands: sanitizeProblemScores(spectral.bands),
     summary: cleanText(spectral.summary || "", 160),
     envelope: sanitizeSpectralEnvelope(spectral.envelope),
+    perceptual: sanitizePerceptualToneMap(spectral.perceptual),
     peaks: (Array.isArray(spectral.peaks) ? spectral.peaks : []).slice(0, 6).map((peak) => ({
       hz: finiteNumber(peak.hz),
       db: finiteNumber(peak.db),
@@ -667,6 +668,43 @@ function sanitizeSpectralEnvelope(envelope = null) {
       db: finiteNumber(peak.db),
       prominenceDb: finiteNumber(peak.prominenceDb)
     }))
+  };
+}
+
+function sanitizePerceptualToneMap(perceptual = null) {
+  if (!perceptual) return null;
+  return {
+    method: cleanText(perceptual.method || "", 80),
+    bandCount: Math.max(0, Number(perceptual.bandCount || 0)),
+    maxHz: finiteNumber(perceptual.maxHz),
+    weightedCenterHz: finiteNumber(perceptual.weightedCenterHz),
+    lowWeight: finiteNumber(perceptual.lowWeight),
+    speechWeight: finiteNumber(perceptual.speechWeight),
+    presenceWeight: finiteNumber(perceptual.presenceWeight),
+    airWeight: finiteNumber(perceptual.airWeight),
+    adjacentContrastDb: finiteNumber(perceptual.adjacentContrastDb),
+    crowding: perceptual.crowding ? {
+      score: clampScore(perceptual.crowding.score),
+      risk: cleanText(perceptual.crowding.risk || "", 40),
+      band: sanitizePerceptualBand(perceptual.crowding.band)
+    } : null,
+    summary: cleanText(perceptual.summary || "", 160),
+    bands: (Array.isArray(perceptual.bands) ? perceptual.bands : []).slice(0, 24).map(sanitizePerceptualBand).filter(Boolean)
+  };
+}
+
+function sanitizePerceptualBand(band = null) {
+  if (!band) return null;
+  return {
+    index: Math.max(0, Number(band.index || 0)),
+    centerHz: finiteNumber(band.centerHz),
+    lowHz: finiteNumber(band.lowHz),
+    highHz: finiteNumber(band.highHz),
+    bark: finiteNumber(band.bark),
+    erbRate: finiteNumber(band.erbRate),
+    db: finiteNumber(band.db),
+    weight: finiteNumber(band.weight),
+    salience: finiteNumber(band.salience)
   };
 }
 

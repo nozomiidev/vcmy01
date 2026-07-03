@@ -127,7 +127,8 @@ function formatSpectral(spectral) {
   if (!spectral) return "No spectral map";
   const tilt = Number(spectral.tiltDbPerOctave || 0).toFixed(1);
   const envelope = spectral.envelope?.peaks?.[0]?.hz ? ` / LPC ${Math.round(spectral.envelope.peaks[0].hz)} Hz` : "";
-  return `${Math.round(spectral.centroidHz || 0)} Hz / ${Math.round(spectral.rolloff85Hz || 0)} Hz / ${tilt} dB/oct${envelope}`;
+  const ear = spectral.perceptual?.crowding?.band?.centerHz ? ` / Ear ${Math.round(spectral.perceptual.crowding.band.centerHz)} Hz` : "";
+  return `${Math.round(spectral.centroidHz || 0)} Hz / ${Math.round(spectral.rolloff85Hz || 0)} Hz / ${tilt} dB/oct${envelope}${ear}`;
 }
 
 function formatRoomShaper(room) {
