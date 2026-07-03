@@ -17,6 +17,7 @@ export function applyCharacterSafety(rawParams = {}, {
 
   clampParam(params, moves, "pitch", limits.pitchMin, limits.pitchMax, "Keep pitch shift inside a natural voice range.");
   clampParam(params, moves, "formant", limits.formantMin, limits.formantMax, "Keep formant-like mouth shift inside a natural voice range.");
+  const identityRisk = guardIdentityCoupling(params, moves, { creative, target });
   limitPitchFormantSpread(params, moves, creative ? 7.5 : 5.2);
 
   if (!creative && (scores.sibilance || 0) > 42) {
@@ -46,7 +47,7 @@ export function applyCharacterSafety(rawParams = {}, {
     clampParam(params, moves, "whisper", 0, 34, "Whisper blend can expose source noise and mouth artifacts.");
   }
 
-  const score = safetyScore(original, params, sourceProfile, scores, creative);
+  const score = safetyScore(original, params, sourceProfile, scores, creative, identityRisk);
   return {
     enabled: true,
     status: moves.length ? "guarded" : "clear",
@@ -62,7 +63,8 @@ export function applyCharacterSafety(rawParams = {}, {
       nasal: Math.round(scores.nasal || 0),
       harsh: Math.round(scores.harsh || 0),
       sibilance: Math.round(scores.sibilance || 0),
-      perceptualRisk: scores.perceptualRisk || ""
+      perceptualRisk: scores.perceptualRisk || "",
+      identityRisk
     },
     params,
     moves
@@ -136,11 +138,51 @@ function limitPitchFormantSpread(params, moves, maxSpread) {
   });
 }
 
-function safetyScore(original, params, profile, scores, creative) {
+function guardIdentityCoupling(params, moves, {
+  creative = false,
+  target = null
+} = {}) {
+  if (creative) return "";
+  const targetKey = `${target?.id || ""} ${target?.name || target?.label || ""}`.toLowerCase();
+  if (/robot|creature|monster|vocoder|anonymous|witness|suspect/.test(targetKey)) return "";
+
+  let risk = "";
+  const pitch = Number(params.pitch || 0);
+  const formant = Number(params.formant || 0);
+  const pitchAbs = Math.abs(pitch);
+  const formantAbs = Math.abs(formant);
+  const split = Math.abs(pitch - formant);
+  const opposedStrongly = pitch * formant < 0 && Math.min(pitchAbs, formantAbs) >= 2.2 && split > 4.4;
+
+  if (opposedStrongly) {
+    const before = formant;
+    const after = clamp(pitch * 0.38, -4.2, 4.2);
+    params.formant = after;
+    moves.push({
+      key: "formant",
+      label: paramLabel("formant"),
+      before,
+      after,
+      reason: "Avoid witness-anonymizer pitch/formant split; keep vocal-tract cues coupled to the human pitch move."
+    });
+    risk = "opposed-pitch-formant";
+  }
+
+  const lowHumanTarget = /ikemen|deep|bass|baritone|narrator|intimate/.test(targetKey);
+  if (!lowHumanTarget && Number(params.pitch || 0) < -4.8 && Number(params.formant || 0) < -4.8 && Number(params.body || 0) > 62) {
+    clampParam(params, moves, "body", -100, 58, "Deep pitch/formant shifts need restrained body to avoid masked-anonymous coloration.");
+    risk = risk ? `${risk},deep-mask` : "deep-mask";
+  }
+
+  return risk;
+}
+
+function safetyScore(original, params, profile, scores, creative, identityRisk = "") {
   const spread = Math.abs(Number(params.pitch || 0) - Number(params.formant || 0));
   let penalty = spread * 3;
   if (!creative && Math.abs(params.pitch) > 5.5) penalty += (Math.abs(params.pitch) - 5.5) * 7;
   if (!creative && Math.abs(params.formant) > 5.5) penalty += (Math.abs(params.formant) - 5.5) * 7;
+  if (!creative && identityRisk) penalty += identityRisk.includes("deep-mask") ? 14 : 10;
   if ((scores.sibilance || 0) > 42 && params.air > 42) penalty += (params.air - 42) * 0.6;
   if (profile.breathyOrNoisy && params.breath > 66) penalty += (params.breath - 66) * 0.45;
   const intervention = Object.keys(params).reduce((sum, key) => {

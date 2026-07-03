@@ -639,7 +639,8 @@ function compactCharacterSafety(plan = null) {
       nasal: Math.round(plan.evidence.nasal || 0),
       harsh: Math.round(plan.evidence.harsh || 0),
       sibilance: Math.round(plan.evidence.sibilance || 0),
-      perceptualRisk: plan.evidence.perceptualRisk || ""
+      perceptualRisk: plan.evidence.perceptualRisk || "",
+      identityRisk: plan.evidence.identityRisk || ""
     } : null,
     moves: (plan.moves || []).slice(0, 12).map((move) => ({
       key: move.key,

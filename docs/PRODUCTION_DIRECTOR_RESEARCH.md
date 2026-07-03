@@ -491,6 +491,32 @@ https://support.ircam.fr/docs/AudioSculpt/3.0/co/LPC_1.html
 https://www.dsprelated.com/freebooks/sasp/Equivalent_Rectangular_Bandwidth.html
 https://www.fabfilter.com/help/pro-q/using/dynamic-eq
 
+## Identity Coupling Guard Loop
+
+The twenty-first production-director pass addresses a specific listening failure from the private fixture review: some non-AI character transforms can drift toward a news/witness anonymizer instead of an attractive human character. The technical smell is not merely "too much pitch." It is a strong uncoupling between F0 movement and vocal-tract/formant movement, or an unplanned deep-mask stack of low pitch, low formant, and heavy body.
+
+Research decisions:
+
+- MorphVOX exposes pitch and timbre as separate identity controls, which confirms the product axis. But that same separation can also make a voice sound like a disguise when the two axes are pushed in conflicting directions without source adaptation.
+- Voicemod's PowerPitch write-up frames pitch shifting as a real-time quality problem where preserving human voice naturalness and avoiding robotic degradation are core engineering goals.
+- Speaker de-identification research treats formant modification and F0 trajectory manipulation as privacy/anonymization tools. VoiceForge therefore treats large pitch/formant decoupling as an explicit human-character risk unless the target is intentionally robot/creature/anonymous.
+
+Implementation response:
+
+- `applyCharacterSafety()` now adds an identity-coupling guard before the generic pitch/formant spread limiter.
+- Strong opposite-direction pitch/formant shifts on human targets are re-coupled toward the pitch direction and recorded as `opposed-pitch-formant`.
+- Unplanned low-pitch/low-formant/heavy-body stacks are recorded as `deep-mask` and body reinforcement is capped unless the target is explicitly a low human voice such as ikemen, deep, narrator, or intimate.
+- Export manifests and Project Vault snapshots keep `identityRisk`, so future listening reviews can distinguish "spectral comfort" risks from "anonymous disguise" risks.
+
+Verification:
+
+- Unit regression covers both `opposed-pitch-formant` and `deep-mask`, including the exact guard move and retained evidence.
+
+Sources:
+https://screamingbee.com/docs/morphvoxpro/morphdocpitchtimbre
+https://medium.com/@voicemod/how-we-built-our-new-and-improved-pitch-shifter-5b11c9d7f9a0
+https://www.sciencedirect.com/science/article/pii/S0167639322000498
+
 ## Spectral Source Fit Loop
 
 The twentieth production-director pass moves spectral risk earlier in the workflow. A user should not discover only after rendering that a kawaii/anime macro was guarded because the source was nasal or sibilant. The Guided Studio source-fit layer should explain that risk before the render button.

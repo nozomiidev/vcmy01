@@ -558,7 +558,8 @@ function sanitizeCharacterSafety(plan = null) {
       nasal: clampScore(plan.evidence.nasal),
       harsh: clampScore(plan.evidence.harsh),
       sibilance: clampScore(plan.evidence.sibilance),
-      perceptualRisk: cleanText(plan.evidence.perceptualRisk || "", 80)
+      perceptualRisk: cleanText(plan.evidence.perceptualRisk || "", 80),
+      identityRisk: cleanText(plan.evidence.identityRisk || "", 80)
     } : null,
     moves: Array.isArray(plan.moves) ? plan.moves.slice(0, 12).map((move) => ({
       key: cleanText(move.key || "", 48),

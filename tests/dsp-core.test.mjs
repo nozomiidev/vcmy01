@@ -655,6 +655,24 @@ const spectralCharacterSafety = applyCharacterSafety(paramsForPreset("kawaii", {
   },
   target: { id: "kawaii_spark", name: "Kawaii Spark" }
 });
+const identitySplitSafety = applyCharacterSafety(paramsForPreset("clean", {
+  pitch: 4.8,
+  formant: -4.7,
+  body: 36
+}), {
+  sourceProfile: { range: "medium" },
+  source: { studioAnalysis: { problemScores: {} } },
+  target: { id: "human_gloss", name: "Human Gloss" }
+});
+const deepMaskSafety = applyCharacterSafety(paramsForPreset("clean", {
+  pitch: -5.2,
+  formant: -5.2,
+  body: 78
+}), {
+  sourceProfile: { range: "medium" },
+  source: { studioAnalysis: { problemScores: {} } },
+  target: { id: "human_gloss", name: "Human Gloss" }
+});
 assert.equal(lowProfile.range, "low", "low reference voice should calibrate as low range");
 assert.ok(tunedKawaii.pitch > kawaii.pitch, "low voice kawaii calibration should lift pitch");
 assert.ok(tunedKawaii.formant > kawaii.formant, "low voice kawaii calibration should lift formant-like shift");
@@ -669,6 +687,11 @@ assert.equal(spectralCharacterSafety.status, "guarded", "character safety should
 assert.ok(spectralCharacterSafety.moves.some((move) => move.key === "formant"), "spectral character safety should reduce pinched formant shifts");
 assert.ok(spectralCharacterSafety.moves.some((move) => move.key === "deEss"), "spectral character safety should raise de-ess for sharp bright targets");
 assert.equal(spectralCharacterSafety.evidence.perceptualRisk, "nasal:1050Hz", "character safety should retain ERB crowding evidence");
+assert.equal(identitySplitSafety.evidence.identityRisk, "opposed-pitch-formant", "character safety should flag anonymous-style pitch/formant splits");
+assert.ok(identitySplitSafety.params.formant > 0, "identity split guard should recouple vocal-tract shift to pitch direction");
+assert.ok(identitySplitSafety.moves.some((move) => move.reason.includes("witness-anonymizer")), "identity split guard should explain the disguise risk");
+assert.equal(deepMaskSafety.evidence.identityRisk, "deep-mask", "character safety should flag deep masked human targets");
+assert.ok(deepMaskSafety.moves.some((move) => move.key === "body" && move.after <= 58), "deep mask guard should restrain body reinforcement");
 
 const offline = new OfflineRenderer();
 offline.generateSample(sampleRate, "low_warm");
