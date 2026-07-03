@@ -1076,6 +1076,7 @@ assert.equal(allRiskDecision.winnerId, null, "take decision should hold keeper s
 assert.equal(allRiskDecision.candidateId, "only-risk", "take decision should still expose the best QC candidate for repair");
 const qcRefinement = buildKeeperRefinement(allRiskDecision, kawaii, kawaiiSpark);
 assert.ok(qcRefinement.patch.length > 0, "QC-held candidates should produce repair moves before keeper lock");
+assert.ok(qcRefinement.patch.some((patch) => patch.key === "consonantSoftness" && patch.group.includes("Comfort")), "QC-held comfort repair should add issue-specific mouth/transient smoothing");
 const singleQcHoldStudioPlan = buildStudioPlan({
   hasSource: true,
   sourceFit: mockReadySourceFit,

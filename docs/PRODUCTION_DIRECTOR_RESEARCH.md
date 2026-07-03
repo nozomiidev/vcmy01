@@ -811,6 +811,7 @@ Implementation response:
 - Guided Studio now routes QC-held candidates to refinement before A/B comparison, and the UI labels such cards as `QC Hold` rather than `Keeper`.
 - A single QC-held take now routes to `Fix QC Take` before variant rendering, because multiplying broken takes is not a professional audition workflow.
 - The Studio Plan next-action selector now lets QC-held take repair override upstream character-shape tweaks, matching the studio rule that broken audio must be repaired before performance nuance is chased.
+- Keeper Refinement now maps Comfort issue IDs to targeted repair moves, so micro-events, sibilance/harshness, nasal focus, mud, loudness, and dynamics do not all receive the same generic safety patch.
 - Export `analysis.json` and Project Vault snapshots now retain compact Take Decision evidence, including the QC-held candidate, blocker/check lists, and blocked deck count.
 - Unit tests now cover safer-take selection, all-risk candidate hold, QC evidence cards, and Studio Plan routing.
 

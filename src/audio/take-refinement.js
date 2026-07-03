@@ -128,6 +128,7 @@ function safetyRefinement(review, score) {
         move("saturation", -3, "Safety", "Reduce edge buildup")
       );
     }
+    addComfortMoves(moves, review, intensity);
   }
   return card({
     id: "safety",
@@ -136,6 +137,73 @@ function safetyRefinement(review, score) {
     summary: moves.length ? `${moves.length} mix guard moves` : "Mix guard locked",
     moves
   });
+}
+
+function addComfortMoves(moves, review, intensity = 1) {
+  const issues = comfortIssueIds(review);
+  if (!issues.size) return;
+  if (issues.has("micro")) {
+    moves.push(
+      move("consonantSoftness", 8 * intensity, "Comfort", "Smooth mouth/transient QC"),
+      move("deEss", 4 * intensity, "Comfort", "Catch clicky high edges"),
+      move("air", -3 * intensity, "Comfort", "Reduce distracting mouth sheen"),
+      move("saturation", -2 * intensity, "Comfort", "Reduce transient edge buildup")
+    );
+  }
+  if (issues.has("sibilance") || issues.has("harshness")) {
+    moves.push(
+      move("deEss", 8 * intensity, "Comfort", "Reduce sibilance and harshness"),
+      move("presence", -5 * intensity, "Comfort", "Ease painful presence focus"),
+      move("air", -4 * intensity, "Comfort", "Avoid high-band fatigue"),
+      move("brightness", -3 * intensity, "Comfort", "Soften bright balance")
+    );
+  }
+  if (issues.has("nasal")) {
+    moves.push(
+      move("mouth", -4 * intensity, "Comfort", "Reduce boxed nasal focus"),
+      move("presence", -3 * intensity, "Comfort", "Move nasal bite out of the foreground"),
+      move("body", 3 * intensity, "Comfort", "Restore body under nasal concentration")
+    );
+  }
+  if (issues.has("mud")) {
+    moves.push(
+      move("lowCut", 12 * intensity, "Comfort", "Clear low-mid buildup"),
+      move("body", -5 * intensity, "Comfort", "Reduce muddy chest buildup"),
+      move("compression", -3 * intensity, "Comfort", "Stop low-mid density from stacking")
+    );
+  }
+  if (issues.has("loudness") || issues.has("true-peak")) {
+    moves.push(
+      move("outputGain", -1.5 * intensity, "Comfort", "Restore delivery headroom"),
+      move("compression", 4 * intensity, "Comfort", "Hold loud peaks before export")
+    );
+  }
+  if (issues.has("quiet")) {
+    moves.push(
+      move("outputGain", 1.2 * intensity, "Comfort", "Lift quiet speech after cleanup"),
+      move("compression", 3 * intensity, "Comfort", "Keep quiet words intelligible")
+    );
+  }
+  if (issues.has("flat")) {
+    moves.push(
+      move("compression", -7 * intensity, "Comfort", "Undo over-flattened dynamics"),
+      move("deliveryEnergy", 4 * intensity, "Comfort", "Restore speech motion")
+    );
+  }
+  if (issues.has("jumpy")) {
+    moves.push(
+      move("compression", 7 * intensity, "Comfort", "Control jumpy dynamics"),
+      move("closeMic", -3 * intensity, "Comfort", "Reduce proximity jumps")
+    );
+  }
+}
+
+function comfortIssueIds(review) {
+  const fromReasons = Array.isArray(review?.comfort?.reasons) ? review.comfort.reasons : [];
+  const fromIssues = Array.isArray(review?.comfort?.issues)
+    ? review.comfort.issues.map((item) => item.id)
+    : [];
+  return new Set([...fromReasons, ...fromIssues].map((id) => String(id || "").trim()).filter(Boolean));
 }
 
 function addScriptMoves(moves, item) {
