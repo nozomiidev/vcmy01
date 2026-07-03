@@ -931,3 +931,37 @@ Implementation response:
 - ZIP `research-notes.md` now records source-reactive control evidence, including phrase ride timing/range and event-lane intensity, so exported packages keep the same rationale visible in the app.
 - Diagnostics Quality Matrix now shows LUFS and true peak columns, aligning the in-app regression view with podcast/export QC instead of relying on RMS/peak alone.
 - Restored `docs/koreyare.md` into a readable architecture note covering source-filter theory, perceptual tone maps, source-reactive repair, prosody, QC, and AI-after-DSP boundaries.
+
+## Serial Comfort Repair Loop
+
+The next pass fixes a workflow gap in the current review action. Listening comfort failures are rarely a single-stage problem. A mouth/transient-dense, bright kawaii render can need a little de-ess, a little consonant smoothing, a small air trim, and sometimes a wet/dry or output guard. Applying only one next signal layer can improve the score but still leave the take fatiguing.
+
+Research decisions:
+
+- RX Mouth De-click exposes sensitivity, frequency skew, and click-widening as separate controls, and warns that high sensitivity can damage plosives or the original signal. VoiceForge should therefore prefer multiple bounded micro moves over one aggressive click-removal move.
+- RX Spectral De-ess and FabFilter Pro-DS both separate broadband de-essing from more targeted split-band/spectral de-essing. The product pattern is to preserve speech/vowel body while reducing the high-frequency offender.
+- iZotope's de-essing guidance emphasizes maintaining a natural, intelligible vocal and notes that multiple small de-essers can sound more natural than one heavy processor. That maps directly to serial subtle repair.
+- Auphonic describes analysis-driven leveling, dynamic compression, gating, noise/hum reduction, ducking, filtering, loudness normalization, and true-peak limiting as different stages. Loudness/true peak belong at the end, while repair and leveling react to source evidence earlier.
+
+Implementation response:
+
+- `buildEffectStack()` now creates a `Comfort Bundle` when render comfort is risky and multiple comfort-related patches exist across tone, texture, dynamics, input, or guard stages.
+- `bestEffectStackPatch()` returns that serial bundle by default, so `Fix & Preview` can apply several light repairs in one pass instead of only the highest-priority layer.
+- The bundle remains source-adaptive: sibilance raises de-ess and trims air/brightness, harshness lowers presence/brightness, micro density raises consonant softness and trims breath/whisper texture, nasal focus reduces presence/mouth placement, loudness/peak issues move output/limiter/guard controls.
+- Effect Stack UI now displays the bundle's actual patch items and labels the command as `Fix Comfort Bundle`, so the user sees this as a studio repair pass rather than a mysterious macro.
+- Current Review now keeps stage ownership straight: if the risky take is a polish-only preview, the action is `Strong Polish` and re-renders Studio Polish instead of changing character-stack parameters that the polish-only signal path cannot hear.
+- Unit tests now require a simultaneous micro+sibilance comfort risk to produce both de-ess and consonant-softness repair moves.
+
+Verification:
+
+- Private-fixture browser pass on `tests/data/konichiwabokunonamaewayamadatarodesu.webm` showed polish-only Current Review routing to `Strong Polish` first, then to `Fix & Preview` after the Studio Polish intensity reached `strong`.
+- The Effect Stack patch list exposed a `Comfort Bundle` with presence, consonant-softness, brightness, dry/wet, de-ess, and breath moves.
+- Chained browser verification reached `Preview - tuned`, kept WAV/WebM/ZIP downloads enabled, and produced no console errors.
+- Comfort still remained in the low 50s on that fixture, so the next loop should improve the underlying Studio Polish harshness/sibilance DSP rather than only adding more UI patch routing.
+
+Sources:
+https://s3.amazonaws.com/izotopedownloads/docs/rx8/en/mouth-de-click/index.html
+https://downloads.izotope.com/docs/rx6/24-de-ess/index.html
+https://www.fabfilter.com/help/pro-ds/using/advancedcontrols
+https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
+https://auphonic.com/help/algorithms/multitrack.html

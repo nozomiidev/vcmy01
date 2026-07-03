@@ -1462,6 +1462,9 @@ function renderCurrentReviewPanel() {
 function currentReviewAction(review = null) {
   if (!review) return null;
   if (review.comfort?.status === "risk") {
+    if (offline.rendered?.stage === "polish" && state.polishIntensity !== "strong") {
+      return { id: "strong-polish-preview", label: "Strong Polish" };
+    }
     const stack = currentEffectStackReport();
     const patch = bestEffectStackPatch(stack);
     const hasPatch = Object.keys(patch).some((key) => !key.startsWith("_"));
@@ -1474,6 +1477,14 @@ function currentReviewAction(review = null) {
 }
 
 function applyCurrentReviewAction(actionId = "") {
+  if (actionId === "strong-polish-preview") {
+    state.polishIntensity = "strong";
+    if ($("polishIntensity")) $("polishIntensity").value = "strong";
+    engine.setStudioPolishIntensity(state.polishIntensity);
+    persist();
+    renderOfflineToPreview(true, { stage: "polish" });
+    return;
+  }
   if (actionId === "stack-fix-preview") {
     applyNextEffectStackFix();
     renderOfflineToPreview(true);
@@ -1950,13 +1961,16 @@ function renderEffectStack() {
     </div>
   `).join("");
   const patchStage = stack.stages.find((stage) => stage.id === stack.nextStageId);
-  const patchItems = patchStage?.patch?.slice(0, 6) || [];
+  const patchLabel = stack.nextPatchLabel || patchStage?.label || "Signal Stack";
+  const patchItems = (Array.isArray(stack.nextPatchItems) && stack.nextPatchItems.length
+    ? stack.nextPatchItems
+    : patchStage?.patch || []).slice(0, 6);
   $("effectStackPatches").innerHTML = patchItems.length ? patchItems.map((patch) => `
     <span>${escapeHtml(paramLabel(patch.key))} <b>${formatPatchDelta(patch)}</b><small>${escapeHtml(patch.reason)}</small></span>
   `).join("") : `<span>Stack locked <b>0</b><small>No next move</small></span>`;
   const hasPatch = Object.keys(stack.nextPatch).some((key) => !key.startsWith("_"));
   $("applyStackFix").disabled = !hasPatch;
-  $("applyStackFix").textContent = hasPatch && patchStage ? `Fix ${patchStage.label}` : "Stack Locked";
+  $("applyStackFix").textContent = hasPatch ? `Fix ${patchLabel}` : "Stack Locked";
   renderStackAuditions();
 }
 
@@ -1969,6 +1983,7 @@ function applyNextEffectStackFix() {
     return;
   }
   const stage = stack.stages.find((item) => item.id === stack.nextStageId);
+  const patchLabel = stack.nextPatchLabel || stage?.label || "Signal Stack";
   state.params = { ...state.params, ...patch };
   persist();
   engine.setParams(state.params);
@@ -1980,7 +1995,7 @@ function applyNextEffectStackFix() {
   renderEffectStack();
   renderProjectVault();
   renderStudioPlan();
-  toast("Stack fix applied", `${stage?.label || "Signal Stack"}: ${describePatchObject(patch)}`);
+  toast("Stack fix applied", `${patchLabel}: ${describePatchObject(patch)}`);
 }
 
 function effectStackStatusLabel(status) {

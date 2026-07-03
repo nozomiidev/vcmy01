@@ -176,6 +176,8 @@ export function buildEffectStack(params = {}, options = {}) {
   const nextStage = [...stages]
     .filter((stage) => stage.patch.length)
     .sort((a, b) => stagePriority(b) - stagePriority(a))[0] || null;
+  const repairBundle = buildComfortRepairBundle(stages, context, current);
+  const nextPatchItems = repairBundle?.patch || nextStage?.patch || [];
   return {
     score,
     status: stackStatus(score, stages),
@@ -184,12 +186,20 @@ export function buildEffectStack(params = {}, options = {}) {
     totalIntensity: Math.round(stages.reduce((sum, stage) => sum + stage.intensity, 0) / stages.length),
     stages,
     nextStageId: nextStage?.id || null,
-    nextPatch: nextStage ? patchObject(nextStage.patch) : {},
-    summary: nextStage ? `${nextStage.patch.length} ${nextStage.label} moves` : "Stack locked"
+    nextPatch: patchObject(nextPatchItems),
+    nextPatchItems,
+    nextPatchLabel: repairBundle?.label || nextStage?.label || null,
+    repairBundle,
+    summary: repairBundle
+      ? `${repairBundle.patch.length} ${repairBundle.label} moves`
+      : nextStage ? `${nextStage.patch.length} ${nextStage.label} moves` : "Stack locked"
   };
 }
 
 export function bestEffectStackPatch(stack, stageId = null) {
+  if (!stageId && Array.isArray(stack?.nextPatchItems) && stack.nextPatchItems.length) {
+    return patchObject(stack.nextPatchItems);
+  }
   const stage = stageId
     ? stack?.stages?.find((candidate) => candidate.id === stageId)
     : stack?.stages?.find((candidate) => candidate.id === stack.nextStageId);
@@ -255,7 +265,10 @@ function inputPatches(current, context) {
     : [];
   const patches = sourcePatches.filter((patch) => ["inputGain", "lowCut", "deEss", "pitch", "formant", "body", "brightness", "air", "breath", "whisper"].includes(patch.key));
   if (comfortHas(context, "mud")) patches.push(boundedPatch("lowCut", current.lowCut, Number(current.lowCut || 80) + 14, "Comfort mud cleanup"));
-  if (comfortHas(context, "quiet")) patches.push(boundedPatch("inputGain", current.inputGain, Number(current.inputGain || 0) + 1.5, "Comfort intelligibility"));
+  if (comfortHas(context, "quiet")) {
+    const severity = comfortSeverity(context, "quiet");
+    patches.push(boundedPatch("inputGain", current.inputGain, Number(current.inputGain || 0) + 1.2 + severity * 2.6, "Comfort intelligibility"));
+  }
   return patches.filter(Boolean);
 }
 
@@ -278,15 +291,21 @@ function tonePatches(current, context) {
     if (/^-/.test(reviewTone.value || "")) patches.push(boundedPatch("air", current.air, Number(current.air || 0) + 6, "Render tone guard"));
   }
   if (comfortHas(context, "sibilance")) {
-    patches.push(boundedPatch("deEss", current.deEss, Number(current.deEss || 0) + 8, "Comfort sibilance"));
-    patches.push(boundedPatch("air", current.air, Number(current.air || 0) - 5, "Comfort sibilance"));
+    const severity = comfortSeverity(context, "sibilance");
+    patches.push(boundedPatch("deEss", current.deEss, Number(current.deEss || 0) + 6 + severity * 10, "Comfort sibilance"));
+    patches.push(boundedPatch("air", current.air, Number(current.air || 0) - 3 - severity * 7, "Comfort sibilance"));
+    if (severity > 0.22) patches.push(boundedPatch("brightness", current.brightness, Number(current.brightness || 0) - 3 - severity * 5, "Comfort sibilance"));
   }
   if (comfortHas(context, "harshness")) {
-    patches.push(boundedPatch("presence", current.presence, Number(current.presence || 0) - 6, "Comfort harshness"));
-    patches.push(boundedPatch("brightness", current.brightness, Number(current.brightness || 0) - 5, "Comfort harshness"));
+    const severity = comfortSeverity(context, "harshness");
+    patches.push(boundedPatch("presence", current.presence, Number(current.presence || 0) - 5 - severity * 7, "Comfort harshness"));
+    patches.push(boundedPatch("brightness", current.brightness, Number(current.brightness || 0) - 4 - severity * 6, "Comfort harshness"));
+    if (severity > 0.18) patches.push(boundedPatch("deEss", current.deEss, Number(current.deEss || 0) + 4 + severity * 5, "Comfort harshness"));
   }
   if (comfortHas(context, "nasal")) {
-    patches.push(boundedPatch("presence", current.presence, Number(current.presence || 0) - 4, "Comfort nasal focus"));
+    const severity = comfortSeverity(context, "nasal");
+    patches.push(boundedPatch("presence", current.presence, Number(current.presence || 0) - 3 - severity * 5, "Comfort nasal focus"));
+    patches.push(boundedPatch("mouth", current.mouth, Number(current.mouth || 0) - 4 - severity * 5, "Comfort nasal focus"));
   }
   return patches.filter(Boolean);
 }
@@ -307,9 +326,11 @@ function texturePatches(current, context) {
     patches.push(boundedPatch("consonantSoftness", current.consonantSoftness, Number(current.consonantSoftness || 0) + 6, "Texture smoothing"));
   }
   if (comfortHas(context, "micro")) {
-    patches.push(boundedPatch("consonantSoftness", current.consonantSoftness, Number(current.consonantSoftness || 0) + 8, "Comfort micro smoothing"));
-    patches.push(boundedPatch("breath", current.breath, Number(current.breath || 0) - 6, "Comfort micro smoothing"));
-    patches.push(boundedPatch("whisper", current.whisper, Number(current.whisper || 0) - 5, "Comfort micro smoothing"));
+    const severity = comfortSeverity(context, "micro");
+    patches.push(boundedPatch("consonantSoftness", current.consonantSoftness, Number(current.consonantSoftness || 0) + 7 + severity * 11, "Comfort micro smoothing"));
+    patches.push(boundedPatch("breath", current.breath, Number(current.breath || 0) - 4 - severity * 7, "Comfort micro smoothing"));
+    patches.push(boundedPatch("whisper", current.whisper, Number(current.whisper || 0) - 4 - severity * 6, "Comfort micro smoothing"));
+    patches.push(boundedPatch("romanticBreath", current.romanticBreath, Number(current.romanticBreath || 0) - 3 - severity * 6, "Comfort micro smoothing"));
   }
   return patches.filter(Boolean);
 }
@@ -385,7 +406,8 @@ function dynamicsPatches(current, context) {
     patches.push(boundedPatch("compression", current.compression, Number(current.compression || 0) + 6, "Comfort dynamics"));
   }
   if (comfortHas(context, "loudness")) {
-    patches.push(boundedPatch("outputGain", current.outputGain, Number(current.outputGain || 0) - 1.2, "Comfort loudness"));
+    const severity = comfortSeverity(context, "loudness");
+    patches.push(boundedPatch("outputGain", current.outputGain, Number(current.outputGain || 0) - 1 - severity * 2.2, "Comfort loudness"));
   }
   return patches.filter(Boolean);
 }
@@ -420,8 +442,9 @@ function guardPatches(current, context) {
   if (context.renderReview?.status === "risk" && Number(current.compression || 0) < 72) {
     patches.push(boundedPatch("compression", current.compression, Number(current.compression || 0) + 6, "Final stability"));
   }
-  if ((context.renderReview?.comfort?.score ?? 100) < 45) {
-    patches.push(boundedPatch("dryWet", current.dryWet, Number(current.dryWet ?? 100) - 4, "Comfort blend guard"));
+  if ((context.renderReview?.comfort?.score ?? 100) < 62) {
+    const severity = clamp((62 - Number(context.renderReview?.comfort?.score || 0)) / 62, 0, 1);
+    patches.push(boundedPatch("dryWet", current.dryWet, Number(current.dryWet ?? 100) - 3 - severity * 6, "Comfort blend guard"));
   }
   if (comfortHas(context, "true-peak")) {
     patches.push(boundedPatch("limiter", current.limiter, Number(current.limiter ?? -1) - 0.5, "Comfort peak guard"));
@@ -432,6 +455,78 @@ function guardPatches(current, context) {
 function comfortHas(context, id) {
   const comfort = context.renderReview?.comfort || null;
   return !!comfort && comfort.score < 84 && Array.isArray(comfort.reasons) && comfort.reasons.includes(id);
+}
+
+function comfortSeverity(context, id) {
+  const comfort = context.renderReview?.comfort || null;
+  if (!comfort || comfort.score >= 84) return 0;
+  const issue = Array.isArray(comfort.issues)
+    ? comfort.issues.find((item) => item.id === id)
+    : null;
+  const penalty = Number(issue?.penalty || 0);
+  const scorePressure = clamp((84 - Number(comfort.score || 84)) / 54, 0, 1);
+  return clamp(penalty / 18 + scorePressure * 0.45, 0, 1);
+}
+
+function buildComfortRepairBundle(stages, context, current = {}) {
+  const comfort = context.renderReview?.comfort || null;
+  if (!comfort || comfort.status !== "risk") return null;
+  const directPatches = [];
+  if (comfort.score < 62) {
+    const severity = clamp((62 - Number(comfort.score || 0)) / 62, 0, 1);
+    directPatches.push(boundedPatch("dryWet", current.dryWet, Number(current.dryWet ?? 100) - 3 - severity * 6, "Comfort blend guard"));
+  }
+  const patch = dedupePatches([
+    ...stages
+    .flatMap((stage) => (stage.patch || []).map((item) => ({
+      ...item,
+      stageId: stage.id,
+      stageLabel: stage.label
+    })))
+    .filter((item) => /^Comfort\b/i.test(item.reason || "")),
+    ...directPatches.filter(Boolean)
+  ])
+    .sort((a, b) => comfortPatchPriority(b, context) - comfortPatchPriority(a, context))
+    .slice(0, 6);
+  if (patch.length < 2) return null;
+  return {
+    id: "comfort-bundle",
+    label: "Comfort Bundle",
+    reason: "Serial subtle repair across tone, texture, dynamics, and guard layers.",
+    issueIds: [...(comfort.reasons || [])],
+    patch
+  };
+}
+
+function comfortPatchPriority(patch, context) {
+  const reason = String(patch.reason || "").toLowerCase();
+  const issue = reason.includes("sibilance") ? "sibilance"
+    : reason.includes("harsh") ? "harshness"
+      : reason.includes("micro") ? "micro"
+        : reason.includes("nasal") ? "nasal"
+          : reason.includes("loud") ? "loudness"
+            : reason.includes("peak") ? "true-peak"
+              : reason.includes("mud") ? "mud"
+                : reason.includes("quiet") ? "quiet"
+                  : "";
+  const keyPriority = ({
+    deEss: 10,
+    consonantSoftness: 9,
+    presence: 8,
+    air: 7,
+    brightness: 7,
+    dryWet: 6,
+    outputGain: 6,
+    limiter: 6,
+    mouth: 5,
+    lowCut: 4,
+    inputGain: 4,
+    breath: 3,
+    whisper: 3,
+    romanticBreath: 3
+  })[patch.key] || 1;
+  const blendGuardBoost = reason.includes("blend guard") ? 70 : 0;
+  return keyPriority * 8 + comfortSeverity(context, issue) * 100 + blendGuardBoost + Math.abs(Number(patch.delta || 0));
 }
 
 function stageNotes(def, current, context, patch) {
