@@ -1113,6 +1113,23 @@ const qcHoldPriorityStudioPlan = buildStudioPlan({
   keeperRefinement: qcRefinement
 });
 assert.equal(qcHoldPriorityStudioPlan.nextAction.id, "keeper-refine", "studio plan should prioritize QC-held take repair over upstream character-shape tweaks");
+const appliedQcHoldStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "check", score: 76, stages: [{ id: "prosody", label: "Phrase Lift" }], nextStageId: "prosody", nextPatch: { phraseLift: 6 } },
+  effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
+  renderReview: qcBlockedReview,
+  auditionVariantCount: kawaiiVariants.length,
+  renderDeckCount: 1,
+  takeDecision: allRiskDecision,
+  keeperRefinement: { patch: [] }
+});
+assert.equal(appliedQcHoldStudioPlan.nextAction.id, "preview-region", "studio plan should re-preview after a QC repair patch has been applied");
+assert.equal(appliedQcHoldStudioPlan.nextAction.label, "Preview QC Fix", "studio plan should name the post-QC-patch preview action");
 const keeperRefinement = buildKeeperRefinement(takeDecision, kawaii, kawaiiSpark);
 assert.ok(keeperRefinement.patch.length > 0, "keeper refinement should turn weak decision evidence into patch moves");
 assert.ok(keeperRefinement.cards.some((card) => card.id === "script"), "keeper refinement should expose script refinement evidence");

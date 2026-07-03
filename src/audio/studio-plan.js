@@ -71,10 +71,10 @@ export function buildStudioPlan(options = {}) {
 function selectNextAction(steps, fallback, context = {}) {
   const takeDecision = context.takeDecision || null;
   const qcHold = !takeDecision?.winner && !!takeDecision?.candidate && takeDecision?.status === "risk";
-  if (qcHold && context.keeperRefinement?.patch?.length) {
+  if (qcHold) {
     const qcRepair = steps.find((step) =>
       (step.id === "audition" || step.id === "deck") &&
-      step.action?.id === "keeper-refine"
+      (step.action?.id === "keeper-refine" || step.action?.label === "Preview QC Fix")
     )?.action;
     if (qcRepair) return qcRepair;
   }
@@ -448,6 +448,7 @@ function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, 
   const qcHold = !takeDecision?.winner && !!qcCandidate && takeDecision?.status === "risk";
   const qcPatchCount = keeperRefinement?.patch?.length || 0;
   const needsQcRepair = qcHold && qcPatchCount > 0;
+  const needsQcPreview = qcHold && !qcPatchCount;
   return step({
     id: "audition",
     label: "Audition",
@@ -458,6 +459,8 @@ function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, 
       ? performanceBudget.detail
       : needsQcRepair
         ? `QC candidate ${qcCandidate.label || "Take"} needs ${qcPatchCount} repair moves before more variants.`
+      : needsQcPreview
+        ? `QC repair patch is applied; render a short preview before making variants.`
       : renderDeckCount > 1
       ? "Multiple takes are ready for comparison."
       : auditionVariantCount
@@ -467,6 +470,8 @@ function auditionStep(hasSource, review, renderDeckCount, auditionVariantCount, 
       ? { id: "preview-region", label: "Use Short Preview", cueId: previewCueId }
       : needsQcRepair
         ? { id: "keeper-refine", label: "Fix QC Take" }
+      : needsQcPreview
+        ? { id: "preview-region", label: "Preview QC Fix", cueId: previewCueId }
       : review.status !== "ready" || renderDeckCount < 2
         ? auditionVariantCount && renderDeckCount
         ? { id: "render-variants", label: "Render Variants" }
@@ -522,10 +527,10 @@ function deckStep(hasSource, renderDeckCount, renderDeckSeconds, takeDecision, k
         summary: "1 QC hold",
         detail: patchCount
           ? `QC candidate: ${candidate.label || "Take"}; ${patchCount} repair moves are ready.`
-          : `QC candidate: ${candidate.label || "Take"} is blocked by ${candidate.qc?.summary || "render QC"}.`,
+          : `QC repair patch is applied; render a new preview for ${candidate.label || "Take"}.`,
         action: patchCount
           ? { id: "keeper-refine", label: "Fix QC Take" }
-          : { id: "preview-region", label: "Add Another Take" }
+          : { id: "preview-region", label: "Preview QC Fix" }
       });
     }
     return step({
