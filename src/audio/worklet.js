@@ -14,7 +14,11 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
     this.fast = 0;
     this.slow = 0;
     this.dryLp = 0;
+    this.lowLp = 0;
+    this.lowEnv = 0;
     this.highEnv = 0;
+    this.peakEnv = 0;
+    this.levelGain = 1;
     this.gateGain = 1;
     this.rphase = 0;
     this.lastSign = 0;
@@ -46,6 +50,7 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       consonantSoftness: 0,
       gate: 1,
       deEss: 0.35,
+      comfortGuard: 0.35,
       saturation: 0,
       outputGain: 1
     };
@@ -103,6 +108,7 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
     const fstep = 1 - p.formant;
     const ringInc = 2 * Math.PI * (42 + p.robot * 110 + p.creature * 22) / sampleRate;
     const lpCoeff = Math.exp(-2 * Math.PI * 2600 / sampleRate);
+    const lowCoeff = Math.exp(-2 * Math.PI * 180 / sampleRate);
 
     for (let i = 0; i < out.length; i++) {
       let s = input ? input[i] : 0;
@@ -114,6 +120,9 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
       this.slow += (abs - this.slow) * 0.0012;
       this.dryLp = (1 - lpCoeff) * dry + lpCoeff * this.dryLp;
       const dryHigh = dry - this.dryLp;
+      this.lowLp = (1 - lowCoeff) * dry + lowCoeff * this.lowLp;
+      const lowAbs = Math.abs(this.lowLp);
+      this.lowEnv = lowAbs > this.lowEnv ? this.lowEnv + (lowAbs - this.lowEnv) * 0.12 : this.lowEnv * 0.992;
       const highAbs = Math.abs(dryHigh);
       this.highEnv = highAbs > this.highEnv ? this.highEnv + (highAbs - this.highEnv) * 0.2 : this.highEnv * 0.984;
       let gateTarget = 1;
@@ -225,7 +234,21 @@ class VoiceForgeProcessor extends AudioWorkletProcessor {
         y -= dryHigh * reduction;
       }
 
-      out[i] = Math.max(-0.98, Math.min(0.98, y * p.outputGain));
+      if (p.comfortGuard > 0) {
+        const guard = Math.max(0, Math.min(1, p.comfortGuard));
+        const sibilant = Math.max(0, Math.min(1, (this.highEnv - this.env * 0.58 - 0.004) * 36));
+        const lowBurst = Math.max(0, Math.min(1, (this.lowEnv - this.env * 0.72 - 0.003) * 42));
+        y -= dryHigh * sibilant * guard * (0.12 + p.deEss * 0.22);
+        y -= this.lowLp * lowBurst * guard * 0.16;
+      }
+
+      this.peakEnv = Math.max(Math.abs(y) * p.outputGain, this.peakEnv * 0.996);
+      const peakReduction = p.comfortGuard > 0
+        ? Math.max(0, Math.min(0.32 * p.comfortGuard, (this.peakEnv - 0.9) * 2.8))
+        : 0;
+      const levelTarget = 1 - peakReduction;
+      this.levelGain += (levelTarget - this.levelGain) * (levelTarget < this.levelGain ? 0.16 : 0.006);
+      out[i] = Math.max(-0.98, Math.min(0.98, y * p.outputGain * this.levelGain));
     }
     for (let c = 1; c < outputs[0].length; c++) outputs[0][c].set(out);
     return true;

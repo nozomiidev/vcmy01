@@ -15,6 +15,7 @@ import {
   validateLineReadTargets
 } from "../src/audio/performance-targets.js";
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
+import { livePolishedParams } from "../src/audio/engine.js";
 import { AUDITION_VARIANT_IDS, auditionVariantSummary, buildAuditionVariants } from "../src/audio/audition-variants.js";
 import { addRenderDeckItem, listeningComfortReview, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
 import { rankRenderDeckTakes, sourceSamplesForRenderedRegion } from "../src/audio/take-decision.js";
@@ -69,6 +70,8 @@ const sampleRate = 48000;
 const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 const kawaiiTract = vocalTractProfile(paramsForPreset("kawaii"));
 const ikemenTract = vocalTractProfile(paramsForPreset("ikemen"));
+const liveLight = livePolishedParams(paramsForPreset("kawaii"), "light");
+const liveStrong = livePolishedParams(paramsForPreset("kawaii"), "strong");
 
 function concatFloat32(chunks) {
   const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
@@ -112,6 +115,8 @@ assert.ok(kawaiiTract.ratio > 1 && kawaiiTract.smallMouth > 0, "kawaii tract pro
 assert.ok(ikemenTract.chest > kawaiiTract.chest && ikemenTract.gains.chestDb > kawaiiTract.gains.chestDb, "ikemen tract profile should emphasize chest resonance");
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
+assert.ok(liveStrong.comfortGuard > liveLight.comfortGuard && liveStrong.comfortGuard <= 0.72, "live engine should expose bounded comfort guard intensity");
+assert.ok(liveStrong.deEss >= liveLight.deEss, "live engine comfort guard should track stronger live de-ess settings");
 assert.deepEqual(EFFECT_STACK_STAGE_IDS, ["input", "core", "tract", "tone", "texture", "performance", "dynamics", "space", "guard"], "effect stack should expose ordered signal-path layers");
 assert.equal(AUDITION_VARIANT_IDS.length >= 5, true, "audition variants should cover multiple nearby character directions");
 assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["project", "source", "timeline", "route", "shape", "stack", "memory", "script", "audition", "trace", "scene", "deck"], "studio plan should expose the full production flow");

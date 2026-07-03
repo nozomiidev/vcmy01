@@ -159,6 +159,7 @@ export class LiveAudioEngine extends EventTarget {
       air: p.air / 100,
       consonantSoftness: p.consonantSoftness / 100,
       deEss: p.deEss / 100,
+      comfortGuard: p.comfortGuard,
       saturation: p.saturation / 100,
       outputGain: dbToLin(p.outputGain)
     });
@@ -285,7 +286,7 @@ export function meterPercent(value) {
   return Math.max(0, Math.min(100, ((linToDb(value) + 60) / 60) * 100));
 }
 
-function livePolishedParams(params, intensityId) {
+export function livePolishedParams(params, intensityId) {
   const intensity = studioPolishIntensityById(intensityId);
   const factor = intensity.factor;
   return {
@@ -293,6 +294,7 @@ function livePolishedParams(params, intensityId) {
     lowCut: Math.max(params.lowCut, 58 + factor * 34),
     deEss: clamp(params.deEss + factor * 14, 0, 100),
     compression: clamp(params.compression + factor * 8, 0, 100),
+    comfortGuard: clamp(0.24 + factor * 0.32 + Math.max(0, params.deEss - 50) / 220, 0.18, 0.72),
     limiter: Math.min(params.limiter, -1)
   };
 }

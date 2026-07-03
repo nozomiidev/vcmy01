@@ -637,6 +637,33 @@ https://auphonic.com/help/algorithms/singletrack.html
 https://www.fabfilter.com/help/pro-ds/using/basiccontrols
 https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
 
+## Live Comfort Guard Loop
+
+The twenty-fifth production-director pass brings the Studio Polish safety philosophy closer to the real-time AudioWorklet. Offline rendering can afford analysis, optimization, and metadata; live monitoring needs bounded envelope followers and no large allocations.
+
+Research decisions:
+
+- AudioWorklet processing runs on the audio rendering thread, so live safety logic must avoid heavy FFT/STFT work, dynamic allocation, and long windows.
+- Real-time de-essing and peak safety are usually envelope/control problems: track high-band pressure, low-band bursts, and output peaks, then apply smooth bounded gain reduction.
+- The live path should not try to fully match offline Studio Polish. It should instead share the same intent: reduce fatiguing high-frequency edges, plosive-like low bursts, and peak overload while preserving responsiveness.
+
+Implementation response:
+
+- `worklet.js` now tracks low-band and peak envelopes in addition to the existing high-band envelope.
+- A new `comfortGuard` parameter applies bounded high-edge reduction, low-burst ducking, and live peak gain smoothing before output clipping.
+- `livePolishedParams()` now exposes a bounded guard amount that scales with Studio Polish intensity and de-ess settings, and is unit-tested.
+
+Verification:
+
+- `npm test` passed with bounded `livePolishedParams()` comfort guard assertions.
+- `npm run quality` passed 44/0/0 with Studio Polish 4/0/0 and Director Polish 4/0/0.
+- In-app Browser verification with the private Yamada Taro fixture loaded the guided render, exposed the Live tab, retained comfort stack notes and WAV/WebM/ZIP actions, and reported zero console errors. No microphone permission was requested during this verification.
+
+Sources:
+https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletProcessor/process
+https://developer.mozilla.org/en-US/docs/Web/API/AudioWorklet
+https://www.fabfilter.com/help/pro-ds/using/basiccontrols
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
