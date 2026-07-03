@@ -16,7 +16,7 @@ import {
 } from "../src/audio/performance-targets.js";
 import { normalizeRenderRegion, OfflineRenderer } from "../src/audio/offline-renderer.js";
 import { AUDITION_VARIANT_IDS, auditionVariantSummary, buildAuditionVariants } from "../src/audio/audition-variants.js";
-import { addRenderDeckItem, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
+import { addRenderDeckItem, listeningComfortReview, renderReview, totalDeckSeconds } from "../src/audio/render-review.js";
 import { rankRenderDeckTakes, sourceSamplesForRenderedRegion } from "../src/audio/take-decision.js";
 import { buildKeeperRefinement } from "../src/audio/take-refinement.js";
 import { rankVoiceRoutes, voiceRouteTargets } from "../src/audio/route-planner.js";
@@ -748,8 +748,12 @@ const tunedLowToKawaiiFit = offline.sourceFitReport(autoRendered.appliedParams, 
 assert.equal(tunedLowToKawaiiFit.patches.length, 0, "source fit should not keep suggesting the same source patch after tuning");
 assert.ok(tunedLowToKawaiiFit.score > lowToKawaiiFit.score, "source fit should improve after tuning even when range remains risky");
 const autoReview = renderReview(offline.source, autoRendered);
+const autoComfort = listeningComfortReview(offline.source.analysis, autoRendered.analysis, autoRendered.studioAnalysis, autoRendered.mastering);
 assert.ok(autoReview.score >= 70, "render review should score usable offline renders");
 assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.includes("+")), "render review should expose apparent F0 movement");
+assert.ok(autoReview.items.some((item) => item.id === "comfort"), "render review should expose listening-comfort evidence");
+assert.equal(autoReview.comfort.score, autoComfort.score, "render review should retain the computed listening-comfort score");
+assert.ok(autoReview.comfort.score >= 0 && autoReview.comfort.score <= 100, "listening-comfort score should be bounded");
 assert.ok(autoReview.items.some((item) => item.id === "studio-polish"), "render review should expose Studio Polish evidence");
 assert.ok(autoReview.items.some((item) => item.id === "character-safety"), "render review should expose character-safety evidence");
 const polishOnlyRender = offline.render(kawaii, { stage: "polish", studioPolish: "light", studioTarget: "ikemen", directorOptimize: true, mode: "preview", region: { startSec: 0, durationSec: 0.6 } });

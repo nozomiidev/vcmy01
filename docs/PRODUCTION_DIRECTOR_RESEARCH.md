@@ -581,6 +581,35 @@ https://downloads.izotope.com/docs/rx6/35-spectral-repair/index.html
 https://s3.amazonaws.com/izotopedownloads/docs/rx700/en/de-plosive/index.html
 https://www.izotope.com/community/blog/removing-plosives-from-a-voice-recording
 
+## Listening Comfort Review Loop
+
+The twenty-third production-director pass adds a perceptual review layer to the render deck. The product should not only say "the render did not clip"; it should help users understand whether the voice is comfortable to listen to for a podcast, stream, or character read.
+
+Research decisions:
+
+- Apple Podcasts recommends preconditioning audio around -16 dB LKFS with true peak not exceeding -1 dB FS, because overly compressed/amplified audio can be too loud, lack dynamic range, and introduce distortion.
+- Auphonic treats adaptive leveling, loudness normalization, true peak limiting, dynamic range, and segment-aware processing as separate post-production concerns.
+- EBU R128/ITU loudness work exists because peak level alone does not predict perceived loudness. Render review should therefore combine loudness, peak, and perceptual/tone risk rather than only peak.
+- De-essing guidance frames sibilance as high-frequency fatigue; harshness and excessive micro-event density should affect listening comfort even when the file is technically valid.
+
+Implementation response:
+
+- `renderReview()` now includes a `Comfort` item and a `comfort` object with score, status, target loudness, true peak, dynamic range, micro-event density, and top reasons.
+- `listeningComfortReview()` combines loudness target deviation, true peak headroom, sibilance, harshness, dynamic range, micro events, nasal concentration, and mud into a bounded comfort score.
+- Overall render score now receives a bounded penalty when comfort falls below the product threshold, so "technically rendered" but fatiguing output is not treated as fully ready.
+
+Verification:
+
+- `npm test` passed with render-review assertions for the comfort item and bounded score.
+- `npm run quality` passed 44/0/0 with Studio Polish 4/0/0 and Director Polish 4/0/0.
+- In-app Browser verification with the private Yamada Taro fixture showed `Comfort` in the render deck, kept WAV/WebM/ZIP export actions, and had zero console errors. The fixture surfaced low comfort while still remaining comparable in the render deck, which keeps warning and workflow blocking separate.
+
+Sources:
+https://podcasters.apple.com/support/893-audio-requirements
+https://auphonic.com/help/algorithms/singletrack.html
+https://tech.ebu.ch/publications/r128/
+https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

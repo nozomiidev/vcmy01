@@ -14,6 +14,7 @@ export function renderReview(source = null, rendered = null) {
   const headroomDb = Number.isFinite(renderAnalysis.peakDb) ? -renderAnalysis.peakDb : 0;
   const guardrail = guardrailRisk(rendered.appliedParams || rendered.baseParams || {});
   const characterSafety = rendered.characterSafety || null;
+  const comfort = listeningComfortReview(sourceAnalysis, renderAnalysis, rendered.studioAnalysis, rendered.mastering);
   const score = reviewScore({
     clipped: renderAnalysis.clipped,
     peakDb: renderAnalysis.peakDb,
@@ -22,7 +23,8 @@ export function renderReview(source = null, rendered = null) {
     brightnessDelta,
     zcrDelta,
     guardrailRisk: guardrail.score,
-    characterSafetyScore: characterSafety?.score
+    characterSafetyScore: characterSafety?.score,
+    comfortScore: comfort.score
   });
   const items = [
     {
@@ -36,6 +38,12 @@ export function renderReview(source = null, rendered = null) {
       label: "Level",
       value: signedDb(rmsDeltaDb),
       detail: headroomDb >= 1.2 ? `${headroomDb.toFixed(1)} dB peak headroom.` : "Peak headroom is tight."
+    },
+    {
+      id: "comfort",
+      label: "Comfort",
+      value: `${comfort.score}%`,
+      detail: comfort.detail
     }
   ];
   if (rendered.studioPolish?.enabled) {
@@ -81,7 +89,63 @@ export function renderReview(source = null, rendered = null) {
   return {
     score,
     status: score >= 86 ? "ready" : score >= 70 ? "check" : "risk",
+    comfort,
     items
+  };
+}
+
+export function listeningComfortReview(sourceAnalysis = null, renderAnalysis = null, studioAnalysis = null, mastering = null) {
+  const scores = studioAnalysis?.problemScores || {};
+  const loudness = Number.isFinite(renderAnalysis?.integratedLufs)
+    ? renderAnalysis.integratedLufs
+    : Number.isFinite(renderAnalysis?.rmsDb)
+      ? renderAnalysis.rmsDb
+      : -24;
+  const targetLufs = Number.isFinite(mastering?.targetLufs) ? mastering.targetLufs : -16;
+  const truePeakDb = Number.isFinite(renderAnalysis?.truePeakDb)
+    ? renderAnalysis.truePeakDb
+    : Number.isFinite(renderAnalysis?.peakDb)
+      ? renderAnalysis.peakDb
+      : -12;
+  const truePeakCeilingDb = Number.isFinite(mastering?.truePeakCeilingDb) ? mastering.truePeakCeilingDb : -1;
+  const dynamicRangeDb = Number.isFinite(studioAnalysis?.dynamicRangeDb)
+    ? studioAnalysis.dynamicRangeDb
+    : Number.isFinite(renderAnalysis?.crestDb)
+      ? renderAnalysis.crestDb
+      : 10;
+  const micro = studioAnalysis?.microRepair || {};
+  const microCounts = micro.counts || {};
+  const durationMin = Math.max(0.02, Number(renderAnalysis?.duration || 0) / 60);
+  const microArtifactRate = (
+    Number(microCounts.mouth || 0) +
+    Number(microCounts.plosive || 0) * 1.8 +
+    Number(microCounts.sibilance || 0) * 0.35
+  ) / durationMin;
+  const penalties = [];
+  addPenalty(penalties, "loudness", Math.max(0, loudness - targetLufs - 1.2) * 7.5, "Too loud for comfortable long-form listening.");
+  addPenalty(penalties, "quiet", Math.max(0, targetLufs - loudness - 5.5) * 3.6, "Too quiet to understand without volume riding.");
+  addPenalty(penalties, "true-peak", Math.max(0, truePeakDb - truePeakCeilingDb - 0.2) * 18, "True peak headroom is too tight.");
+  addPenalty(penalties, "sibilance", Math.max(0, Number(scores.sibilance || 0) - 48) * 0.18, "Sibilance can fatigue listeners.");
+  addPenalty(penalties, "harshness", Math.max(0, Number(scores.harsh || 0) - 36) * 0.48, "Presence harshness can feel painful.");
+  addPenalty(penalties, "micro", Math.min(18, Math.max(0, microArtifactRate - 650) * 0.018), "Mouth/transient density is distracting.");
+  addPenalty(penalties, "flat", Math.max(0, 4.2 - dynamicRangeDb) * 1.4, "Dynamics are over-flattened.");
+  addPenalty(penalties, "jumpy", Math.max(0, dynamicRangeDb - 23) * 1.2, "Dynamics are too jumpy for polished speech.");
+  const spectral = studioAnalysis?.spectral?.risks || {};
+  addPenalty(penalties, "nasal", Math.max(0, Number(spectral.nasal || 0) - 46) * 0.08, "Nasal concentration can feel boxed-in.");
+  addPenalty(penalties, "mud", Math.max(0, Number(spectral.mud || 0) - 54) * 0.05, "Low-mid buildup reduces clarity.");
+  const totalPenalty = penalties.reduce((sum, item) => sum + item.penalty, 0);
+  const score = Math.max(0, Math.min(100, Math.round(100 - totalPenalty)));
+  const top = penalties.slice().sort((a, b) => b.penalty - a.penalty).slice(0, 2);
+  return {
+    score,
+    status: score >= 84 ? "ready" : score >= 68 ? "check" : "risk",
+    targetLufs: Number(targetLufs.toFixed(1)),
+    loudness: Number(loudness.toFixed(1)),
+    truePeakDb: Number(truePeakDb.toFixed(1)),
+    dynamicRangeDb: Number(dynamicRangeDb.toFixed(1)),
+    microEventsPerMinute: Math.round(microArtifactRate),
+    reasons: top.map((item) => item.id),
+    detail: top.length ? top.map((item) => item.reason).join(" ") : "Loudness, peak headroom, tone, and micro events are comfortable."
   };
 }
 
@@ -106,7 +170,15 @@ function reviewScore(metrics) {
   if (Number.isFinite(metrics.characterSafetyScore) && metrics.characterSafetyScore < 70) {
     score -= Math.min(18, (70 - metrics.characterSafetyScore) * 0.45);
   }
+  if (Number.isFinite(metrics.comfortScore) && metrics.comfortScore < 62) {
+    score -= Math.min(8, (62 - metrics.comfortScore) * 0.24);
+  }
   return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function addPenalty(penalties, id, penalty, reason) {
+  const value = Number.isFinite(penalty) ? Math.max(0, penalty) : 0;
+  if (value > 0.05) penalties.push({ id, penalty: value, reason });
 }
 
 function guardrailRisk(params = {}) {
