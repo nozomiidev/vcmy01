@@ -41,7 +41,7 @@ export function buildStudioPlan(options = {}) {
   const renderDeckSeconds = Math.max(0, Number(options.renderDeckSeconds || 0));
 
   const steps = [
-    projectStep(projectVault),
+    projectStep(projectVault, review),
     sourceStep(hasSource, sourceFit),
     timelineStep(hasSource, sourceTimeline),
     routeStep(hasSource, topRoute, activeRoute),
@@ -101,7 +101,7 @@ function timelineStep(hasSource, sourceTimeline) {
   });
 }
 
-function projectStep(projectVault) {
+function projectStep(projectVault, review) {
   if (!projectVault) {
     return step({
       id: "project",
@@ -113,6 +113,7 @@ function projectStep(projectVault) {
     });
   }
   const action = projectVault.nextAction;
+  const blockingRisk = renderHasBlockingRisk(review);
   const status = projectVault.status === "empty" ? "waiting" : projectVault.status;
   return step({
     id: "project",
@@ -122,7 +123,9 @@ function projectStep(projectVault) {
     summary: projectVault.count
       ? `${projectVault.count} projects`
       : "No projects",
-    detail: action?.id === "apply-project"
+    detail: action?.id === "capture-project" && blockingRisk
+      ? `${blockingRisk.label} should be fixed before saving this project as a reusable studio state.`
+      : action?.id === "apply-project"
       ? `A saved project can restore source, scene, and renders: ${projectVault.best?.title || "Project"}.`
       : action?.id === "capture-project"
         ? "Current scene, source, design, and render evidence are not saved as a project."
@@ -131,7 +134,7 @@ function projectStep(projectVault) {
           : projectVault.summary || "Project vault is ready.",
     action: action?.id === "apply-project"
       ? { id: "apply-project", label: action.label, projectId: action.projectId }
-      : action?.id === "capture-project"
+      : action?.id === "capture-project" && !blockingRisk
         ? { id: "capture-project", label: action.label }
         : null
   });
@@ -186,7 +189,8 @@ function memoryStep(hasSource, voiceMemory, review) {
     });
   }
   const action = voiceMemory.nextAction;
-  const shouldCapture = action?.id === "capture-memory" && review;
+  const blockingRisk = renderHasBlockingRisk(review);
+  const shouldCapture = action?.id === "capture-memory" && review && !blockingRisk;
   const shouldApply = action?.id === "apply-memory";
   return step({
     id: "memory",
@@ -196,7 +200,9 @@ function memoryStep(hasSource, voiceMemory, review) {
     summary: voiceMemory.count
       ? `${voiceMemory.count} designs / ${voiceMemory.score}%`
       : "No designs",
-    detail: shouldCapture
+    detail: action?.id === "capture-memory" && blockingRisk
+      ? `${blockingRisk.label} should be fixed before capturing this voice as reusable memory.`
+      : shouldCapture
       ? "Current audition has not been saved as a recoverable design."
       : shouldApply
         ? `A saved design can improve this target: ${voiceMemory.best?.title || "Memory"}.`
@@ -207,6 +213,14 @@ function memoryStep(hasSource, voiceMemory, review) {
         ? { id: "capture-memory", label: "Capture Design" }
         : null
   });
+}
+
+function renderHasBlockingRisk(review = null) {
+  if (!review) return null;
+  if (review.performanceBudget?.status === "risk") return { id: "performance", label: "Render speed risk" };
+  if (review.comfort?.status === "risk") return { id: "comfort", label: "Listening comfort risk" };
+  if (review.status === "risk") return { id: "render", label: "Render review risk" };
+  return null;
 }
 
 function stackStep(hasSource, effectStack, stackAuditionCount = 0) {

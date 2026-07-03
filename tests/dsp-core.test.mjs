@@ -897,6 +897,36 @@ const slowRenderStudioPlan = buildStudioPlan({
 assert.equal(slowRenderStudioPlan.nextAction.id, "preview-region", "studio plan should steer slow full renders back to short previews");
 assert.equal(slowRenderStudioPlan.nextAction.label, "Use Short Preview", "studio plan should make the slow-render action explicit");
 assert.equal(slowRenderStudioPlan.nextAction.cueId, "cue-02", "slow render preview action should carry the active source cue");
+const blockedProjectStudioPlan = buildStudioPlan({
+  projectVault: { status: "check", score: 82, count: 0, savedCurrent: false, nextAction: { id: "capture-project", label: "Save Project" }, summary: "Unsaved project" },
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  sourceTimeline: mockCueTimeline,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
+  voiceMemory: mockReadyMemory,
+  renderReview: slowReview,
+  renderDeckCount: 1
+});
+assert.equal(blockedProjectStudioPlan.nextAction.id, "preview-region", "studio plan should fix risky renders before saving project state");
+assert.ok(blockedProjectStudioPlan.steps.find((step) => step.id === "project").detail.includes("risk"), "project step should explain why risky renders are not saved yet");
+const blockedMemoryStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  sourceTimeline: mockCueTimeline,
+  routes: [mockRoute],
+  activePresetId: "otome",
+  activeLineReadId: "otome_promise",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
+  voiceMemory: { status: "check", score: 82, count: 0, nextAction: { id: "capture-memory", label: "Capture Design" }, summary: "No saved designs", items: [] },
+  renderReview: slowReview,
+  renderDeckCount: 1
+});
+assert.equal(blockedMemoryStudioPlan.nextAction.id, "preview-region", "studio plan should fix risky renders before capturing voice memory");
 const hotStack = buildEffectStack(paramsForPreset("streamer", { outputGain: 3, saturation: 62, compression: 80 }), {
   target: LINE_READ_TARGETS.find((target) => target.id === "streamer_hook"),
   renderReview: { status: "risk", score: 48, items: [] },
