@@ -284,6 +284,19 @@ export function studioPolishResearchNotes(rendered = null) {
       const room = polish.plan.roomShaper;
       notes.push(`- Room floor: ${round(room.thresholdDb, 1)} dB threshold, ${round(room.rangeDb, 1)} dB range, ${room.roomTonePolicy}`);
     }
+    if (polish.plan?.reactivePlan) {
+      const reactive = polish.plan.reactivePlan;
+      notes.push("- Source reactive control:");
+      if (reactive.levelRide) {
+        const ride = reactive.levelRide;
+        notes.push(`  - Phrase ride: ${round(ride.rangeDb, 1)} dB range, target ${round(ride.targetDb, 1)} dB, ${round(ride.attackMs, 1)} ms attack / ${round(ride.releaseMs, 1)} ms release`);
+      }
+      if (reactive.eventLanes) {
+        const lanes = reactive.eventLanes;
+        notes.push(`  - Event lanes: ${Math.round(lanes.eventsPerMinute || 0)}/min, mouth ${round(lanes.mouth, 1)}, plosive ${round(lanes.plosive, 1)}, sibilance ${round(lanes.sibilance, 1)}, adaptive de-ess ${round(lanes.adaptiveDeEss, 1)}`);
+      }
+      for (const note of (reactive.notes || []).slice(0, 3)) notes.push(`  - ${note}`);
+    }
     if (rendered?.mastering?.enabled) {
       notes.push(`- Final mastering: ${round(rendered.mastering.gainDb, 2)} dB to ${round(rendered.mastering.targetLufs, 1)} LUFS / ${round(rendered.mastering.truePeakCeilingDb, 1)} dBTP ceiling`);
     }

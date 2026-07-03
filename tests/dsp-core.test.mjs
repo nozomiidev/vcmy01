@@ -886,6 +886,7 @@ assert.equal(renderedBaseName(autoRendered).includes("VoiceForge"), true, "expor
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Studio Polish First"), "export research notes should document the polish workflow");
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Repair map:"), "export research notes should include repair-map rationale");
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Micro repair events:"), "export research notes should include micro-repair rationale");
+assert.ok(studioPolishResearchNotes(autoRendered).includes("Source reactive control:"), "export research notes should include source-reactive rationale");
 assert.ok(studioPolishResearchNotes(extremeRender).includes("Character safety:"), "export research notes should include character-safety rationale");
 const safetyProject = createProjectSnapshot({
   presetId: "kawaii",
