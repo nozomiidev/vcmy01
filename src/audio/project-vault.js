@@ -484,6 +484,7 @@ function sanitizeStudioPolish(polish = null) {
       targetRmsDb: finiteNumber(polish.plan.targetRmsDb),
       stages: sanitizeProblemScores(polish.plan.stages),
       microRepair: sanitizeMicroRepair(polish.plan.microRepair),
+      toneSurgery: sanitizeToneSurgery(polish.plan.toneSurgery),
       repairMap: sanitizeRepairMap(polish.plan.repairMap),
       optimization: polish.plan.optimization ? {
         enabled: !!polish.plan.optimization.enabled,
@@ -546,6 +547,33 @@ function sanitizeMicroRepair(timeline = null) {
     },
     topEvent: sanitizeMicroEvent(timeline.topEvent),
     events: (Array.isArray(timeline.events) ? timeline.events : []).slice(0, 12).map(sanitizeMicroEvent).filter(Boolean)
+  };
+}
+
+function sanitizeToneSurgery(surgery = null) {
+  if (!surgery) return null;
+  return {
+    mode: cleanText(surgery.mode || "", 64),
+    source: cleanText(surgery.source || "", 180),
+    target: surgery.target ? {
+      id: cleanText(surgery.target.id || "", 48),
+      label: cleanText(surgery.target.label || "", 80)
+    } : null,
+    activeCount: Math.max(0, Number(surgery.activeCount || 0)),
+    summary: cleanText(surgery.summary || "", 180),
+    bands: (Array.isArray(surgery.bands) ? surgery.bands : []).slice(0, 6).map((band) => ({
+      id: cleanText(band.id || "", 48),
+      label: cleanText(band.label || "", 80),
+      stageKey: cleanText(band.stageKey || "", 48),
+      frequencyHz: finiteNumber(band.frequencyHz),
+      q: finiteNumber(band.q),
+      risk: clampScore(band.risk),
+      stageDb: finiteNumber(band.stageDb),
+      dynamicDepthDb: finiteNumber(band.dynamicDepthDb),
+      trigger: cleanText(band.trigger || "", 80),
+      evidence: cleanText(band.evidence || "", 180),
+      reason: cleanText(band.reason || "", 180)
+    }))
   };
 }
 

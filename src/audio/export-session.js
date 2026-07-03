@@ -134,6 +134,13 @@ export function studioPolishResearchNotes(rendered = null) {
       const micro = polish.plan.microRepair;
       notes.push(`- Micro repair events: ${micro.eventCount} (${micro.counts?.mouth || 0} mouth, ${micro.counts?.plosive || 0} plosive, ${micro.counts?.sibilance || 0} sibilance)`);
     }
+    if (polish.plan?.toneSurgery) {
+      const tone = polish.plan.toneSurgery;
+      notes.push(`- Tone surgery: ${tone.summary || "No dynamic tone cuts needed"}`);
+      for (const band of (tone.bands || []).filter((item) => item.risk > 12).slice(0, 3)) {
+        notes.push(`  - ${band.label}: ${Math.round(band.frequencyHz)} Hz, ${round(band.stageDb, 2)} dB, ${band.evidence}`);
+      }
+    }
     notes.push(`- Label: ${polish.label}`);
     for (const note of polish.plan?.notes || []) notes.push(`- ${note}`);
     if (polish.plan?.repairMap?.steps?.length) {
@@ -312,6 +319,7 @@ function compactStudioPolish(polish = null) {
     notes: polish.plan?.notes || [],
     optimization: polish.plan?.optimization || null,
     microRepair: compactMicroRepair(polish.plan?.microRepair),
+    toneSurgery: compactToneSurgery(polish.plan?.toneSurgery),
     repairMap: compactRepairMap(polish.plan?.repairMap),
     stages: polish.plan?.stages || null,
     input: compactStudioAnalysis(polish.inputAnalysis),
@@ -355,6 +363,29 @@ function compactMicroRepair(timeline = null) {
       startSec: round(event.startSec, 3),
       endSec: round(event.endSec, 3),
       risk: Math.round(event.risk || 0)
+    }))
+  };
+}
+
+function compactToneSurgery(surgery = null) {
+  if (!surgery) return null;
+  return {
+    mode: surgery.mode || "",
+    source: surgery.source || "",
+    target: surgery.target || null,
+    activeCount: Math.max(0, Number(surgery.activeCount || 0)),
+    summary: surgery.summary || "",
+    bands: (surgery.bands || []).slice(0, 6).map((band) => ({
+      id: band.id,
+      label: band.label,
+      frequencyHz: round(band.frequencyHz, 1),
+      q: round(band.q, 2),
+      risk: Math.round(band.risk || 0),
+      stageDb: round(band.stageDb, 2),
+      dynamicDepthDb: round(band.dynamicDepthDb, 2),
+      trigger: band.trigger,
+      evidence: band.evidence,
+      reason: band.reason
     }))
   };
 }

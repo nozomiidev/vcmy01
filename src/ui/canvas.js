@@ -65,6 +65,7 @@ export function drawAnalysisCards(host, source, rendered) {
       const target = rendered.studioPolish.target?.label || rendered.studioPolish.plan?.target?.label || rendered.studioPolish.intensity;
       entries.push(["Studio Polish", rendered.studioPolish.optimized ? `${target} + Director` : `${target} / ${rendered.studioPolish.intensity}`]);
       if (rendered.studioPolish.plan?.microRepair) entries.push(["Polish Events", formatMicroRepair(rendered.studioPolish.plan.microRepair)]);
+      if (rendered.studioPolish.plan?.toneSurgery) entries.push(["Tone Surgery", rendered.studioPolish.plan.toneSurgery.summary || "No dynamic cuts"]);
     }
     if (rendered.region && !rendered.region.isFull) entries.push(["Region", `${rendered.region.startSec.toFixed(1)}-${rendered.region.endSec.toFixed(1)} s`]);
     entries.push(["Render RMS", `${rendered.analysis.rmsDb.toFixed(1)} dB`]);

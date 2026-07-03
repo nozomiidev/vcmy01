@@ -295,6 +295,26 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard", target
   const gainToTarget = targetRmsDb - Number(analysis.rmsDb || targetRmsDb);
   const headroomLimit = Math.max(-8, Number(analysis.headroomDb || 0) - 2.2);
   const outputGainDb = clamp(Math.min(gainToTarget, headroomLimit), -9, 8);
+  const stages = {
+    inputGainDb: clamp((analysis.rmsDb < -34 ? 4 : 0) - (analysis.peakDb > -2 ? 3 : 0), -6, 6),
+    deplosive: clamp(((scores.plosive || 0) - 8) * 1.15 * f, 0, 100),
+    mouthClick: clamp(((scores.mouthClick || 0) - 7) * 1.18 * f, 0, 100),
+    mouthClickPasses: (scores.mouthClick || 0) > 48 ? 2 : 1,
+    noiseReduction: clamp(((scores.noise || 0) - 6) * 0.92 * f, 0, 72),
+    highPassHz,
+    mudDb: -clamp(((scores.mud || 0) - 8) * 0.072 * f, 0, 5.5),
+    nasalDb: -clamp(((scores.nasal || 0) - 8) * 0.068 * f, 0, 4.8),
+    harshDb: -clamp(((scores.harsh || 0) - 8) * 0.058 * f, 0, 4.8),
+    deEss: clamp((scores.sibilance || 0) * 0.9 * f + (scores.harsh || 0) * 0.22 * f, 0, 82),
+    deEssLookaheadMs: (scores.sibilance || 0) > 16 ? 8 : 0,
+    leveler: clamp(22 + Math.max(0, analysis.dynamicRangeDb - 13) * 2.4 + f * 24 + target.compressionBias * 0.45, 12, 78),
+    compression: clamp(20 + Math.max(0, analysis.dynamicRangeDb - 12) * 1.5 + f * 20 + target.compressionBias, 12, 78),
+    presenceDb: clamp((analysis.brightnessRatio < 0.18 ? 1.2 : analysis.brightnessRatio > 0.36 ? -0.65 : 0.4) * f - Math.max(0, scores.harsh || 0) * 0.01 + target.presenceBias, -1.8, 3.2),
+    airDb: clamp((analysis.brightnessRatio < 0.2 ? 1.4 : analysis.brightnessRatio > 0.36 ? -0.9 : 0.5) * f - Math.max(0, scores.sibilance || 0) * 0.018 + target.airBias, -2.1, 3.1),
+    saturation: clamp(4 + f * 8 - Math.max(0, scores.harsh || 0) * 0.04 + target.saturationBias, 0, 16),
+    outputGainDb,
+    limiterDb: target.ceilingDb
+  };
   return {
     id: `studio-polish-${intensity.id}`,
     intensity: intensity.id,
@@ -302,29 +322,87 @@ export function buildStudioPolishPlan(analysis, intensityId = "standard", target
     target: { id: target.id, label: target.label },
     repairMap,
     microRepair: analysis.microRepair || null,
+    toneSurgery: buildToneSurgery(analysis, target, f, stages),
     targetRmsDb,
-    stages: {
-      inputGainDb: clamp((analysis.rmsDb < -34 ? 4 : 0) - (analysis.peakDb > -2 ? 3 : 0), -6, 6),
-      deplosive: clamp(((scores.plosive || 0) - 8) * 1.15 * f, 0, 100),
-      mouthClick: clamp(((scores.mouthClick || 0) - 7) * 1.18 * f, 0, 100),
-      mouthClickPasses: (scores.mouthClick || 0) > 48 ? 2 : 1,
-      noiseReduction: clamp(((scores.noise || 0) - 6) * 0.92 * f, 0, 72),
-      highPassHz,
-      mudDb: -clamp(((scores.mud || 0) - 8) * 0.072 * f, 0, 5.5),
-      nasalDb: -clamp(((scores.nasal || 0) - 8) * 0.068 * f, 0, 4.8),
-      harshDb: -clamp(((scores.harsh || 0) - 8) * 0.058 * f, 0, 4.8),
-      deEss: clamp((scores.sibilance || 0) * 0.9 * f + (scores.harsh || 0) * 0.22 * f, 0, 82),
-      deEssLookaheadMs: (scores.sibilance || 0) > 16 ? 8 : 0,
-      leveler: clamp(22 + Math.max(0, analysis.dynamicRangeDb - 13) * 2.4 + f * 24 + target.compressionBias * 0.45, 12, 78),
-      compression: clamp(20 + Math.max(0, analysis.dynamicRangeDb - 12) * 1.5 + f * 20 + target.compressionBias, 12, 78),
-      presenceDb: clamp((analysis.brightnessRatio < 0.18 ? 1.2 : analysis.brightnessRatio > 0.36 ? -0.65 : 0.4) * f - Math.max(0, scores.harsh || 0) * 0.01 + target.presenceBias, -1.8, 3.2),
-      airDb: clamp((analysis.brightnessRatio < 0.2 ? 1.4 : analysis.brightnessRatio > 0.36 ? -0.9 : 0.5) * f - Math.max(0, scores.sibilance || 0) * 0.018 + target.airBias, -2.1, 3.1),
-      saturation: clamp(4 + f * 8 - Math.max(0, scores.harsh || 0) * 0.04 + target.saturationBias, 0, 16),
-      outputGainDb,
-      limiterDb: target.ceilingDb
-    },
+    stages,
     notes: planNotes(analysis, intensity.id, target)
   };
+}
+
+function buildToneSurgery(analysis, target, factor, stages) {
+  const scores = analysis?.problemScores || {};
+  const spectral = analysis?.spectral || {};
+  const targetId = target?.id || DEFAULT_TARGET.id;
+  const bands = [
+    toneSurgeryBand("mud", "Low-Mid Mud", "mudDb", analysis, {
+      range: [180, 520],
+      fallbackHz: targetId === "ikemen" ? 285 : 255,
+      q: targetId === "ikemen" ? 0.72 : 0.88,
+      risk: scores.mud || 0,
+      stageDb: stages.mudDb,
+      maxDynamicDb: -2.4,
+      reason: "Control boxy low-mid buildup without removing all body."
+    }),
+    toneSurgeryBand("nasal", "Nasal Ring", "nasalDb", analysis, {
+      range: [650, 1300],
+      fallbackHz: targetId === "kawaii" ? 1050 : 930,
+      q: 1.12,
+      risk: scores.nasal || 0,
+      stageDb: stages.nasalDb,
+      maxDynamicDb: -2.8,
+      reason: "Reduce honky vowel resonance only when it protrudes."
+    }),
+    toneSurgeryBand("harsh", "Presence Harshness", "harshDb", analysis, {
+      range: [2500, 4500],
+      fallbackHz: targetId === "radio" ? 3000 : 3400,
+      q: 1.18,
+      risk: scores.harsh || 0,
+      stageDb: stages.harshDb,
+      maxDynamicDb: -2.7,
+      reason: "Tame stabbing presence while keeping intelligibility alive."
+    })
+  ];
+  const active = bands.filter((band) => band.risk >= 12 || Math.abs(band.stageDb) > 0.08);
+  return {
+    mode: "spectral-dynamic-eq",
+    source: spectral.summary || "No spectral evidence",
+    target: { id: target?.id || DEFAULT_TARGET.id, label: target?.label || DEFAULT_TARGET.label },
+    bands,
+    activeCount: active.length,
+    summary: active.length
+      ? active.map((band) => `${band.label} ${Math.round(band.frequencyHz)}Hz`).join(" / ")
+      : "No dynamic tone cuts needed"
+  };
+}
+
+function toneSurgeryBand(id, label, stageKey, analysis, options) {
+  const spectral = analysis?.spectral || {};
+  const peak = pickSpectralPeak(spectral, options.range[0], options.range[1]);
+  const risk = clamp(options.risk || 0, 0, 100);
+  const stageDb = clamp(Number(options.stageDb || 0), -7, 0.8);
+  const dynamicDepthDb = -clamp(Math.max(0, risk - 18) * 0.018 * (options.maxDynamicDb ? Math.abs(options.maxDynamicDb) / 2.4 : 1), 0, Math.abs(options.maxDynamicDb || -2.4));
+  return {
+    id,
+    label,
+    stageKey,
+    frequencyHz: Math.round(peak?.hz || options.fallbackHz),
+    q: Number(options.q.toFixed(2)),
+    risk: Math.round(risk),
+    stageDb: Number(stageDb.toFixed(2)),
+    dynamicDepthDb: Number(dynamicDepthDb.toFixed(2)),
+    trigger: "band-limited envelope",
+    evidence: peak
+      ? `FFT peak ${Math.round(peak.hz)} Hz / ${peak.prominenceDb.toFixed(1)} dB prominence`
+      : spectral.summary || "IIR band ratio",
+    reason: options.reason
+  };
+}
+
+function pickSpectralPeak(spectral, lowHz, highHz) {
+  const peaks = Array.isArray(spectral?.peaks) ? spectral.peaks : [];
+  return peaks
+    .filter((peak) => peak.hz >= lowHz && peak.hz <= highHz)
+    .sort((a, b) => (b.prominenceDb || 0) - (a.prominenceDb || 0))[0] || null;
 }
 
 export function processStudioPolish(input, sampleRate, planOrOptions = "standard") {
@@ -575,9 +653,7 @@ function applyStudioPolishPlan(samples, sampleRate, plan) {
   work = reduceMouthClicks(work, sampleRate, p.mouthClick, p.mouthClickPasses);
   work = reduceRoomNoise(work, p.noiseReduction);
   work = applyBiquad(work, sampleRate, "highpass", p.highPassHz, 0.72, 0);
-  work = applyBiquad(work, sampleRate, "peaking", 245, 0.9, p.mudDb);
-  work = applyBiquad(work, sampleRate, "peaking", 930, 1.05, p.nasalDb);
-  work = applyBiquad(work, sampleRate, "peaking", 3300, 1.1, p.harshDb);
+  work = applyToneSurgery(work, sampleRate, plan.toneSurgery, p);
   work = dynamicDeEss(work, sampleRate, p.deEss, p.deEssLookaheadMs);
   work = speechLeveler(work, p.leveler);
   work = speechCompressor(work, p.compression);
@@ -587,6 +663,54 @@ function applyStudioPolishPlan(samples, sampleRate, plan) {
   work = applyGain(work, p.outputGainDb);
   work = limiter(work, p.limiterDb);
   return work;
+}
+
+function applyToneSurgery(input, sampleRate, surgery, stages = {}) {
+  const bands = Array.isArray(surgery?.bands) ? surgery.bands : null;
+  if (!bands?.length) {
+    let work = applyBiquad(input, sampleRate, "peaking", 245, 0.9, stages.mudDb);
+    work = applyBiquad(work, sampleRate, "peaking", 930, 1.05, stages.nasalDb);
+    return applyBiquad(work, sampleRate, "peaking", 3300, 1.1, stages.harshDb);
+  }
+  let work = input;
+  for (const band of bands) work = applyDynamicToneBand(work, sampleRate, band, stages);
+  return work;
+}
+
+function applyDynamicToneBand(input, sampleRate, band, stages = {}) {
+  const stageDb = clamp(Number(stages[band.stageKey] ?? band.stageDb ?? 0), -7, 0.8);
+  if (Math.abs(stageDb) < 0.02) return input;
+  const freq = clamp(Number(band.frequencyHz || 1000), 80, sampleRate * 0.43);
+  const q = clamp(Number(band.q || 1), 0.45, 3.2);
+  const risk = clamp(Number(band.risk || 0), 0, 100);
+  const staticDb = clamp(stageDb * 0.46, -3.5, 0.4);
+  const dynamicDepthDb = clamp(stageDb - staticDb + Number(band.dynamicDepthDb || 0) * 0.28, -4.4, 0);
+  const base = applyBiquad(input, sampleRate, "peaking", freq, q, staticDb);
+  if (dynamicDepthDb > -0.05 || risk < 14) return base;
+
+  const deep = applyBiquad(input, sampleRate, "peaking", freq, q, staticDb + dynamicDepthDb);
+  const boosted = applyBiquad(input, sampleRate, "peaking", freq, q, 9);
+  const probe = new Float32Array(input.length);
+  let mean = 0;
+  for (let i = 0; i < input.length; i++) {
+    const value = Math.abs(boosted[i] - input[i]);
+    probe[i] = value;
+    mean += value;
+  }
+  mean /= Math.max(1, input.length);
+  const threshold = Math.max(0.0008, mean * (1.35 + (1 - risk / 100) * 0.7));
+  const out = new Float32Array(input.length);
+  let env = 0;
+  const attack = 1 - Math.exp(-1 / Math.max(1, sampleRate * 0.006));
+  const release = Math.exp(-1 / Math.max(1, sampleRate * 0.09));
+  const riskScale = clamp((risk - 10) / 70, 0.1, 1);
+  for (let i = 0; i < input.length; i++) {
+    const value = probe[i];
+    env = value > env ? env + (value - env) * attack : env * release + value * (1 - release);
+    const amount = smoothstep(threshold, threshold * 2.4, env) * riskScale;
+    out[i] = base[i] * (1 - amount) + deep[i] * amount;
+  }
+  return out;
 }
 
 function scoreStudioPolishPlan(samples, sampleRate, plan, target, basePlan) {
@@ -696,9 +820,18 @@ function clonePlan(plan) {
     target: plan.target ? { ...plan.target } : null,
     repairMap: plan.repairMap ? cloneRepairMap(plan.repairMap) : null,
     microRepair: plan.microRepair ? cloneMicroRepair(plan.microRepair) : null,
+    toneSurgery: plan.toneSurgery ? cloneToneSurgery(plan.toneSurgery) : null,
     stages: { ...(plan.stages || {}) },
     notes: [...(plan.notes || [])],
     optimization: plan.optimization ? { ...plan.optimization } : undefined
+  };
+}
+
+function cloneToneSurgery(surgery) {
+  return {
+    ...surgery,
+    target: surgery.target ? { ...surgery.target } : null,
+    bands: (surgery.bands || []).map((band) => ({ ...band }))
   };
 }
 
@@ -1200,6 +1333,12 @@ function toFloat32(input) {
 
 function formatDb(value) {
   return Number.isFinite(value) ? `${value.toFixed(1)} dB` : "-inf dB";
+}
+
+function smoothstep(edge0, edge1, value) {
+  if (edge0 === edge1) return value >= edge1 ? 1 : 0;
+  const x = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  return x * x * (3 - 2 * x);
 }
 
 function nowMs() {

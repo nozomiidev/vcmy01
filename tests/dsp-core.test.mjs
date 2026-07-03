@@ -51,6 +51,7 @@ import {
   generateReferenceVoice,
   generateTestVoice,
   granularShift,
+  applyBiquad,
   normalizeParams,
   peak,
   processVoiceBuffer,
@@ -129,6 +130,9 @@ const dirtyStudioAnalysis = analyzeStudioVoice(dirtyStudioSource, sampleRate);
 const dirtyMicroRepair = buildMicroRepairTimeline(dirtyStudioSource, sampleRate);
 const studioPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard");
 const studioPolished = processStudioPolish(dirtyStudioSource, sampleRate, studioPolishPlan);
+const nasalSource = applyBiquad(source, sampleRate, "peaking", 1050, 1.2, 9);
+const nasalPlan = buildStudioPolishPlan(analyzeStudioVoice(nasalSource, sampleRate), "standard", "podcast");
+const nasalSurgeryBand = nasalPlan.toneSurgery.bands.find((band) => band.id === "nasal");
 const kawaiiPolishPlan = buildStudioPolishPlan(dirtyStudioAnalysis, "standard", "kawaii");
 const kawaiiRepairMap = buildStudioRepairMap(dirtyStudioAnalysis, "kawaii");
 const directorPlan = optimizeStudioPolishPlan(dirtyStudioSource, sampleRate, kawaiiPolishPlan, { target: "kawaii", iterations: 10 });
@@ -142,6 +146,9 @@ assert.equal(studioPolished.samples.length, dirtyStudioSource.length, "studio po
 assert.ok(dirtyMicroRepair.eventCount > 0, "micro repair should detect local artifact events");
 assert.ok(dirtyStudioAnalysis.spectral.centroidHz > 0, "studio analysis should retain FFT tone map");
 assert.ok(dirtyStudioAnalysis.items.some((item) => item.id === "spectral"), "studio analysis should expose FFT tone map as a review item");
+assert.ok(studioPolishPlan.toneSurgery.activeCount >= 0, "studio polish plan should retain tone-surgery metadata");
+assert.ok(nasalSurgeryBand.frequencyHz >= 650 && nasalSurgeryBand.frequencyHz <= 1300, "tone surgery should keep nasal treatment in the vocal nasal range");
+assert.ok(nasalSurgeryBand.stageDb < 0 && nasalSurgeryBand.dynamicDepthDb <= 0, "tone surgery should use downward dynamic nasal control");
 assert.ok(dirtyMicroRepair.counts.mouth > 0 || dirtyMicroRepair.counts.plosive > 0, "micro repair should classify click or plosive events");
 assert.equal(studioPolishPlan.microRepair.eventCount, dirtyStudioAnalysis.microRepair.eventCount, "studio polish plan should retain micro-repair timeline");
 assert.equal(studioPolished.plan.microRepair.eventCount, dirtyStudioAnalysis.microRepair.eventCount, "studio polish render should carry micro-repair evidence");
@@ -700,6 +707,7 @@ const exportManifest = buildExportManifest({
 assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest should retain Studio Polish metadata");
 assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
 assert.equal(exportManifest.render.studioPolish.microRepair.eventCount >= 0, true, "export manifest should retain micro-repair metadata");
+assert.ok(exportManifest.render.studioPolish.toneSurgery.bands.some((band) => band.id === "nasal"), "export manifest should retain tone-surgery metadata");
 assert.ok(exportManifest.source.studioAnalysis.spectral.centroidHz > 0, "export manifest should retain FFT tone map metadata");
 assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
 assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");
@@ -721,6 +729,7 @@ const safetyProject = createProjectSnapshot({
 assert.equal(safetyProject.renderDeck[0].rendered.characterSafety.enabled, true, "project snapshot should retain character-safety metadata");
 assert.ok(safetyProject.source.studioAnalysis.spectral.centroidHz > 0, "project snapshot should retain source FFT tone map");
 assert.equal(safetyProject.renderDeck[0].rendered.studioPolish.plan.microRepair.eventCount >= 0, true, "project snapshot should retain micro-repair metadata");
+assert.ok(safetyProject.renderDeck[0].rendered.studioPolish.plan.toneSurgery.bands.some((band) => band.id === "harsh"), "project snapshot should retain tone-surgery metadata");
 assert.equal(Array.isArray(safetyProject.renderDeck[0].rendered.safetyDelta), true, "project snapshot should retain safety deltas");
 const memoryStudioPlan = buildStudioPlan({
   hasSource: true,

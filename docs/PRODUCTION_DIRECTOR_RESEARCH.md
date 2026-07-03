@@ -138,6 +138,31 @@ https://auphonic.com/blog/2023/01/24/autoeq-beta/
 https://www.fabfilter.com/help/pro-q/using/analyzer
 https://www.mathworks.com/help/audio/ug/spectral-descriptors.html
 
+## Dynamic Tone Surgery Loop
+
+The seventh production-director pass turns tone cleanup from fixed EQ cuts into source-adaptive dynamic tone surgery.
+
+Research decisions:
+
+- FabFilter Pro-Q documents dynamic EQ as program-dependent band behavior, and Pro-Q 4 positions dynamic/spectral EQ and spectrum visibility as core professional workflow tools.
+- iZotope's dynamic-EQ guidance separates narrow resonance control from broad multiband compression: use dynamic EQ when the problem is a specific tone that should only move when it becomes excessive.
+- iZotope's de-essing guidance reinforces the same pattern for sibilance: detect an aggressive frequency range and attenuate it while keeping the voice natural and intelligible.
+- Community studio practice agrees with the caution: voice work usually uses gentle EQ/compression/de-ess, and RX-style repair is safer as staged light passes before later processing changes the detectability of clicks or resonances.
+
+Implementation response:
+
+- `buildStudioPolishPlan()` now emits `toneSurgery` metadata with mud, nasal, and harsh bands chosen from FFT peak evidence when available.
+- `applyStudioPolishPlan()` replaces fixed 245/930/3300 Hz static cuts with dynamic-EQ-style tone bands: a light constant cut plus a deeper cut crossfaded only when a band-limited envelope exceeds its threshold.
+- Export notes, Project Vault snapshots, render cards, tests, and quality reports retain the chosen band, risk, trigger, and evidence so studio decisions remain auditable.
+
+Sources:
+https://www.fabfilter.com/help/pro-q/using/dynamic-eq
+https://www.fabfilter.com/products/pro-q-4-equalizer-plug-in
+https://www.izotope.com/community/blog/when-to-use-dynamic-eq-in-a-mix
+https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
+https://www.reddit.com/r/audioengineering/comments/10rw2ym/how_much_magic_to_put_on_a_podcast/
+https://www.reddit.com/r/audioengineering/comments/15ac6yu/care_to_share_some_izotope_rx_hottakes_or_tips_n/
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
@@ -209,6 +234,7 @@ https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/de
 - Character Safety was verified in the in-app Browser with the same private fixture and Kawaii / Anime target. The Guided Studio and Render Deck showed `Safety Guarded` with pitch, formant-like, and air clamps, while WAV, WebM, and ZIP export controls became available.
 - Micro Repair Timeline was verified in the in-app Browser with the same private fixture. The source analysis showed `43 events / M27 P3 S13`, Guided Studio showed the same micro count before rendering, and the rendered analysis preserved `Polish Events` with WAV/WebM/ZIP enabled.
 - FFT Tone Map was verified in the in-app Browser with the same private fixture. The source analysis showed `FFT Tone 616 Hz / 563 Hz / -12.1 dB/oct` alongside Micro Repair evidence, so tone risks now have spectral evidence in UI, exports, and project snapshots.
+- Dynamic Tone Surgery was verified in the in-app Browser with the same private fixture, Kawaii / Anime target, and Director Optimize enabled. The rendered metric card showed `Low-Mid Mud 255Hz / Nasal Ring 1050Hz / Presence Harshness 3469Hz`, and WAV/WebM/ZIP export controls were enabled after full render.
 
 Open follow-up:
 
