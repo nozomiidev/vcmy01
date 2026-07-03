@@ -687,7 +687,7 @@ export function granularShift(input, sampleRate, ratio = 1, seconds = 0.06) {
   if (!Number.isFinite(ratio) || Math.abs(ratio - 1) < 0.002) return new Float32Array(input);
   const n = input.length;
   const out = new Float32Array(n);
-  const windowSize = Math.max(96, Math.round(sampleRate * seconds));
+  const windowSize = pitchSynchronousWindowSize(input, sampleRate, seconds, ratio);
   let phase = 0;
   const step = 1 - ratio;
   for (let i = 0; i < n; i++) {
@@ -698,7 +698,7 @@ export function granularShift(input, sampleRate, ratio = 1, seconds = 0.06) {
     const d2 = (phase + windowSize / 2) % windowSize;
     const g1 = Math.sin(Math.PI * d1 / windowSize);
     const g2 = Math.sin(Math.PI * d2 / windowSize);
-    out[i] = readDelay(input, i, d1) * g1 + readDelay(input, i, d2) * g2;
+    out[i] = (readDelay(input, i, d1) * g1 + readDelay(input, i, d2) * g2) / Math.max(0.4, g1 + g2);
   }
   return out;
 }
@@ -708,7 +708,7 @@ export function prosodyPitchShift(input, sampleRate, baseRatio = 1, params = {})
   if (amount <= 0.01) return granularShift(input, sampleRate, baseRatio, 0.085);
   const n = input.length;
   const out = new Float32Array(n);
-  const windowSize = Math.max(192, Math.round(sampleRate * 0.085));
+  const windowSize = pitchSynchronousWindowSize(input, sampleRate, 0.085, baseRatio);
   let phase = 0;
   let env = 0;
   let ratioState = baseRatio;
@@ -744,9 +744,24 @@ export function prosodyPitchShift(input, sampleRate, baseRatio = 1, params = {})
     const d2 = (phase + windowSize / 2) % windowSize;
     const g1 = Math.sin(Math.PI * d1 / windowSize);
     const g2 = Math.sin(Math.PI * d2 / windowSize);
-    out[i] = readDelay(input, i, d1) * g1 + readDelay(input, i, d2) * g2;
+    out[i] = (readDelay(input, i, d1) * g1 + readDelay(input, i, d2) * g2) / Math.max(0.4, g1 + g2);
   }
   return out;
+}
+
+function pitchSynchronousWindowSize(input, sampleRate, seconds, ratio) {
+  const requested = Math.max(96, Math.round(sampleRate * seconds));
+  if (!input?.length || input.length < sampleRate * 0.12) return requested;
+  const pitch = estimatePitch(input, sampleRate, { frameSize: 2048, hop: 1024, minHz: 70, maxHz: 520, yinThreshold: 0.2 });
+  if (!pitch.medianHz || pitch.confidence < 0.32 || pitch.voicedRatio < 0.18) return requested;
+  const period = sampleRate / pitch.medianHz;
+  const shortFormantWindow = seconds <= 0.035;
+  const periods = shortFormantWindow
+    ? clamp(3.4 + Math.max(0, Math.abs(Math.log2(ratio || 1))) * 1.4, 3.2, 5.2)
+    : clamp(5.8 + Math.max(0, Math.abs(Math.log2(ratio || 1))) * 1.6, 5.2, 8.5);
+  const min = sampleRate * (shortFormantWindow ? 0.014 : 0.028);
+  const max = sampleRate * (shortFormantWindow ? 0.052 : 0.105);
+  return Math.round(clamp(period * periods, min, max));
 }
 
 function readDelay(input, index, delay) {
@@ -754,9 +769,14 @@ function readDelay(input, index, delay) {
   if (x <= 0) return 0;
   const i0 = Math.floor(x);
   const frac = x - i0;
-  const a = input[i0] || 0;
-  const b = input[i0 + 1] || 0;
-  return a + (b - a) * frac;
+  const y0 = input[i0 - 1] || 0;
+  const y1 = input[i0] || 0;
+  const y2 = input[i0 + 1] || 0;
+  const y3 = input[i0 + 2] || 0;
+  const a0 = y3 - y2 - y0 + y1;
+  const a1 = y0 - y1 - a0;
+  const a2 = y2 - y0;
+  return a0 * frac * frac * frac + a1 * frac * frac + a2 * frac + y1;
 }
 
 function characterFilterBank(input, sampleRate, p) {

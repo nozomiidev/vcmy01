@@ -412,7 +412,10 @@ for (const preset of FACTORY_PRESETS) {
 
 const shifted = granularShift(source, sampleRate, Math.pow(2, 4 / 12), 0.085);
 assert.equal(shifted.length, source.length, "granular shifter preserves length");
-assert.notEqual(analyzeBuffer(shifted, sampleRate).zeroCrossingsPerSecond, analyzeBuffer(source, sampleRate).zeroCrossingsPerSecond);
+const shiftedAnalysis = analyzeBuffer(shifted, sampleRate);
+assert.notEqual(shiftedAnalysis.zeroCrossingsPerSecond, analyzeBuffer(source, sampleRate).zeroCrossingsPerSecond);
+assert.ok(shiftedAnalysis.pitchMedianHz > sourceAnalysis.pitchMedianHz * 1.08, "pitch-aware shifter should move generated F0 in the requested direction");
+assert.ok(peak(shifted) <= 1 && shifted.every((value) => Number.isFinite(value)), "pitch-aware shifter should remain finite and peak-safe");
 
 const directedParams = paramsForPreset("clean", {
   phraseLift: 85,

@@ -409,6 +409,35 @@ https://pressbooks.umn.edu/sensationandperception/chapter/critical-bands-and-mas
 https://www.masteringbox.com/learn/frequency-masking
 https://www.dsprelated.com/freebooks/sasp/Equivalent_Rectangular_Bandwidth.html
 
+## Pitch-Synchronous Grain Loop
+
+The seventeenth production-director pass starts addressing the user's "macro filters break the voice" complaint at the pitch/formant core. The current shifter was a simple dual delay-line grain effect. It could move pitch, but the grain window was not tied to speech periodicity, so it could flutter or smear on voiced vowels.
+
+Research decisions:
+
+- WSOLA improves time-domain overlap-add by choosing waveform-similar overlap points, and it is known as a practical speech/audio time-scale approach.
+- PSOLA is stronger for monophonic speech when reliable pitch marks are available, but a full pitch-mark/resynthesis implementation is larger than this pass.
+- For the current static browser engine, the conservative next step is pitch-synchronous grain sizing: estimate F0, make the grain window span a stable number of glottal periods, normalize the two overlap taps, and improve fractional reads with cubic interpolation.
+- This remains an interim classical DSP shifter, not Rubber Band, SoundTouch, WORLD, or neural VC. It is designed to reduce obvious breakage while keeping GitHub Pages constraints.
+
+Implementation response:
+
+- `granularShift()` and `prosodyPitchShift()` now choose a pitch-synchronous window when the source has enough voiced F0 confidence.
+- The dual delay taps are normalized to reduce amplitude flutter.
+- Delay reads now use cubic interpolation instead of linear interpolation to reduce zipper/roughness artifacts at moving fractional delays.
+
+Verification:
+
+- Unit regression confirms generated +4st shift moves F0 upward while preserving length, finite samples, and peak safety.
+- `npm run quality` stayed all-pass with preset realtime factor `0.155`, studio polish `0.372`, and director polish `0.933`.
+- In-app Browser private-fixture Kawaii render retained Pitch Tracker, Source F0, Render F0, Tone Surgery, A/B Match, Render Loudness/True Peak, no console errors, and enabled WAV/WebM/ZIP controls.
+
+Sources:
+https://www.isca-archive.org/eurospeech_1993/roelands93_eurospeech.html
+https://speechprocessingbook.aalto.fi/Representations/Pitch-Synchoronous_Overlap-Add_PSOLA.html
+https://www.surina.net/soundtouch/README.html
+https://github.com/audacity/audacity/discussions/1524
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
