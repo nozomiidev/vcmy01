@@ -1426,10 +1426,12 @@ function renderCurrentReviewPanel() {
     host.innerHTML = "";
     return;
   }
-  const preferred = new Set(["comfort", "studio-polish", "character-safety", "performance", "level"]);
+  const preferred = ["comfort", "character-safety", "studio-polish", "performance", "level"];
+  const preferredSet = new Set(preferred);
+  const reviewItemsById = new Map(review.items.map((item) => [item.id, item]));
   const items = [
-    ...review.items.filter((item) => preferred.has(item.id)),
-    ...review.items.filter((item) => !preferred.has(item.id))
+    ...preferred.map((id) => reviewItemsById.get(id)).filter(Boolean),
+    ...review.items.filter((item) => !preferredSet.has(item.id))
   ].slice(0, 5);
   host.className = `current-review is-${review.status}`;
   host.innerHTML = `
