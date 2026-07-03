@@ -536,6 +536,8 @@ assert.equal(tunedKawaiiAgain.pitch, tunedKawaii.pitch, "calibration should not 
 
 const offline = new OfflineRenderer();
 offline.generateSample(sampleRate, "low_warm");
+assert.equal(typeof offline.loadUrl, "function", "offline renderer should expose URL audio import");
+assert.equal(offline.source.sourceKind, "generated", "generated sources should carry source kind metadata");
 const lowRoutes = rankVoiceRoutes(offline.profile, offline.source, { limit: voiceRouteTargets().length });
 const lowIkemenRoute = lowRoutes.find((route) => route.presetId === "ikemen");
 const lowKawaiiRoute = lowRoutes.find((route) => route.presetId === "kawaii");
@@ -646,6 +648,7 @@ const exportManifest = buildExportManifest({
 });
 assert.equal(exportManifest.render.studioPolish.enabled, true, "export manifest should retain Studio Polish metadata");
 assert.equal(exportManifest.render.studioPolish.repairMap.steps[1].id, "deplosive", "export manifest should retain ordered repair-map evidence");
+assert.equal(exportManifest.source.sourceKind, "generated", "export manifest should retain source import kind");
 assert.equal(exportManifest.files.webm.endsWith(".webm"), true, "export manifest should name compressed WebM output");
 assert.equal(renderedBaseName(autoRendered).includes("VoiceForge"), true, "export base name should derive from render name");
 assert.ok(studioPolishResearchNotes(autoRendered).includes("Studio Polish First"), "export research notes should document the polish workflow");

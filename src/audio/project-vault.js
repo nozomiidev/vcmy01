@@ -219,6 +219,9 @@ function sanitizeSource(source = null, options = {}) {
     return {
       name: "",
       sourceProfileId: "",
+      sourceKind: "",
+      sourceUrl: "",
+      sourceType: "",
       sampleRate: 0,
       durationSec: 0,
       analysis: null,
@@ -232,6 +235,9 @@ function sanitizeSource(source = null, options = {}) {
   return {
     name: cleanText(source.name || "Source", 120),
     sourceProfileId: cleanText(source.sourceProfileId || "", 80),
+    sourceKind: cleanText(source.sourceKind || "", 32),
+    sourceUrl: cleanText(source.sourceUrl || "", 240),
+    sourceType: cleanText(source.sourceType || "", 100),
     sampleRate,
     durationSec: Number.isFinite(durationSec) ? Math.max(0, durationSec) : 0,
     analysis: sanitizeAnalysis(source.analysis),

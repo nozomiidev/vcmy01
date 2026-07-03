@@ -216,7 +216,8 @@ function renderGuidedStudio() {
   ];
   if (rendered?.studioPolish?.plan?.optimization?.enabled) {
     const opt = rendered.studioPolish.plan.optimization;
-    stagePills.push(["Director", `${opt.scoreBefore}->${opt.scoreAfter}`]);
+    const optLabel = opt.scoreBefore <= 0 && opt.scoreAfter <= 0 ? "guarded" : `${opt.scoreBefore}->${opt.scoreAfter}`;
+    stagePills.push(["Director", optLabel]);
   }
   const repairPills = (repairMap?.steps || [])
     .filter((step) => step.status !== "ready")
@@ -987,6 +988,11 @@ function bindOffline() {
     }
   });
 
+  $("loadAudioUrl").addEventListener("click", loadAudioUrlSource);
+  $("audioUrl").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") loadAudioUrlSource();
+  });
+
   $("analyzeSource").addEventListener("click", analyzeOfflineSource);
 
   $("applyCalibration").addEventListener("click", tuneCurrentSource);
@@ -1176,6 +1182,29 @@ function analyzeOfflineSource() {
     toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
   } catch (error) {
     toast("Analysis needs a source", error.message || "Generate or upload audio first.");
+  }
+}
+
+async function loadAudioUrlSource() {
+  const input = $("audioUrl");
+  const button = $("loadAudioUrl");
+  const url = input.value.trim();
+  if (!url) {
+    toast("Audio URL needed", "Paste a same-origin or CORS-enabled audio URL.");
+    return;
+  }
+  button.disabled = true;
+  const previousText = button.textContent;
+  button.textContent = "Loading";
+  try {
+    const source = await offline.loadUrl(url);
+    useOfflineSource(source);
+    toast("URL audio loaded", `${source.name}: ${(source.samples.length / source.sampleRate).toFixed(1)}s decoded locally.`);
+  } catch (error) {
+    toast("Could not load URL", error.message || "Use a same-origin or CORS-enabled audio URL.");
+  } finally {
+    button.disabled = false;
+    button.textContent = previousText;
   }
 }
 
@@ -2021,10 +2050,14 @@ function restoreProjectSource(project) {
   offline.source = {
     name: source.name,
     sourceProfileId: source.sourceProfileId || "",
+    sourceKind: source.sourceKind || "",
+    sourceUrl: source.sourceUrl || "",
+    sourceType: source.sourceType || "",
     sampleRate: source.sampleRate,
     samples: source.samples,
     blob: source.blob,
-    analysis: source.analysis
+    analysis: source.analysis,
+    studioAnalysis: source.studioAnalysis
   };
   offline.profile = source.analysis;
   setAudioPreview("sourceAudio", "source", source.blob, source.samples, source.sampleRate);

@@ -148,7 +148,7 @@ button { color: inherit; }
   50% { opacity: 0.35; transform: scale(0.72); }
 }
 
-.icon-action, .text-action, .command, .file-command, .select-command, .toggle-command {
+.icon-action, .text-action, .command, .file-command, .select-command, .toggle-command, .input-command {
   border: 1px solid var(--line);
   background: var(--panel-2);
   border-radius: var(--radius);
@@ -217,9 +217,27 @@ button { color: inherit; }
   max-width: 210px;
 }
 
-.icon-action:hover, .text-action:hover, .command:hover, .file-command:hover, .select-command:hover, .toggle-command:hover {
+.icon-action:hover, .text-action:hover, .command:hover, .file-command:hover, .select-command:hover, .toggle-command:hover, .input-command:hover {
   transform: translateY(-1px);
   border-color: var(--line-strong);
+}
+
+.input-command {
+  min-height: 38px;
+  width: min(260px, 100%);
+  padding: 8px 12px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.input-command::placeholder {
+  color: var(--muted);
+}
+
+.input-command:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: 2px;
 }
 
 .workspace {

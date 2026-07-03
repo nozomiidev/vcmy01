@@ -25,6 +25,9 @@ export class OfflineRenderer {
     this.source = {
       name: `Generated ${reference.profile.name}`,
       sourceProfileId: reference.profile.id,
+      sourceKind: "generated",
+      sourceUrl: "",
+      sourceType: "audio/wav",
       sampleRate,
       samples,
       blob,
@@ -36,15 +39,41 @@ export class OfflineRenderer {
   }
 
   async loadFile(file) {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AC();
     const arrayBuffer = await file.arrayBuffer();
+    return this.loadArrayBuffer(arrayBuffer, {
+      name: file.name,
+      sourceKind: "file",
+      sourceType: file.type || ""
+    });
+  }
+
+  async loadUrl(rawUrl) {
+    const url = normalizeAudioUrl(rawUrl);
+    const response = await fetch(url, { mode: "cors" });
+    if (!response.ok) throw new Error(`Audio URL returned ${response.status}.`);
+    const arrayBuffer = await response.arrayBuffer();
+    const resolved = response.url || url;
+    return this.loadArrayBuffer(arrayBuffer, {
+      name: audioNameFromUrl(resolved),
+      sourceKind: "url",
+      sourceUrl: resolved,
+      sourceType: response.headers.get("content-type") || ""
+    });
+  }
+
+  async loadArrayBuffer(arrayBuffer, metadata = {}) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) throw new Error("Web Audio decode is unavailable in this browser.");
+    const ctx = new AC();
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
     const samples = mixAudioBufferToMono(audioBuffer);
     await ctx.close?.();
     this.profile = buildCalibrationProfile(samples, audioBuffer.sampleRate);
     this.source = {
-      name: file.name,
+      name: metadata.name || "Imported Audio",
+      sourceKind: metadata.sourceKind || "file",
+      sourceUrl: metadata.sourceUrl || "",
+      sourceType: metadata.sourceType || "",
       sampleRate: audioBuffer.sampleRate,
       samples,
       blob: encodeWavMono(samples, audioBuffer.sampleRate),
@@ -299,4 +328,22 @@ export function mixAudioBufferToMono(audioBuffer) {
     for (let i = 0; i < out.length; i++) out[i] += data[i] / audioBuffer.numberOfChannels;
   }
   return out;
+}
+
+function normalizeAudioUrl(rawUrl) {
+  const text = String(rawUrl || "").trim();
+  if (!text) throw new Error("Paste an audio URL first.");
+  const url = new URL(text, window.location.href);
+  if (!/^https?:$/.test(url.protocol)) throw new Error("Audio URL must use http or https.");
+  return url.href;
+}
+
+function audioNameFromUrl(url) {
+  try {
+    const parsed = new URL(url, window.location.href);
+    const last = parsed.pathname.split("/").filter(Boolean).pop() || "URL Audio";
+    return decodeURIComponent(last).replace(/\.[a-z0-9]+$/i, "") || "URL Audio";
+  } catch {
+    return "URL Audio";
+  }
 }

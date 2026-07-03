@@ -36,6 +36,9 @@ export function buildExportManifest({
     exportedAt: new Date().toISOString(),
     source: source ? {
       name: source.name || "",
+      sourceKind: source.sourceKind || "",
+      sourceUrl: source.sourceUrl || "",
+      sourceType: source.sourceType || "",
       sampleRate: source.sampleRate || 0,
       durationSec: source.samples?.length && source.sampleRate ? source.samples.length / source.sampleRate : 0,
       analysis: compactAnalysis(source.analysis),

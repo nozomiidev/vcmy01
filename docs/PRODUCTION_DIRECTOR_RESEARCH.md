@@ -107,6 +107,24 @@ Implementation response:
 - The Guided Studio surface shows the repair queue before low-level parameter details.
 - Export ZIP research notes and `analysis.json` include repair-map evidence.
 
+## URL Import Loop
+
+The third loop adds audio URL import as a static-site-safe source path. This is not a backend upload feature; it uses the browser only:
+
+1. Fetch an audio URL as an ArrayBuffer.
+2. Decode complete audio data with Web Audio `decodeAudioData()`.
+3. Mix to mono, analyze, and run the same Studio Polish / Character / Export chain used by file uploads.
+
+Design constraints:
+
+- Relative and same-origin URLs work well for GitHub Pages demos and local fixtures.
+- Cross-origin URLs depend on CORS headers from the host.
+- The source metadata records whether audio came from generated, file, or URL input so exports and project snapshots remain auditable.
+
+Sources:
+https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
+https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/decodeaudiodata/index.md?plain=1
+
 ## Verification Notes
 
 2026-07-03 local verification covered the new production-target and Director Optimize flow.
@@ -119,8 +137,9 @@ Implementation response:
 - Chrome download clicks generated real local files for WAV, WebM Opus, and ZIP in the Windows Downloads folder. The Chrome automation download event did not fire, so OS file presence is the reliable verification signal here.
 - Computer Use bootstrap currently fails before app inspection with the bundled `@oai/sky` package export error; Browser and Chrome remain the usable GUI verification surfaces until that runtime is fixed.
 - The repair-map loop was verified in the in-app Browser with generated source, Talk Radio target, and Render Polish. The UI showed ordered repair steps such as Mouth De-click, Room Noise, Tone Surgery, and Production Target, and WAV/WebM/ZIP became enabled after render.
+- URL import was verified in the in-app Browser with the private local fixture `/tests/data/konichiwabokunonamaewayamadatarodesu.webm`. The app decoded a 7.0s source locally, analyzed it as a medium source, showed repair steps for Mouth De-click, Tone Surgery, De-ess, and Level / Dynamics, then completed Polish -> Character render with WAV/WebM/ZIP enabled.
 
 Open follow-up:
 
-- Local private WebM decoding is still blocked by the lack of `ffmpeg` or an equivalent local decoder in this workspace. Browser upload should be retried after Chrome extension file access is available, or a Node/browser-side decode fixture should be added without committing the private sample.
+- CLI-side private WebM decoding is still blocked by the lack of `ffmpeg` or an equivalent local decoder in this workspace. Browser upload should be retried after Chrome extension file access is available, but URL import now provides a working local fixture path without committing the private sample.
 - The in-app Browser runtime also blocks page `import()` and `fetch()` inside evaluation, so it cannot currently decode `tests/data/konichiwabokunonamaewayamadatarodesu.webm` through a test-only eval path. A proper local fixture runner or Chrome file-access fix is the next path for private-sample regression.
