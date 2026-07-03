@@ -253,7 +253,10 @@ function inputPatches(current, context) {
   const sourcePatches = context.sourceFit?.status !== "ready"
     ? (context.sourceFit?.patches || []).map((patch) => boundedPatch(patch.key, current[patch.key], patch.after, "Source compensation")).filter(Boolean)
     : [];
-  return sourcePatches.filter((patch) => ["inputGain", "lowCut", "deEss", "pitch", "formant", "body", "brightness", "air", "breath", "whisper"].includes(patch.key));
+  const patches = sourcePatches.filter((patch) => ["inputGain", "lowCut", "deEss", "pitch", "formant", "body", "brightness", "air", "breath", "whisper"].includes(patch.key));
+  if (comfortHas(context, "mud")) patches.push(boundedPatch("lowCut", current.lowCut, Number(current.lowCut || 80) + 14, "Comfort mud cleanup"));
+  if (comfortHas(context, "quiet")) patches.push(boundedPatch("inputGain", current.inputGain, Number(current.inputGain || 0) + 1.5, "Comfort intelligibility"));
+  return patches.filter(Boolean);
 }
 
 function tonePatches(current, context) {
@@ -274,6 +277,17 @@ function tonePatches(current, context) {
     if (/^\+/.test(reviewTone.value || "")) patches.push(boundedPatch("deEss", current.deEss, Number(current.deEss || 0) + 7, "Render tone guard"));
     if (/^-/.test(reviewTone.value || "")) patches.push(boundedPatch("air", current.air, Number(current.air || 0) + 6, "Render tone guard"));
   }
+  if (comfortHas(context, "sibilance")) {
+    patches.push(boundedPatch("deEss", current.deEss, Number(current.deEss || 0) + 8, "Comfort sibilance"));
+    patches.push(boundedPatch("air", current.air, Number(current.air || 0) - 5, "Comfort sibilance"));
+  }
+  if (comfortHas(context, "harshness")) {
+    patches.push(boundedPatch("presence", current.presence, Number(current.presence || 0) - 6, "Comfort harshness"));
+    patches.push(boundedPatch("brightness", current.brightness, Number(current.brightness || 0) - 5, "Comfort harshness"));
+  }
+  if (comfortHas(context, "nasal")) {
+    patches.push(boundedPatch("presence", current.presence, Number(current.presence || 0) - 4, "Comfort nasal focus"));
+  }
   return patches.filter(Boolean);
 }
 
@@ -291,6 +305,11 @@ function texturePatches(current, context) {
   const reviewTexture = context.renderReview?.items?.find((item) => item.id === "texture");
   if (context.renderReview?.status === "risk" && reviewTexture && /^\+/.test(reviewTexture.value || "")) {
     patches.push(boundedPatch("consonantSoftness", current.consonantSoftness, Number(current.consonantSoftness || 0) + 6, "Texture smoothing"));
+  }
+  if (comfortHas(context, "micro")) {
+    patches.push(boundedPatch("consonantSoftness", current.consonantSoftness, Number(current.consonantSoftness || 0) + 8, "Comfort micro smoothing"));
+    patches.push(boundedPatch("breath", current.breath, Number(current.breath || 0) - 6, "Comfort micro smoothing"));
+    patches.push(boundedPatch("whisper", current.whisper, Number(current.whisper || 0) - 5, "Comfort micro smoothing"));
   }
   return patches.filter(Boolean);
 }
@@ -359,6 +378,15 @@ function dynamicsPatches(current, context) {
   if (Number(current.saturation || 0) > 55 && Number(current.compression || 0) > 75) {
     patches.push(boundedPatch("saturation", current.saturation, Number(current.saturation || 0) - 6, "Drive/dynamics balance"));
   }
+  if (comfortHas(context, "flat")) {
+    patches.push(boundedPatch("compression", current.compression, Number(current.compression || 0) - 5, "Comfort dynamics"));
+  }
+  if (comfortHas(context, "jumpy")) {
+    patches.push(boundedPatch("compression", current.compression, Number(current.compression || 0) + 6, "Comfort dynamics"));
+  }
+  if (comfortHas(context, "loudness")) {
+    patches.push(boundedPatch("outputGain", current.outputGain, Number(current.outputGain || 0) - 1.2, "Comfort loudness"));
+  }
   return patches.filter(Boolean);
 }
 
@@ -392,7 +420,18 @@ function guardPatches(current, context) {
   if (context.renderReview?.status === "risk" && Number(current.compression || 0) < 72) {
     patches.push(boundedPatch("compression", current.compression, Number(current.compression || 0) + 6, "Final stability"));
   }
+  if ((context.renderReview?.comfort?.score ?? 100) < 45) {
+    patches.push(boundedPatch("dryWet", current.dryWet, Number(current.dryWet ?? 100) - 4, "Comfort blend guard"));
+  }
+  if (comfortHas(context, "true-peak")) {
+    patches.push(boundedPatch("limiter", current.limiter, Number(current.limiter ?? -1) - 0.5, "Comfort peak guard"));
+  }
   return patches.filter(Boolean);
+}
+
+function comfortHas(context, id) {
+  const comfort = context.renderReview?.comfort || null;
+  return !!comfort && comfort.score < 84 && Array.isArray(comfort.reasons) && comfort.reasons.includes(id);
 }
 
 function stageNotes(def, current, context, patch) {
@@ -400,6 +439,7 @@ function stageNotes(def, current, context, patch) {
   if (def.id === "input" && context.sourceFit) notes.push(`Source ${context.sourceFit.score}%`);
   if (def.id === "performance" && context.scriptMatch && !context.scriptMatch.plannedOnly) notes.push(`Script ${context.scriptMatch.score}%`);
   if (def.id === "dynamics" && context.renderReview) notes.push(`Render ${context.renderReview.score}%`);
+  if ((def.id === "tone" || def.id === "texture") && context.renderReview?.comfort?.score < 84) notes.push(`Comfort ${context.renderReview.comfort.score}%`);
   if (def.id === "guard" && context.renderReview) notes.push(`Safety ${context.renderReview.status}`);
   if (patch.length) notes.push(`${patch.length} next moves`);
   if (!notes.length) {
@@ -414,6 +454,9 @@ function stageNotes(def, current, context, patch) {
 function evidencePenaltyForStage(def, context) {
   if (def.id === "input" && context.sourceFit) return statusPenalty(context.sourceFit.status, 24);
   if (def.id === "performance" && context.scriptMatch && !context.scriptMatch.plannedOnly) return statusPenalty(context.scriptMatch.status, 26);
+  if ((def.id === "tone" || def.id === "texture") && context.renderReview?.comfort?.score < 68) {
+    return Math.min(18, Math.round((68 - context.renderReview.comfort.score) * 0.32));
+  }
   if ((def.id === "dynamics" || def.id === "guard") && context.renderReview) return statusPenalty(context.renderReview.status, 28);
   return 0;
 }

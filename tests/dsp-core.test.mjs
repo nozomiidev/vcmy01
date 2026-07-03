@@ -862,6 +862,20 @@ const hotStack = buildEffectStack(paramsForPreset("streamer", { outputGain: 3, s
 });
 assert.equal(hotStack.nextStageId, "dynamics", "effect stack should prioritize dynamics when rendered audio loses headroom");
 assert.ok(bestEffectStackPatch(hotStack).outputGain < 3, "effect stack dynamics patch should restore output headroom");
+const comfortStack = buildEffectStack(paramsForPreset("kawaii"), {
+  target: { id: "comfort-kawaii", name: "Comfort Kawaii", presetId: "kawaii", params: paramsForPreset("kawaii"), tags: [] },
+  renderReview: {
+    status: "ready",
+    score: 92,
+    comfort: { score: 32, status: "risk", reasons: ["micro", "sibilance"], detail: "Comfort correction" },
+    items: [{ id: "comfort", label: "Comfort", value: "32%", detail: "Comfort correction" }]
+  },
+  rendered: { analysis: { ...autoRendered.analysis, clipped: false, peakDb: -4.2, rmsDb: -18.5 } }
+});
+const comfortPatch = bestEffectStackPatch(comfortStack);
+const comfortBase = paramsForPreset("kawaii");
+assert.ok(comfortStack.stages.some((stage) => stage.notes.some((note) => note.includes("Comfort"))), "effect stack should expose comfort evidence in stage notes");
+assert.ok(Number(comfortPatch.deEss || 0) > Number(comfortBase.deEss || 0) || Number(comfortPatch.consonantSoftness || 0) > Number(comfortBase.consonantSoftness || 0), "effect stack should turn comfort issues into actionable cleanup patches");
 const previewRendered = offline.render(kawaii, { autoCalibrate: true, region: { startSec: 0.5, durationSec: 0.75 }, mode: "preview" });
 assert.equal(previewRendered.mode, "preview", "offline preview should preserve render mode");
 assert.equal(previewRendered.region.isFull, false, "offline preview should be marked as a region render");

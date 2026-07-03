@@ -610,6 +610,33 @@ https://auphonic.com/help/algorithms/singletrack.html
 https://tech.ebu.ch/publications/r128/
 https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
 
+## Comfort-Aware Stack Guidance Loop
+
+The twenty-fourth production-director pass turns the listening-comfort diagnosis into concrete next moves. A warning without an actionable path feels like a meter, not a studio assistant; the Guided Studio should route comfort failures to the relevant processing stage.
+
+Research decisions:
+
+- Professional mix workflows do not treat fatigue as one processor. Sibilance belongs mostly to de-essing and air/presence control, mouth noise to editing/softening, loudness and true peak to dynamics/mastering, and mud/nasal balance to input/tone cleanup.
+- Auphonic-style automatic post-production is useful because analysis and processing are coupled: loudness, true peak, filtering, and noise reduction drive recommended processing, not just charts.
+- De-essing guidance emphasizes split-band control and context; therefore a comfort reason should produce bounded de-ess/air moves instead of blindly lowering all brightness.
+
+Implementation response:
+
+- Effect Stack context patches now read `renderReview.comfort.reasons`.
+- `sibilance` routes to de-ess and air reduction, `micro` routes to consonant softness and breath/whisper reduction, `mud` routes to input low-cut, `flat`/`jumpy` routes to compression, `true-peak` routes to limiter/output safety, and low comfort adds a guard blend move.
+- Tone and texture stages now show `Comfort NN%` notes when comfort evidence is active, keeping the diagnosis visible in the normal guided workflow.
+
+Verification:
+
+- `npm test` passed with a comfort-guidance stack test that converts `micro`/`sibilance` reasons into cleanup patches.
+- `npm run quality` passed 44/0/0 with Studio Polish 4/0/0 and Director Polish 4/0/0.
+- In-app Browser verification with the private Yamada Taro fixture showed `Comfort 15%` in the signal stack, Tone/Texture comfort notes, comfort-driven De-esser/Soft Consonants candidates, WAV/WebM/ZIP actions, and zero console errors.
+
+Sources:
+https://auphonic.com/help/algorithms/singletrack.html
+https://www.fabfilter.com/help/pro-ds/using/basiccontrols
+https://www.izotope.com/community/blog/the-dos-and-donts-of-de-essing
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |
