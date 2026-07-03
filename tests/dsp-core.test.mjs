@@ -29,6 +29,7 @@ import { buildStudioPlan, STUDIO_PLAN_STEP_IDS } from "../src/audio/studio-plan.
 import { buildSceneSession, sceneSessionSummary } from "../src/audio/scene-session.js";
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, snapshotParamPatch } from "../src/audio/voice-memory.js";
 import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectParamPatch } from "../src/audio/project-vault.js";
+import { buildSourceTimeline, cueRegion, nearestCueIdForRegion, sourceTimelineSummary } from "../src/audio/source-timeline.js";
 import {
   analyzeBuffer,
   buildCalibrationProfile,
@@ -48,12 +49,23 @@ import {
 const sampleRate = 48000;
 const source = generateTestVoice({ sampleRate, duration: 1.25, f0: 150 });
 
+function concatFloat32(chunks) {
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const out = new Float32Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return out;
+}
+
 assert.ok(FACTORY_PRESETS.length >= 10, "factory preset count should cover multiple character targets");
 assert.ok(DIRECTOR_DEFS.length >= 6, "director controls should expose performance intent, not only DSP knobs");
 assert.ok(CHARACTER_CHAIN_STAGES.length >= 7, "character chain should expose staged voice-design workflow");
 assert.deepEqual(EFFECT_STACK_STAGE_IDS, ["input", "core", "tract", "tone", "texture", "performance", "dynamics", "space", "guard"], "effect stack should expose ordered signal-path layers");
 assert.equal(AUDITION_VARIANT_IDS.length >= 5, true, "audition variants should cover multiple nearby character directions");
-assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["project", "source", "route", "shape", "stack", "memory", "script", "audition", "trace", "scene", "deck"], "studio plan should expose the full production flow");
+assert.deepEqual(STUDIO_PLAN_STEP_IDS, ["project", "source", "timeline", "route", "shape", "stack", "memory", "script", "audition", "trace", "scene", "deck"], "studio plan should expose the full production flow");
 assert.ok(LINE_READ_TARGETS.length >= 8, "line-read targets should cover repeatable acting checks");
 assert.ok(SCENE_KITS.length >= 4, "scene kits should expand single reads into multi-beat acting workflows");
 assert.ok(ALL_LINE_READ_TARGETS.length > LINE_READ_TARGETS.length, "scene beats should be usable as line-read targets");
@@ -87,7 +99,28 @@ const restoreProjectStudioPlan = buildStudioPlan({
 });
 assert.equal(restoreProjectStudioPlan.nextAction.id, "apply-project", "studio plan should restore a saved project before creating a fresh source");
 
+const timelineFixture = {
+  name: "Timeline fixture",
+  sampleRate,
+  samples: concatFloat32([
+    generateTestVoice({ sampleRate, duration: 0.7, f0: 145 }),
+    new Float32Array(Math.round(sampleRate * 0.5)),
+    generateTestVoice({ sampleRate, duration: 1.05, f0: 215 }),
+    new Float32Array(Math.round(sampleRate * 0.35)),
+    generateTestVoice({ sampleRate, duration: 0.82, f0: 170 })
+  ])
+};
+const sourceTimeline = buildSourceTimeline(timelineFixture, { scriptDurationSec: 0.9, activeCueId: "cue-02" });
+assert.ok(sourceTimeline.cueCount >= 2, "source timeline should split separated phrases into cues");
+assert.ok(sourceTimeline.bestCue, "source timeline should pick a best preview cue");
+assert.ok(sourceTimeline.cues.some((cue) => cue.active), "source timeline should mark an active cue");
+const sourceTimelineRegion = cueRegion(sourceTimeline.bestCue);
+assert.ok(sourceTimelineRegion.durationSec > 0.3, "source timeline cue should become a render region");
+assert.equal(nearestCueIdForRegion(sourceTimeline, sourceTimelineRegion), sourceTimeline.bestCue.id, "source timeline should match manual region edits back to a cue");
+assert.equal(sourceTimelineSummary(sourceTimeline).cueCount, sourceTimeline.cueCount, "source timeline summary should preserve cue count");
+
 const mockReadySourceFit = { status: "ready", score: 96, patches: [] };
+const mockReadyTimeline = { status: "ready", score: 94, cueCount: 2, activeCue: { label: "02 Body cue" }, nextAction: null };
 const mockReadyStack = { status: "ready", score: 94, activeCount: 5, nextPatch: {}, summary: "Stack locked", stages: [] };
 const mockReadyMemory = { status: "ready", score: 94, count: 1, summary: "Design memory locked", nextAction: null, items: [], best: null };
 const mockRoute = {
@@ -99,6 +132,31 @@ const mockRoute = {
   status: "ready",
   score: 91
 };
+const timelineStudioPlan = buildStudioPlan({
+  hasSource: true,
+  sourceFit: mockReadySourceFit,
+  sourceTimeline: {
+    status: "check",
+    score: 72,
+    cueCount: 2,
+    activeCue: { label: "01 Lead cue" },
+    summary: "2 cues",
+    nextAction: {
+      id: "select-source-cue",
+      label: "Select Cue",
+      cueId: "cue-02",
+      detail: "02 Body cue is the strongest preview window."
+    }
+  },
+  routes: [mockRoute],
+  activePresetId: "clean",
+  activeLineReadId: "studio_check",
+  chainReport: { status: "ready", score: 97, stages: [], nextPatch: {} },
+  effectStack: mockReadyStack,
+  renderDeckCount: 0
+});
+assert.equal(timelineStudioPlan.nextAction.id, "select-source-cue", "studio plan should select a source cue before route and render decisions");
+assert.equal(timelineStudioPlan.nextAction.cueId, "cue-02", "studio plan timeline action should carry the cue id");
 const routeStudioPlan = buildStudioPlan({
   hasSource: true,
   sourceFit: mockReadySourceFit,
@@ -324,6 +382,28 @@ const otomeProjectVault = buildProjectVault([], {
 assert.equal(otomeProject.renderDeck.length, 2, "project snapshot should retain bounded render-deck evidence");
 assert.equal(otomeProject.sceneSession.readyCount, 1, "project snapshot should retain scene coverage evidence");
 assert.equal(otomeProjectVault.nextAction.id, "capture-project", "project vault should save a current evidenced scene");
+const cueProjectA = createProjectSnapshot({
+  presetId: "otome",
+  lineReadId: otomeWhisperBeat.id,
+  params: otomeWhisperParams,
+  source: { name: "Generated Neutral", sampleRate, samples: source, analysis: sourceAnalysis },
+  activeSourceCueId: "cue-01",
+  offlineRegion: { startSec: 0.4, durationSec: 0.55 },
+  sourceTimeline: { cueCount: 2, score: 86, status: "ready", activeCue: { id: "cue-01" }, cues: [{ id: "cue-01", label: "01 Lead" }] }
+}, { id: "project-cue-a", createdAt: 2100, includeAudio: false });
+const cueProjectB = createProjectSnapshot({
+  presetId: "otome",
+  lineReadId: otomeWhisperBeat.id,
+  params: otomeWhisperParams,
+  source: { name: "Generated Neutral", sampleRate, samples: source, analysis: sourceAnalysis },
+  activeSourceCueId: "cue-02",
+  offlineRegion: { startSec: 1.2, durationSec: 0.62 },
+  sourceTimeline: { cueCount: 2, score: 88, status: "ready", activeCue: { id: "cue-02" }, cues: [{ id: "cue-02", label: "02 Body" }] }
+}, { id: "project-cue-b", createdAt: 2200, includeAudio: false });
+const cueProjects = addProjectSnapshot([cueProjectA], cueProjectB, { maxProjects: 4 });
+assert.equal(cueProjects.length, 2, "project vault should preserve separate source-cue project contexts");
+assert.equal(cueProjects[0].activeSourceCueId, "cue-02", "project snapshot should retain active source cue");
+assert.equal(cueProjects[0].sourceTimeline.activeCueId, "cue-02", "project snapshot should retain source timeline active cue");
 const savedProjects = addProjectSnapshot([], otomeProject);
 const restoreProjectVault = buildProjectVault(savedProjects, {
   presetId: "clean",
@@ -553,6 +633,7 @@ assert.ok(totalDeckSeconds(budgetDeck) <= 2, "render deck should cap retained re
 const deckStudioPlan = buildStudioPlan({
   hasSource: true,
   sourceFit: mockReadySourceFit,
+  sourceTimeline: mockReadyTimeline,
   routes: [mockRoute],
   activePresetId: "otome",
   activeLineReadId: "otome_promise",

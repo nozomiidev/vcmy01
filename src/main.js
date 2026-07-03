@@ -30,6 +30,7 @@ import { buildKeeperRefinement } from "./audio/take-refinement.js";
 import { buildSceneSession, sceneSessionSummary } from "./audio/scene-session.js";
 import { addVoiceSnapshot, buildVoiceMemoryBoard, createVoiceSnapshot, sanitizeVoiceSnapshots } from "./audio/voice-memory.js";
 import { addProjectSnapshot, buildProjectVault, createProjectSnapshot, projectParamPatch, sanitizeProjectSnapshots } from "./audio/project-vault.js";
+import { buildSourceTimeline, cueRegion, nearestCueIdForRegion, sourceTimelineSummary } from "./audio/source-timeline.js";
 import { ProjectStore, TakeStore, prefs } from "./storage.js";
 import { drawAnalysisCards, drawSpectrum, drawWaveform, formatDb } from "./ui/canvas.js";
 import { toast } from "./ui/toast.js";
@@ -48,6 +49,8 @@ const state = {
   renderUrl: null,
   sourceUrl: null,
   offlineRegion: { startSec: 0, durationSec: 0 },
+  sourceTimeline: null,
+  activeSourceCueId: null,
   lineReadId: savedLineReadId || firstLineReadForPreset(savedPresetId).id,
   voiceRoutes: [],
   renderDeck: [],
@@ -99,6 +102,7 @@ function init() {
   renderStackAuditions();
   renderVoiceMemory();
   renderProjectVault();
+  renderSourceTimeline();
   renderPerformanceTrace();
   renderStudioPlan();
   renderAuditionVariants();
@@ -161,6 +165,7 @@ function renderPresets() {
       renderSceneKitPanel();
       renderSceneKitLibrary();
       renderSceneSession();
+      renderSourceTimeline();
       renderProjectVault();
       updateActivePreset();
       updateSourceFit();
@@ -358,6 +363,7 @@ function applyLineReadTarget(id) {
   renderSceneKitPanel();
   renderSceneKitLibrary();
   renderSceneSession();
+  renderSourceTimeline();
   renderProjectVault();
   updateActivePreset();
   updateSourceFit();
@@ -383,6 +389,7 @@ function applyNextLineReadFix() {
   renderSceneKitPanel();
   renderSceneKitLibrary();
   renderSceneSession();
+  renderSourceTimeline();
   renderProjectVault();
   updateSourceFit();
   updateRoutePlanner();
@@ -863,6 +870,11 @@ function applySceneSessionStep() {
 function bindOffline() {
   $("regionStart").addEventListener("input", syncRegionFromInputs);
   $("regionLength").addEventListener("input", syncRegionFromInputs);
+  $("sourceTimelineList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-source-cue]");
+    if (button) applySourceCue(button.dataset.sourceCue);
+  });
+  $("applySourceCue")?.addEventListener("click", () => applySourceCue(currentSourceTimeline().nextAction?.cueId));
 
   $("loadSample").addEventListener("click", () => {
     const source = offline.generateSample(48000, $("sampleProfile").value);
@@ -967,6 +979,75 @@ function bindOffline() {
   $("applyStudioPlanStep").addEventListener("click", applyStudioPlanStep);
 }
 
+function currentSourceTimeline() {
+  if (!offline.source) return buildSourceTimeline(null);
+  const script = currentPerformanceScript();
+  return buildSourceTimeline(offline.source, {
+    activeCueId: state.activeSourceCueId,
+    scriptDurationSec: script.durationSec
+  });
+}
+
+function rebuildSourceTimeline(options = {}) {
+  let timeline = currentSourceTimeline();
+  if (options.selectBest && timeline.bestCue) {
+    state.activeSourceCueId = timeline.bestCue.id;
+    state.offlineRegion = cueRegion(timeline.bestCue) || state.offlineRegion;
+    timeline = currentSourceTimeline();
+  } else if (timeline.cues.length && !timeline.cues.some((cue) => cue.id === state.activeSourceCueId)) {
+    state.activeSourceCueId = timeline.bestCue?.id || timeline.cues[0].id;
+    timeline = currentSourceTimeline();
+  }
+  state.sourceTimeline = timeline;
+  return timeline;
+}
+
+function renderSourceTimeline() {
+  const panel = $("sourceTimelinePanel");
+  if (!panel) return;
+  const timeline = rebuildSourceTimeline();
+  const summary = sourceTimelineSummary(timeline);
+  panel.className = `source-timeline is-${summary.status}`;
+  $("sourceTimelineStatus").textContent = timeline.cueCount
+    ? `${timeline.cueCount} cues / ${timeline.score}%`
+    : offline.source ? "No cues" : "No source";
+  $("sourceTimelineList").innerHTML = timeline.cues.length ? timeline.cues.map((cue) => `
+    <button class="source-cue-card is-${cue.status} ${cue.active ? "is-active" : ""}" data-source-cue="${cue.id}" type="button">
+      <span>${escapeHtml(cue.label)}</span>
+      <strong>${cue.startSec.toFixed(1)}-${cue.endSec.toFixed(1)}s</strong>
+      <small>${escapeHtml(cue.detail)}</small>
+      <div class="source-cue-metrics">
+        <span>Fit <b>${cue.score}%</b></span>
+        <span>RMS <b>${cue.rmsDb.toFixed(1)}</b></span>
+        <span>F0 <b>${Math.round(cue.pitchMedianHz || 0)}</b></span>
+      </div>
+    </button>
+  `).join("") : `<div class="empty-note">Generate or upload audio to build source cues.</div>`;
+  const action = timeline.nextAction;
+  $("sourceTimelineNext").textContent = action
+    ? action.detail
+    : timeline.activeCue
+      ? `${timeline.activeCue.label}: preview region is locked to this source cue.`
+      : summary.summary;
+  $("applySourceCue").disabled = !action && !timeline.bestCue;
+  $("applySourceCue").textContent = action ? action.label : timeline.bestCue ? "Use Best Cue" : "Timeline Ready";
+}
+
+function applySourceCue(cueId = null, notify = true) {
+  const timeline = currentSourceTimeline();
+  const cue = timeline.cues.find((item) => item.id === cueId) || timeline.bestCue;
+  if (!cue) {
+    toast("No source cue", "Load a source before selecting a timeline cue.");
+    return;
+  }
+  state.activeSourceCueId = cue.id;
+  state.offlineRegion = cueRegion(cue) || state.offlineRegion;
+  updateRegionControls();
+  renderSourceTimeline();
+  renderStudioPlan();
+  if (notify) toast("Source cue selected", `${cue.label}: ${cue.startSec.toFixed(1)}-${cue.endSec.toFixed(1)}s.`);
+}
+
 function analyzeOfflineSource() {
   try {
     const profile = offline.analyze();
@@ -976,6 +1057,7 @@ function analyzeOfflineSource() {
     updateSourceFit();
     updateRoutePlanner();
     renderCharacterChain();
+    renderSourceTimeline();
     renderPerformanceTrace();
     toast("Source analyzed", `${Math.round(profile.pitchMedianHz || 0)} Hz median F0, ${Math.round(profile.voicedRatio * 100)}% voiced.`);
   } catch (error) {
@@ -1007,9 +1089,12 @@ function useOfflineSource(source) {
   clearRenderDeck();
   clearOfflineRenderPreview();
   setDefaultRegion(source);
+  state.activeSourceCueId = null;
+  rebuildSourceTimeline({ selectBest: true });
   $("sourceStatus").textContent = `${source.name} - ${source.analysis.range} source`;
   $("renderStatus").textContent = "Ready";
   updateRegionControls();
+  renderSourceTimeline();
   drawAnalysisCards($("offlineAnalysis"), source, offline.rendered);
   updateSourceFit();
   updateRoutePlanner();
@@ -1593,6 +1678,8 @@ function currentProjectContext() {
     lineReadId: state.lineReadId,
     params: state.params,
     source: offline.source,
+    sourceTimeline: state.sourceTimeline || currentSourceTimeline(),
+    activeSourceCueId: state.activeSourceCueId,
     voiceSnapshots: state.voiceSnapshots,
     renderDeck: state.renderDeck,
     activeRenderId: state.activeRenderId,
@@ -1678,9 +1765,11 @@ function applyProjectSnapshot(projectId) {
   state.presetId = project.presetId || target.presetId || state.presetId;
   state.lineReadId = target.id;
   state.params = { ...paramsForPreset(state.presetId), ...project.params };
+  state.activeSourceCueId = project.activeSourceCueId || project.sourceTimeline?.activeCueId || null;
   state.offlineRegion = project.offlineRegion || state.offlineRegion;
   restoreProjectSource(project);
   restoreProjectDeck(project);
+  if (offline.source) rebuildSourceTimeline();
   persist();
   engine.setParams(state.params);
   renderPresets();
@@ -1961,6 +2050,7 @@ function currentStudioPlan() {
   return buildStudioPlan({
     projectVault: currentProjectVault(),
     hasSource: !!offline.source,
+    sourceTimeline: currentSourceTimeline(),
     sourceFit,
     routes: state.voiceRoutes,
     activePresetId: state.presetId,
@@ -2044,6 +2134,10 @@ function applyStudioPlanStep() {
   }
   if (action.id === "capture-project") {
     captureProjectSnapshot();
+    return;
+  }
+  if (action.id === "select-source-cue") {
+    applySourceCue(action.cueId);
     return;
   }
   if (action.id === "load-source") {
@@ -2400,7 +2494,9 @@ function syncRegionFromInputs() {
   const durationSec = Math.min(Number($("regionLength").value) || minLength, total);
   const startSec = Math.min(Number($("regionStart").value) || 0, Math.max(0, total - durationSec));
   state.offlineRegion = { startSec, durationSec };
+  state.activeSourceCueId = nearestCueIdForRegion(state.sourceTimeline, state.offlineRegion);
   updateRegionControls();
+  renderSourceTimeline();
 }
 
 function updateRegionControls() {

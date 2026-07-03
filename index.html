@@ -265,6 +265,15 @@
                 <div class="studio-plan-next" id="studioPlanNext">Load or generate a source to begin.</div>
               </div>
               <canvas id="sourceWave" class="scope" height="120" aria-label="Source waveform"></canvas>
+              <div class="source-timeline" id="sourceTimelinePanel">
+                <div class="source-timeline-head">
+                  <span>Source Timeline</span>
+                  <strong id="sourceTimelineStatus">No source</strong>
+                </div>
+                <div class="source-timeline-list" id="sourceTimelineList"></div>
+                <div class="source-timeline-next" id="sourceTimelineNext">Load a source to map preview cues.</div>
+                <button class="command" id="applySourceCue" type="button" disabled>Timeline Ready</button>
+              </div>
               <div class="region-controls" aria-label="Offline preview region">
                 <div class="region-head">
                   <span>Preview Region</span>

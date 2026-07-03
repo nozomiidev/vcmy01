@@ -18,6 +18,9 @@ export function createProjectSnapshot(context = {}, options = {}) {
   const renderDeck = sanitizeRenderDeck(context.renderDeck, options);
   const voiceSnapshots = sanitizeVoiceSnapshotRefs(context.voiceSnapshots);
   const source = sanitizeSource(context.source, options);
+  const sourceTimeline = sanitizeSourceTimeline(context.sourceTimeline);
+  const activeSourceCueId = cleanText(context.activeSourceCueId || sourceTimeline?.activeCueId || "", 80);
+  const offlineRegion = sanitizeRegion(context.offlineRegion);
   const createdAt = Number(options.createdAt || Date.now());
   const updatedAt = Number(options.updatedAt || createdAt);
   const score = projectEvidenceScore({
@@ -47,13 +50,15 @@ export function createProjectSnapshot(context = {}, options = {}) {
     voiceSnapshots,
     renderDeck,
     activeRenderId: cleanText(context.activeRenderId || "", 96),
-    offlineRegion: sanitizeRegion(context.offlineRegion),
+    activeSourceCueId,
+    offlineRegion,
+    sourceTimeline,
     sceneSession: sanitizeSceneSession(sceneSession),
     takeDecision: sanitizeTakeDecision(context.takeDecision),
     routes: sanitizeRoutes(context.routes),
     score,
     status: projectStatus(score, renderDeck.length, source.hasAudio),
-    fingerprint: projectFingerprintBody(params, target.id, renderDeck, voiceSnapshots)
+    fingerprint: projectFingerprintBody(params, target.id, renderDeck, voiceSnapshots, activeSourceCueId, offlineRegion)
   };
   return project;
 }
@@ -158,13 +163,22 @@ function sanitizeProjectSnapshot(project) {
     voiceSnapshots,
     renderDeck,
     activeRenderId: cleanText(project.activeRenderId || "", 96),
+    activeSourceCueId: cleanText(project.activeSourceCueId || project.sourceTimeline?.activeCueId || "", 80),
     offlineRegion: sanitizeRegion(project.offlineRegion),
+    sourceTimeline: sanitizeSourceTimeline(project.sourceTimeline),
     sceneSession: sanitizeSceneSession(project.sceneSession),
     takeDecision: sanitizeTakeDecision(project.takeDecision),
     routes: sanitizeRoutes(project.routes),
     score,
     status: project.status || projectStatus(score, renderDeck.length, source.hasAudio),
-    fingerprint: project.fingerprint || projectFingerprintBody(params, target.id, renderDeck, voiceSnapshots)
+    fingerprint: project.fingerprint || projectFingerprintBody(
+      params,
+      target.id,
+      renderDeck,
+      voiceSnapshots,
+      project.activeSourceCueId || project.sourceTimeline?.activeCueId || "",
+      project.offlineRegion
+    )
   };
 }
 
@@ -313,6 +327,27 @@ function sanitizeSceneSession(session = null) {
   };
 }
 
+function sanitizeSourceTimeline(timeline = null) {
+  if (!timeline) return null;
+  return {
+    cueCount: Math.max(0, Number(timeline.cueCount || 0)),
+    score: clampScore(timeline.score),
+    status: cleanText(timeline.status || "waiting", 24),
+    summary: cleanText(timeline.summary || "", 160),
+    activeCueId: cleanText(timeline.activeCue?.id || timeline.activeCueId || "", 80),
+    cues: (Array.isArray(timeline.cues) ? timeline.cues : []).slice(0, 10).map((cue) => ({
+      id: cleanText(cue.id || "", 80),
+      label: cleanText(cue.label || "", 100),
+      role: cleanText(cue.role || "", 80),
+      startSec: Math.max(0, Number(cue.startSec || 0)),
+      endSec: Math.max(0, Number(cue.endSec || 0)),
+      durationSec: Math.max(0, Number(cue.durationSec || 0)),
+      score: clampScore(cue.score),
+      status: cleanText(cue.status || "check", 24)
+    }))
+  };
+}
+
 function sanitizeTakeDecision(decision = null) {
   if (!decision) return null;
   return {
@@ -455,11 +490,18 @@ function projectTitle(sceneSession, target, source) {
   return `${scene}${sourceName}`;
 }
 
-function projectFingerprintBody(params, lineReadId, renderDeck, voiceSnapshots) {
+function projectFingerprintBody(params, lineReadId, renderDeck, voiceSnapshots, activeSourceCueId = "", offlineRegion = null) {
   const paramsBody = PROJECT_PARAM_KEYS.map((key) => `${key}:${roundParam(key, Number(params[key] ?? DEFAULT_PARAMS[key] ?? 0))}`).join("|");
   const deckBody = renderDeck.map((item) => `${item.targetId || item.target}:${item.mode}:${item.review?.score || 0}`).join("|");
   const memoryBody = voiceSnapshots.map((item) => item.id).join("|");
-  return `${lineReadId}|${paramsBody}|deck:${deckBody}|memory:${memoryBody}`;
+  return `${lineReadId}|${paramsBody}|deck:${deckBody}|memory:${memoryBody}|cue:${cleanText(activeSourceCueId, 80)}|region:${regionFingerprint(offlineRegion)}`;
+}
+
+function regionFingerprint(region = null) {
+  if (!region) return "none";
+  const start = Number(region.startSec || 0).toFixed(2);
+  const duration = Number(region.durationSec || 0).toFixed(2);
+  return `${start}+${duration}`;
 }
 
 function roundParam(key, value) {

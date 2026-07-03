@@ -399,3 +399,27 @@ Decision:
   evidence.
 - Keep the data shape replaceable so longer upload workflows, export bundles,
   plugin chains, and optional browser AI render paths can extend it later.
+
+## ADR 022 - Long Sources Need Timeline Cues
+
+Raw region sliders are not enough for recorded or uploaded audio. A character
+voice studio needs to find usable phrase windows, compare the same source cue
+across renders, and keep Studio Plan focused on audible production evidence.
+Without that layer, long files make every preview decision feel arbitrary and
+the offline path still behaves like a demo effect box.
+
+Decision:
+
+- Add Source Timeline as the cue layer between uploaded/generated source audio
+  and offline preview/render decisions.
+- Derive cues from frame energy, duration, pitch evidence, texture, and safe
+  headroom so the app can propose bounded phrase windows deterministically.
+- Keep manual region controls, but map edited regions back to the nearest cue
+  when overlap is strong enough.
+- Let Studio Plan surface cue selection before route, chain, script, audition,
+  and deck decisions.
+- Save the active cue and bounded timeline summary in Project Vault snapshots
+  so restored projects keep their production region context.
+- Keep the cue model local and static so later phoneme/beat alignment,
+  transcript-aware editing, plugin workflows, or optional AI segmentation can
+  replace the analyzer without changing the GitHub Pages constraint.

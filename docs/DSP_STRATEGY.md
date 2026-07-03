@@ -307,6 +307,7 @@ Recorded and uploaded audio needs a dedicated workflow:
 - choose a take or upload an audio file
 - pick a character preset
 - preview short regions quickly
+- map active phrases into Source Timeline cues before trusting a preview region
 - A/B original vs processed
 - adjust the region and character macros without committing a full render
 - optionally apply render-time source calibration
@@ -319,6 +320,12 @@ Recorded and uploaded audio needs a dedicated workflow:
 
 Offline rendering can afford more latency and can use higher-quality algorithms
 than the live path.
+
+Source Timeline is the first long-file control layer. It analyzes energy,
+activity, pitch evidence, texture, and duration to propose bounded cue regions
+for preview, trace, and deck decisions. Manual region sliders remain available,
+but the app should remember which cue a region overlaps so Studio Plan can guide
+users toward meaningful phrase windows instead of arbitrary timestamps.
 
 ## Quality Evaluation
 

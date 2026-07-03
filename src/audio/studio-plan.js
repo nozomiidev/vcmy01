@@ -1,6 +1,7 @@
 export const STUDIO_PLAN_STEP_IDS = Object.freeze([
   "project",
   "source",
+  "timeline",
   "route",
   "shape",
   "stack",
@@ -15,6 +16,7 @@ export const STUDIO_PLAN_STEP_IDS = Object.freeze([
 export function buildStudioPlan(options = {}) {
   const hasSource = !!options.hasSource;
   const projectVault = options.projectVault || null;
+  const sourceTimeline = options.sourceTimeline || null;
   const sourceFit = options.sourceFit || null;
   const routes = Array.isArray(options.routes) ? options.routes : [];
   const activeRoute = routes.find((route) =>
@@ -41,6 +43,7 @@ export function buildStudioPlan(options = {}) {
   const steps = [
     projectStep(projectVault),
     sourceStep(hasSource, sourceFit),
+    timelineStep(hasSource, sourceTimeline),
     routeStep(hasSource, topRoute, activeRoute),
     shapeStep(hasSource, chain),
     stackStep(hasSource, effectStack, stackAuditionCount),
@@ -62,6 +65,40 @@ export function buildStudioPlan(options = {}) {
     steps,
     nextAction
   };
+}
+
+function timelineStep(hasSource, sourceTimeline) {
+  if (!hasSource) {
+    return waitingStep("timeline", "Timeline", "Waiting for source");
+  }
+  if (!sourceTimeline) {
+    return step({
+      id: "timeline",
+      label: "Timeline",
+      status: "check",
+      score: 50,
+      summary: "No cues",
+      detail: "Source timeline cues have not been built yet."
+    });
+  }
+  const action = sourceTimeline.nextAction;
+  return step({
+    id: "timeline",
+    label: "Timeline",
+    status: sourceTimeline.status,
+    score: sourceTimeline.score,
+    summary: sourceTimeline.cueCount
+      ? `${sourceTimeline.cueCount} cues`
+      : "No cues",
+    detail: action
+      ? action.detail
+      : sourceTimeline.activeCue
+        ? `${sourceTimeline.activeCue.label} is selected for preview and trace comparison.`
+        : sourceTimeline.summary || "Timeline is ready.",
+    action: action?.id === "select-source-cue"
+      ? { id: "select-source-cue", label: action.label, cueId: action.cueId }
+      : null
+  });
 }
 
 function projectStep(projectVault) {

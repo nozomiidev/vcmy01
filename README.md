@@ -43,6 +43,9 @@ game romantic voices, sultry ikemen voices, anime voices, and kawaii voices.
   planned lift, energy, distance, breath, and release gestures before rendering.
 - Offline generated/uploaded source processing with analysis, A/B compare,
   preview-region rendering, source-aware Auto Tune, and WAV export.
+- Source Timeline cue mapping that detects active phrases in generated or
+  uploaded audio, chooses the strongest preview window, and keeps manual region
+  edits connected to production cues.
 - Source Fit scoring for generated or uploaded audio, including target range,
   level, tone, texture, and the calibration patch that Tune to Source would add.
 - Voice Route planning that ranks character targets for the current source and
@@ -98,11 +101,11 @@ Known product capability gap:
 - The Character Director layer is now functional, but still uses DSP
   approximations rather than real phrase understanding, emotion transfer, or
   actor-style timing conversion.
-- Offline post-processing has region preview, script-driven automation,
-  audition variant batches, Signal Stack, Stack Audition, Design Board, Project
-  Vault persistence, and Render Deck comparison, but still needs a stronger
-  long-file workflow, deeper offline-only high-quality render modes, and richer
-  scene/export packaging.
+- Offline post-processing has region preview, Source Timeline cue selection,
+  script-driven automation, audition variant batches, Signal Stack, Stack
+  Audition, Design Board, Project Vault persistence, and Render Deck comparison,
+  but still needs deeper offline-only high-quality render modes, richer
+  long-file editing, and stronger scene/export packaging.
 - The app still needs richer performance targets, repeatable line-read tests,
   phrase/ending behavior, distance, emotion, and delivery workflows beyond the
   first Director controls and first Line Read target set.

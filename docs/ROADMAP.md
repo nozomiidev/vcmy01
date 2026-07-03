@@ -36,6 +36,8 @@ GitHub Pages.
 - Add non-destructive render history and take-to-offline routing.
 - Make long uploaded files workable without rendering the whole file for every
   parameter change.
+- Add Source Timeline cue mapping so long generated/uploaded files expose
+  phrase-level preview regions instead of raw start/length sliders only.
 - Allow offline-only high-quality modes that are too expensive for live use.
 
 ## Stage 4 - Character Preset And Director System
