@@ -612,6 +612,24 @@ const riskyCharacterSafety = applyCharacterSafety({
   },
   target: { id: "kawaii_spark", name: "Kawaii Spark" }
 });
+const spectralCharacterSafety = applyCharacterSafety(paramsForPreset("kawaii", {
+  formant: 7.2,
+  air: 78,
+  presence: 70
+}), {
+  sourceProfile: lowProfile,
+  source: {
+    studioAnalysis: {
+      problemScores: {},
+      spectral: {
+        risks: { nasal: 58, harsh: 48, sibilance: 44 },
+        envelope: { peaks: [{ hz: 1050, prominenceDb: 4.4 }] },
+        perceptual: { crowding: { risk: "nasal", score: 76, band: { centerHz: 1050 } } }
+      }
+    }
+  },
+  target: { id: "kawaii_spark", name: "Kawaii Spark" }
+});
 assert.equal(lowProfile.range, "low", "low reference voice should calibrate as low range");
 assert.ok(tunedKawaii.pitch > kawaii.pitch, "low voice kawaii calibration should lift pitch");
 assert.ok(tunedKawaii.formant > kawaii.formant, "low voice kawaii calibration should lift formant-like shift");
@@ -622,6 +640,10 @@ assert.ok(riskyCharacterSafety.moves.some((move) => move.key === "formant"), "ch
 assert.ok(riskyCharacterSafety.moves.some((move) => move.key === "air"), "character safety should limit air on sibilant sources");
 assert.ok(riskyCharacterSafety.moves.some((move) => move.key === "consonantSoftness"), "character safety should soften click-heavy consonants");
 assert.ok(characterSafetySummary(riskyCharacterSafety).includes("Pitch"), "character safety summary should expose its top moves");
+assert.equal(spectralCharacterSafety.status, "guarded", "character safety should react to spectral evidence");
+assert.ok(spectralCharacterSafety.moves.some((move) => move.key === "formant"), "spectral character safety should reduce pinched formant shifts");
+assert.ok(spectralCharacterSafety.moves.some((move) => move.key === "deEss"), "spectral character safety should raise de-ess for sharp bright targets");
+assert.equal(spectralCharacterSafety.evidence.perceptualRisk, "nasal:1050Hz", "character safety should retain ERB crowding evidence");
 
 const offline = new OfflineRenderer();
 offline.generateSample(sampleRate, "low_warm");
@@ -767,6 +789,7 @@ assert.equal(exportManifest.source.studioAnalysis.spectral.perceptual.method, "e
 assert.ok(Number.isFinite(exportManifest.render.analysis.integratedLufs), "export manifest should retain render loudness metadata");
 assert.ok(Number.isFinite(exportManifest.render.analysis.truePeakDb), "export manifest should retain render true-peak metadata");
 assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
+assert.ok(Number.isFinite(exportManifest.render.characterSafety.evidence.nasal), "export manifest should retain character safety tone evidence");
 assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");
 assert.equal(exportManifest.audition.status, "ready", "export manifest should retain A/B audition status");
 assert.ok(exportManifest.audition.stages.some((stage) => stage.id === "character-render"), "export manifest should retain final audition stage metadata");
@@ -786,6 +809,7 @@ const safetyProject = createProjectSnapshot({
   renderDeck: [{ id: "safety-render", title: "Safety Render", target: kawaiiSpark.name, targetId: kawaiiSpark.id, review: autoReview, rendered: autoRendered }]
 }, { id: "project-safety", title: "Safety metadata project", includeAudio: false });
 assert.equal(safetyProject.renderDeck[0].rendered.characterSafety.enabled, true, "project snapshot should retain character-safety metadata");
+assert.ok(Number.isFinite(safetyProject.renderDeck[0].rendered.characterSafety.evidence.nasal), "project snapshot should retain character-safety tone evidence");
 assert.equal(safetyProject.renderDeck[0].rendered.mastering.enabled, true, "project snapshot should retain mastering metadata");
 assert.ok(safetyProject.source.studioAnalysis.spectral.centroidHz > 0, "project snapshot should retain source FFT tone map");
 assert.equal(safetyProject.source.studioAnalysis.spectral.envelope.method, "lpc-autocorrelation-envelope", "project snapshot should retain LPC envelope metadata");

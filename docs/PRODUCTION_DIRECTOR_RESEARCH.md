@@ -464,6 +464,33 @@ https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletProcessor/process
 https://www.isca-archive.org/eurospeech_1993/roelands93_eurospeech.html
 https://www.surina.net/soundtouch/README.html
 
+## Spectral Character Guardrail Loop
+
+The nineteenth production-director pass connects the analysis stack to the "super voice changer" safety problem. Kawaii/anime/otome voices should not simply push pitch, formant, air, and presence harder when the source is already nasal, harsh, or sibilant. That is exactly how a voice becomes pinched, lispy, or metallic.
+
+Research decisions:
+
+- Character transformation needs source-adaptive limits. RVC/AI systems solve this with learned speaker/style separation, but this classical browser path must use measurable source evidence.
+- LPC envelope peaks are useful for vocal-tract resonance warnings, while ERB crowding is useful for perceived nasal/harsh/sibilant comfort. Both should inform guardrails before a bright character macro stacks more formant, air, or presence.
+- The guardrail should remain corrective, not destructive: it clamps only high-risk axes and records the reason in the render review/export evidence.
+
+Implementation response:
+
+- `applyCharacterSafety()` now merges Studio problem scores, spectral risks, LPC envelope peak risk, and ERB crowding into character tone evidence.
+- Bright character targets clamp formant/air/presence and raise de-ess/consonant softness when nasal, harsh, or sibilant evidence is high.
+- Character safety export manifests and Project Vault snapshots now retain tone evidence and the ERB crowding risk string.
+
+Verification:
+
+- Unit regression confirms spectral/ERB/LPC evidence can trigger guarded formant/de-ess moves and retains `nasal:1050Hz` crowding evidence.
+- `npm test` and `npm run quality` passed; character-safety quality cases stayed guarded without fail/warn regressions.
+- In-app Browser private-fixture Kawaii render showed `Kawaii Bright / Safety Guarded`, Character Safety moves, Pitch Tracker, Tone Surgery, Render Loudness/True Peak, no console errors, and enabled WAV/WebM/ZIP controls.
+
+Sources:
+https://support.ircam.fr/docs/AudioSculpt/3.0/co/LPC_1.html
+https://www.dsprelated.com/freebooks/sasp/Equivalent_Rectangular_Bandwidth.html
+https://www.fabfilter.com/help/pro-q/using/dynamic-eq
+
 ## Production Target Model
 
 | Target | Purpose | Polish Bias | Overuse Risk |

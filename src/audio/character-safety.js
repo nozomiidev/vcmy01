@@ -8,10 +8,12 @@ export function applyCharacterSafety(rawParams = {}, {
   const params = normalizeParams(rawParams);
   const original = { ...params };
   const sourceStudio = source?.studioAnalysis || null;
-  const scores = sourceStudio?.problemScores || {};
+  const scores = characterToneEvidence(sourceStudio);
   const creative = params.robot > 35 || params.creature > 35;
   const limits = characterLimits(sourceProfile, params, creative);
   const moves = [];
+  const brightCharacter = params.pitch > 1 || params.formant > 1 || params.cuteness > 35 || params.anime > 35;
+  const bodyCharacter = params.pitch < -0.5 || params.formant < -0.5 || params.body > 35;
 
   clampParam(params, moves, "pitch", limits.pitchMin, limits.pitchMax, "Keep pitch shift inside a natural voice range.");
   clampParam(params, moves, "formant", limits.formantMin, limits.formantMax, "Keep formant-like mouth shift inside a natural voice range.");
@@ -24,6 +26,17 @@ export function applyCharacterSafety(rawParams = {}, {
   if (!creative && (scores.harsh || 0) > 42) {
     clampParam(params, moves, "presence", -100, 24, "Harsh sources need restrained presence boost.");
     clampParam(params, moves, "saturation", 0, 12, "Harsh sources break quickly when saturation is stacked.");
+  }
+  if (!creative && brightCharacter && (scores.nasal || 0) > 46) {
+    clampParam(params, moves, "formant", limits.formantMin, Math.min(limits.formantMax, 4.45), "Nasal LPC/ERB crowding should not be pushed into a smaller, pinched mouth.");
+    raiseParam(params, moves, "consonantSoftness", 46, "Nasal bright targets need softer consonants to avoid pinched anime artifacts.");
+  }
+  if (!creative && brightCharacter && (scores.sibilance || 0) > 38) {
+    clampParam(params, moves, "air", -100, 30, "Bright ERB/sibilance evidence needs less added air before character color.");
+    raiseParam(params, moves, "deEss", 68, "Bright character targets need stronger de-ess when the source is already sharp.");
+  }
+  if (!creative && bodyCharacter && (scores.mud || 0) > 52) {
+    clampParam(params, moves, "body", -100, 54, "Muddy sources should not receive unlimited chest/body reinforcement.");
   }
   if (!creative && (scores.mouthClick || 0) > 54) {
     raiseParam(params, moves, "consonantSoftness", 42, "Mouth-click-heavy sources need softer consonant edges.");
@@ -44,6 +57,13 @@ export function applyCharacterSafety(rawParams = {}, {
       name: target.name || target.label || ""
     } : null,
     limits,
+    evidence: {
+      mud: Math.round(scores.mud || 0),
+      nasal: Math.round(scores.nasal || 0),
+      harsh: Math.round(scores.harsh || 0),
+      sibilance: Math.round(scores.sibilance || 0),
+      perceptualRisk: scores.perceptualRisk || ""
+    },
     params,
     moves
   };
@@ -132,10 +152,41 @@ function safetyScore(original, params, profile, scores, creative) {
   return Math.round(clamp(100 - penalty + intervention * 0.2, 0, 100));
 }
 
+function characterToneEvidence(sourceStudio = null) {
+  const base = { ...(sourceStudio?.problemScores || {}) };
+  const spectral = sourceStudio?.spectral || {};
+  const risks = spectral.risks || {};
+  const envelope = spectral.envelope || {};
+  const perceptual = spectral.perceptual || {};
+  const crowding = perceptual.crowding || null;
+  const out = {
+    ...base,
+    mud: Math.max(base.mud || 0, risks.mud || 0),
+    nasal: Math.max(base.nasal || 0, risks.nasal || 0, envelopePeakRisk(envelope, 650, 1300)),
+    harsh: Math.max(base.harsh || 0, risks.harsh || 0, envelopePeakRisk(envelope, 2500, 4500)),
+    sibilance: Math.max(base.sibilance || 0, risks.sibilance || 0)
+  };
+  if (crowding?.risk && crowding.score > 44) {
+    const key = crowding.risk === "presence" ? "harsh" : crowding.risk;
+    out[key] = Math.max(out[key] || 0, crowding.score);
+    out.perceptualRisk = `${crowding.risk}:${Math.round(crowding.band?.centerHz || 0)}Hz`;
+  }
+  return out;
+}
+
+function envelopePeakRisk(envelope, lowHz, highHz) {
+  const peaks = Array.isArray(envelope?.peaks) ? envelope.peaks : [];
+  const peak = peaks
+    .filter((item) => item.hz >= lowHz && item.hz <= highHz)
+    .sort((a, b) => (b.prominenceDb || 0) - (a.prominenceDb || 0))[0];
+  return peak ? clamp((peak.prominenceDb || 0) * 16, 0, 100) : 0;
+}
+
 function paramLabel(key) {
   return ({
     pitch: "Pitch",
     formant: "Formant",
+    body: "Body",
     air: "Air",
     deEss: "De-ess",
     presence: "Presence",

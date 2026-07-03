@@ -533,6 +533,13 @@ function sanitizeCharacterSafety(plan = null) {
       formantMin: finiteNumber(plan.limits.formantMin),
       formantMax: finiteNumber(plan.limits.formantMax)
     } : null,
+    evidence: plan.evidence ? {
+      mud: clampScore(plan.evidence.mud),
+      nasal: clampScore(plan.evidence.nasal),
+      harsh: clampScore(plan.evidence.harsh),
+      sibilance: clampScore(plan.evidence.sibilance),
+      perceptualRisk: cleanText(plan.evidence.perceptualRisk || "", 80)
+    } : null,
     moves: Array.isArray(plan.moves) ? plan.moves.slice(0, 12).map((move) => ({
       key: cleanText(move.key || "", 48),
       label: cleanText(move.label || "", 80),
