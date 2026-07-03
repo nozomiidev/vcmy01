@@ -738,6 +738,28 @@ https://github.com/mdn/content/blob/main/files/en-us/web/api/baseaudiocontext/de
 - Dynamic Tone Surgery was verified in the in-app Browser with the same private fixture, Kawaii / Anime target, and Director Optimize enabled. The rendered metric card showed `Low-Mid Mud 255Hz / Nasal Ring 1050Hz / Presence Harshness 3469Hz`, and WAV/WebM/ZIP export controls were enabled after full render.
 - Loudness Mastering was verified in the in-app Browser through the static deep link `?audio=/tests/data/konichiwabokunonamaewayamadatarodesu.webm&target=kawaii&polish=standard&director=1&render=full`. The source showed `-24.0 LUFS / -5.8 dBTP`, final mastering showed `+6.8 dB -> -19.2 LUFS`, and the render showed `-19.2 LUFS / -1.6 dBTP` with WAV/WebM/ZIP controls enabled.
 - Room Floor Shaping was verified through the same private-fixture deep link. The rendered metric card showed `Room Floor -58 dB / -3 dB`, while Tone Surgery, Master Gain, Render Loudness, Render True Peak, and WAV/WebM/ZIP export readiness remained visible.
+- Render Performance Observability was verified through the same private-fixture deep link. The render deck exposed `Render Speed RT 2.7x`, WAV/WebM/ZIP controls stayed enabled, Character Safety remained guarded, and the in-app Browser reported zero console errors.
+
+## Render Performance Observability Loop
+
+The next production-director pass treats performance as part of audio quality. A static GitHub Pages studio cannot hide heavy DSP behind a server farm; if micro repair, spectral tone surgery, dynamic riding, and character guardrails are worth doing, the product must show whether the browser can render them comfortably.
+
+Research decisions:
+
+- `performance.now()` is the right browser-side timer for render instrumentation because it returns a high-resolution, monotonic timestamp that is not tied to wall-clock adjustments.
+- A raw elapsed millisecond number is not enough for audio work. VoiceForge records rendered seconds and realtime factor, so a 7-second line and a 45-second render deck can be compared as ratios.
+- Performance metadata belongs in the same audit trail as loudness, tone, safety, and repair decisions. ZIP exports therefore keep render timing in `analysis.json`, and the render review shows a visible `Render Speed` card.
+
+Implementation response:
+
+- `OfflineRenderer.render()` now records elapsed time, rendered duration, realtime factor, sample rate, mode, and stage for every render.
+- `renderReview()` exposes that timing as a user-facing review item, alongside comfort, Studio Polish, and Character Safety.
+- `buildExportManifest()` stores compact render performance metadata so later QA can correlate a sound decision with the cost of producing it.
+
+Sources:
+https://developer.mozilla.org/en-US/docs/Web/API/Performance/now
+https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/High_precision_timing
+https://www.w3.org/TR/hr-time-3/
 
 Open follow-up:
 

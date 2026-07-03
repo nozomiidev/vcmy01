@@ -743,6 +743,9 @@ assert.ok(Math.abs(autoRendered.analysis.integratedLufs - autoRendered.mastering
 assert.ok(autoRendered.analysis.truePeakDb <= autoRendered.mastering.truePeakCeilingDb + 0.3, "offline render should respect true-peak mastering ceiling");
 assert.equal(autoRendered.stage, "character", "offline render should default to character stage after Studio Polish");
 assert.equal(autoRendered.region.isFull, true, "default offline render should cover the full source");
+assert.ok(autoRendered.performance.elapsedMs >= 0, "offline render should measure elapsed render time");
+assert.ok(autoRendered.performance.renderedSeconds > 0, "offline render should retain rendered duration for performance review");
+assert.ok(Number.isFinite(autoRendered.performance.realtimeFactor) && autoRendered.performance.realtimeFactor >= 0, "offline render should expose a bounded realtime factor");
 assert.equal(autoRendered.characterSafety.enabled, true, "offline render should attach character safety metadata");
 assert.ok(autoRendered.characterSafety.score >= 0 && autoRendered.characterSafety.score <= 100, "character safety score should be bounded");
 assert.ok(Array.isArray(autoRendered.safetyDelta), "offline render should expose safety deltas separately from calibration");
@@ -759,6 +762,7 @@ assert.ok(autoReview.items.some((item) => item.id === "f0" && item.value.include
 assert.ok(autoReview.items.some((item) => item.id === "comfort"), "render review should expose listening-comfort evidence");
 assert.equal(autoReview.comfort.score, autoComfort.score, "render review should retain the computed listening-comfort score");
 assert.ok(autoReview.comfort.score >= 0 && autoReview.comfort.score <= 100, "listening-comfort score should be bounded");
+assert.ok(autoReview.items.some((item) => item.id === "performance"), "render review should expose offline render performance evidence");
 assert.ok(autoReview.items.some((item) => item.id === "studio-polish"), "render review should expose Studio Polish evidence");
 assert.ok(autoReview.items.some((item) => item.id === "character-safety"), "render review should expose character-safety evidence");
 const polishOnlyRender = offline.render(kawaii, { stage: "polish", studioPolish: "light", studioTarget: "ikemen", directorOptimize: true, mode: "preview", region: { startSec: 0, durationSec: 0.6 } });
@@ -815,6 +819,7 @@ assert.equal(exportManifest.source.studioAnalysis.spectral.envelope.method, "lpc
 assert.equal(exportManifest.source.studioAnalysis.spectral.perceptual.method, "erb-critical-band-tone-map", "export manifest should retain perceptual tone metadata");
 assert.ok(Number.isFinite(exportManifest.render.analysis.integratedLufs), "export manifest should retain render loudness metadata");
 assert.ok(Number.isFinite(exportManifest.render.analysis.truePeakDb), "export manifest should retain render true-peak metadata");
+assert.ok(Number.isFinite(exportManifest.render.performance.realtimeFactor), "export manifest should retain offline render performance metadata");
 assert.equal(exportManifest.render.characterSafety.enabled, true, "export manifest should retain character safety metadata");
 assert.ok(Number.isFinite(exportManifest.render.characterSafety.evidence.nasal), "export manifest should retain character safety tone evidence");
 assert.equal(Array.isArray(exportManifest.render.safetyDelta), true, "export manifest should retain safety delta metadata");

@@ -101,6 +101,7 @@ export class OfflineRenderer {
 
   render(params, options = {}) {
     if (!this.source) throw new Error("No source audio loaded.");
+    const started = nowMs();
     const baseParams = { ...params };
     const appliedParams = options.autoCalibrate ? this.calibratedParams(baseParams) : baseParams;
     const region = normalizeRenderRegion(this.source.samples.length, this.source.sampleRate, options.region);
@@ -149,6 +150,16 @@ export class OfflineRenderer {
       renderAnalysis: analysis,
       mastering
     });
+    const elapsedMs = nowMs() - started;
+    const renderedSeconds = samples.length / Math.max(1, this.source.sampleRate);
+    const performance = {
+      elapsedMs: Number(elapsedMs.toFixed(2)),
+      renderedSeconds: Number(renderedSeconds.toFixed(3)),
+      realtimeFactor: Number((elapsedMs / Math.max(1, renderedSeconds * 1000)).toFixed(4)),
+      sampleRate: this.source.sampleRate,
+      mode,
+      stage
+    };
     this.rendered = {
       name: `${this.source.name} - VoiceForge ${mode}.wav`,
       sampleRate: this.source.sampleRate,
@@ -169,6 +180,7 @@ export class OfflineRenderer {
       region,
       mode,
       stage,
+      performance,
       studioPolish: studioPolish ? {
         enabled: true,
         intensity: studioPolish.plan.intensity,
@@ -457,6 +469,12 @@ export function mixAudioBufferToMono(audioBuffer) {
     for (let i = 0; i < out.length; i++) out[i] += data[i] / audioBuffer.numberOfChannels;
   }
   return out;
+}
+
+function nowMs() {
+  return globalThis.performance && typeof globalThis.performance.now === "function"
+    ? globalThis.performance.now()
+    : Date.now();
 }
 
 function normalizeAudioUrl(rawUrl) {

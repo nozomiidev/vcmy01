@@ -64,6 +64,14 @@ export function renderReview(source = null, rendered = null) {
         : "Pitch/formant/breath range stayed inside source-adaptive limits."
     });
   }
+  if (rendered.performance) {
+    items.push({
+      id: "performance",
+      label: "Render Speed",
+      value: `RT ${formatRatio(rendered.performance.realtimeFactor)}x`,
+      detail: `${formatMs(rendered.performance.elapsedMs)} for ${formatSeconds(rendered.performance.renderedSeconds)} of ${rendered.performance.mode || "audio"} render.`
+    });
+  }
   if (guardrail.score > 0) {
     items.push({
       id: "guardrail",
@@ -224,6 +232,21 @@ function signedPercent(value) {
 function signedNumber(value, unit = "") {
   if (Math.abs(value) < 1) return `0${unit}`;
   return `${value > 0 ? "+" : ""}${Math.round(value)}${unit}`;
+}
+
+function formatRatio(value) {
+  if (!Number.isFinite(value)) return "n/a";
+  return value.toFixed(value < 1 ? 2 : 1);
+}
+
+function formatMs(value) {
+  if (!Number.isFinite(value)) return "n/a";
+  return value >= 1000 ? `${(value / 1000).toFixed(2)} s` : `${Math.round(value)} ms`;
+}
+
+function formatSeconds(value) {
+  if (!Number.isFinite(value)) return "n/a";
+  return `${value.toFixed(value < 10 ? 2 : 1)} s`;
 }
 
 function formatMove(move) {

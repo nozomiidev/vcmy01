@@ -54,6 +54,7 @@ export function buildExportManifest({
       durationSec: rendered.samples?.length && rendered.sampleRate ? rendered.samples.length / rendered.sampleRate : 0,
       mode: rendered.mode || "",
       stage: rendered.stage || "character",
+      performance: compactRenderPerformance(rendered.performance),
       region: rendered.region || null,
       analysis: compactAnalysis(rendered.analysis),
       studioAnalysis: compactStudioAnalysis(rendered.studioAnalysis),
@@ -575,6 +576,18 @@ function compactCharacterSafety(plan = null) {
       after: round(move.after, 3),
       reason: move.reason
     }))
+  };
+}
+
+function compactRenderPerformance(performance = null) {
+  if (!performance) return null;
+  return {
+    elapsedMs: round(performance.elapsedMs, 2),
+    renderedSeconds: round(performance.renderedSeconds, 3),
+    realtimeFactor: round(performance.realtimeFactor, 4),
+    sampleRate: Math.max(0, Number(performance.sampleRate || 0)),
+    mode: performance.mode || "",
+    stage: performance.stage || ""
   };
 }
 
